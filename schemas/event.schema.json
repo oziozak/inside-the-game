@@ -4,47 +4,141 @@
   "title": "Match event",
   "description": "One thing that happened. Produced by the vision AI (source=cv) or copied from the simulator (source=sim).",
   "type": "object",
-  "required": ["id", "match_id", "t", "type", "team", "start", "source"],
+  "required": [
+    "id",
+    "match_id",
+    "t",
+    "type",
+    "team",
+    "start",
+    "source"
+  ],
   "properties": {
-    "id": { "type": "string", "pattern": "^e[0-9]{4,}$", "description": "Unique per match, e.g. e0412. Overlays cite these." },
-    "match_id": { "type": "string" },
-    "t": { "type": "number", "minimum": 0, "description": "Seconds since kick-off. 2052.4 = 34:12." },
-    "period": { "enum": [1, 2], "description": "First or second half." },
+    "id": {
+      "type": "string",
+      "pattern": "^e[0-9]{4,}$",
+      "description": "Unique per match, e.g. e0412. Overlays cite these."
+    },
+    "match_id": {
+      "type": "string"
+    },
+    "t": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Seconds since kick-off, continuous across both halves (see match_info.periods). 2052.4 = 34:12.4 in the first half."
+    },
+    "period": {
+      "enum": [
+        1,
+        2
+      ],
+      "description": "First or second half."
+    },
     "type": {
       "enum": [
-        "kickoff", "pass", "possession_change", "clearance", "throw_in", "shot",
-        "free_kick", "foul", "goal_kick", "corner", "substitution", "offside",
-        "yellow_card", "red_card", "goal", "half_time", "full_time"
+        "kickoff",
+        "pass",
+        "possession_change",
+        "clearance",
+        "throw_in",
+        "shot",
+        "free_kick",
+        "foul",
+        "goal_kick",
+        "corner",
+        "substitution",
+        "offside",
+        "yellow_card",
+        "red_card",
+        "goal",
+        "half_time",
+        "full_time"
       ]
     },
     "subtype": {
       "type": "string",
-      "description": "Optional detail. pass: short|long|cross|through. possession_change: tackle|interception. shot: on_target|off_target|blocked. goal: open_play|penalty|own_goal."
+      "description": "Optional detail. pass: short|long|cross|through (short/long by distance, 25 m cutoff). possession_change: tackle|interception. shot: on_target|off_target|blocked. goal: open_play|penalty|own_goal. free_kick: direct|penalty (none = played as a pass). red_card: straight_red|second_yellow."
     },
-    "team": { "enum": ["home", "away", "none"], "description": "Team performing the event. 'none' for clock events." },
-    "from": { "type": ["integer", "null"], "description": "Player id performing the event." },
-    "to": { "type": ["integer", "null"], "description": "Receiving player id (pass), player replaced (substitution), or fouled player (foul)." },
-    "start": { "$ref": "#/$defs/point", "description": "Where the event began, meters." },
-    "end": { "$ref": "#/$defs/point", "description": "Where it ended. Omit for single-point events like a foul." },
-    "distance_m": { "type": "number", "minimum": 0 },
-    "speed_kmh": { "type": "number", "minimum": 0, "description": "Ball speed (pass, shot)." },
-    "duration_s": { "type": "number", "minimum": 0, "description": "Time the ball traveled." },
-    "success": { "type": "boolean" },
+    "team": {
+      "enum": [
+        "home",
+        "away",
+        "none"
+      ],
+      "description": "Team performing the event. 'none' for clock events."
+    },
+    "from": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "Player id performing the event."
+    },
+    "to": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "Receiving player id (pass), player replaced (substitution), or fouled player (foul)."
+    },
+    "start": {
+      "$ref": "#/$defs/point",
+      "description": "Where the event began, meters."
+    },
+    "end": {
+      "$ref": "#/$defs/point",
+      "description": "Where it ended. Omit for single-point events like a foul."
+    },
+    "distance_m": {
+      "type": "number",
+      "minimum": 0
+    },
+    "speed_kmh": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Ball speed (pass, shot)."
+    },
+    "duration_s": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Time the ball traveled."
+    },
+    "success": {
+      "type": "boolean"
+    },
     "score": {
       "type": "object",
       "description": "Score after this event.",
       "properties": {
-        "home": { "type": "integer", "minimum": 0 },
-        "away": { "type": "integer", "minimum": 0 }
+        "home": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "away": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
-    "source": { "enum": ["cv", "sim"] },
-    "confidence": { "type": "number", "minimum": 0, "maximum": 1, "description": "Detector confidence. Always 1.0 for source=sim." }
+    "source": {
+      "enum": [
+        "cv",
+        "sim"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Detector confidence. Always 1.0 for source=sim."
+    }
   },
   "$defs": {
     "point": {
       "type": "array",
-      "items": { "type": "number" },
+      "items": {
+        "type": "number"
+      },
       "minItems": 2,
       "maxItems": 2
     }

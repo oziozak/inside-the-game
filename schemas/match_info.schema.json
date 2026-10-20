@@ -4,57 +4,175 @@
   "title": "Match info",
   "description": "Sent once per match. Defines teams, players and the coordinate system.",
   "type": "object",
-  "required": ["match_id", "fps", "pitch", "origin", "home", "away"],
+  "required": [
+    "match_id",
+    "fps",
+    "pitch",
+    "origin",
+    "home",
+    "away"
+  ],
   "properties": {
-    "match_id": { "type": "string" },
-    "fps": { "type": "integer", "minimum": 1, "description": "Frames per second of the video and tracking data." },
+    "match_id": {
+      "type": "string"
+    },
+    "fps": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Frames per second of the video and tracking data."
+    },
     "pitch": {
       "type": "array",
       "description": "Pitch [length, width] in meters.",
-      "items": { "type": "number" },
+      "items": {
+        "type": "number"
+      },
       "minItems": 2,
       "maxItems": 2
     },
-    "origin": { "const": "bottom-left", "description": "(0, 0) is the bottom-left corner. x runs along the length, y across the width." },
+    "origin": {
+      "const": "bottom-left",
+      "description": "(0, 0) is the bottom-left corner. x runs along the length, y across the width."
+    },
     "kickoff_direction": {
       "type": "object",
       "description": "Which goal each team attacks in the first half. Teams swap at half-time.",
       "properties": {
-        "home": { "enum": ["left_to_right", "right_to_left"] }
+        "home": {
+          "enum": [
+            "left_to_right",
+            "right_to_left"
+          ]
+        }
       }
     },
-    "home": { "$ref": "#/$defs/team" },
-    "away": { "$ref": "#/$defs/team" }
+    "home": {
+      "$ref": "#/$defs/team"
+    },
+    "away": {
+      "$ref": "#/$defs/team"
+    },
+    "periods": {
+      "type": "array",
+      "description": "Start and end time (t, seconds) of each half. The clock is continuous: the second half starts right after the first ends, like a broadcast cutting the break. Display minute = 45:00 + (t - periods[1].start) in the second half.",
+      "items": {
+        "type": "object",
+        "required": [
+          "period",
+          "start",
+          "end"
+        ],
+        "properties": {
+          "period": {
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "end": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    }
   },
   "$defs": {
     "team": {
       "type": "object",
-      "required": ["name", "short", "kit", "players"],
+      "required": [
+        "name",
+        "short",
+        "kit",
+        "players"
+      ],
       "properties": {
-        "name": { "type": "string" },
-        "short": { "type": "string", "maxLength": 4 },
+        "name": {
+          "type": "string"
+        },
+        "short": {
+          "type": "string",
+          "maxLength": 4
+        },
         "kit": {
           "type": "object",
           "description": "Hex colors. The vision AI uses these to tell teams apart.",
-          "required": ["shirt", "shorts"],
+          "required": [
+            "shirt",
+            "shorts"
+          ],
           "properties": {
-            "shirt": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
-            "shorts": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
-            "goalkeeper": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+            "shirt": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "shorts": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "goalkeeper": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            }
           }
         },
-        "formation": { "type": "string", "examples": ["4-3-3", "4-4-2"] },
+        "formation": {
+          "type": "string",
+          "examples": [
+            "4-3-3",
+            "4-4-2"
+          ]
+        },
         "players": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "number", "name", "pos", "starter"],
+            "required": [
+              "id",
+              "number",
+              "name",
+              "pos",
+              "starter"
+            ],
             "properties": {
-              "id": { "type": "integer", "description": "Unique across both teams. Home 1-99, away 101-199." },
-              "number": { "type": "integer", "minimum": 1, "maximum": 99 },
-              "name": { "type": "string" },
-              "pos": { "enum": ["GK", "RB", "CB", "LB", "RWB", "LWB", "DM", "CM", "AM", "RM", "LM", "RW", "LW", "ST", "CF"] },
-              "starter": { "type": "boolean" }
+              "id": {
+                "type": "integer",
+                "description": "Unique across both teams. Home 1-99, away 101-199."
+              },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99
+              },
+              "name": {
+                "type": "string"
+              },
+              "pos": {
+                "enum": [
+                  "GK",
+                  "RB",
+                  "CB",
+                  "LB",
+                  "RWB",
+                  "LWB",
+                  "DM",
+                  "CM",
+                  "AM",
+                  "RM",
+                  "LM",
+                  "RW",
+                  "LW",
+                  "ST",
+                  "CF"
+                ]
+              },
+              "starter": {
+                "type": "boolean"
+              }
             }
           }
         }

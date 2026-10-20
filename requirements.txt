@@ -1,0 +1,2 @@
+# Shared Python dependencies. Add per-stage ones (ultralytics, opencv, azure SDKs) as they are needed.
+jsonschema>=4.18
