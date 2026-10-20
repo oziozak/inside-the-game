@@ -19,9 +19,9 @@ import math
 import random
 from collections import Counter, defaultdict
 
-from .config import ALL_TYPES, BALL_GROUND, FPS, GOAL_HALF, GROUP, MIN_X, NORMS, PROFILES, L, W
+from .config import ALL_TYPES, BALL_GROUND, FPS, GOAL_HALF, GROUP, MIN_X, NORMS, PROFILES, WIDE, L, W
 from .geometry import clamp, dist, other
-from .teams import load_team
+from .teams import load_team, resolve_kits
 
 
 class Match:
@@ -44,6 +44,9 @@ class Match:
         self.p = PROFILES[profile]
         self.match_id = match_id
         self.teams = {"home": home or load_team("bosphorus"), "away": away or load_team("thames")}
+        # The away side changes kit if the colors clash (the vision AI separates teams by color).
+        home_kit, away_kit = resolve_kits(self.teams["home"], self.teams["away"])
+        self.kits = {"home": home_kit, "away": away_kit}
         self.t = 0.0
         self.period = 1
         self.period_start = 0.0
@@ -300,7 +303,7 @@ class Match:
             self.t += 0.5
             oy = self.tw(opp, x, y)[1]            # side of the pitch, opp's frame
             spot = self.tw(opp, L - 0.5, 0.5 if oy < W / 2 else W - 0.5)
-            wide = [p for p in self.outfield(opp) if self.players[p]["pos"] in ("RW", "LW", "RM", "LM", "AM")]
+            wide = [p for p in self.outfield(opp) if self.players[p]["pos"] in WIDE]
             taker = self.rng.choice(wide) if wide else None
             self.restart("corner", opp, spot, taker=taker, delay=(20, 35))
             self.corner(opp)
@@ -409,7 +412,7 @@ class Match:
         in_box = x > L - 16.5 and 13.84 < y < W - 13.84
         if in_box:
             pen = self.tw(att, L - 11, 34)
-            striker = next((p for p in self.on_pitch[att] if self.players[p]["pos"] == "ST"), None)
+            striker = next((p for p in self.on_pitch[att] if self.players[p]["pos"] in ("ST", "CF")), None)
             self.restart("free_kick", att, pen, taker=striker, delay=(40, 70))
             self.ev("free_kick", att, self.carrier, None, pen, subtype="penalty", success=True)
             self.t += 2
@@ -753,7 +756,7 @@ class Match:
             base = 0 if team == "home" else 100
             pl = [{"id": p["number"] + base, "number": p["number"], "name": p["name"],
                    "pos": p["pos"], "starter": p["starter"]} for p in cfg["players"]]
-            info[team] = {"name": cfg["name"], "short": cfg["short"], "kit": cfg["kit"],
+            info[team] = {"name": cfg["name"], "short": cfg["short"], "kit": self.kits[team],
                           "formation": cfg["formation"], "players": pl}
         return info
 

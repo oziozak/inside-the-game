@@ -13,8 +13,12 @@ BALL_GROUND = 0.11          # ball center height when rolling
 
 # Position -> line. The line decides formation behavior (how deep a player
 # drops, who takes corners, who the keeper is).
-GROUP = {"GK": "gk", "RB": "def", "CB": "def", "LB": "def", "DM": "mid", "CM": "mid",
-         "AM": "mid", "RM": "mid", "LM": "mid", "RW": "fwd", "LW": "fwd", "ST": "fwd"}
+# Covers every position in match_info.schema.json.
+GROUP = {"GK": "gk", "RB": "def", "CB": "def", "LB": "def", "RWB": "def", "LWB": "def",
+         "DM": "mid", "CM": "mid", "AM": "mid", "RM": "mid", "LM": "mid",
+         "RW": "fwd", "LW": "fwd", "ST": "fwd", "CF": "fwd"}
+# Positions that take corners (wide players); falls back to the nearest player.
+WIDE = ("RW", "LW", "RM", "LM", "AM", "RWB", "LWB")
 MIN_X = {"gk": 1, "def": 6, "mid": 14, "fwd": 22}     # deepest a line drops (team frame)
 
 # Probabilities. "short" boosts rare events so a 10-minute sample covers them all.

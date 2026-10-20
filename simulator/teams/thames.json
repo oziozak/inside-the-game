@@ -3,6 +3,7 @@
  "short": "THU",
  "formation": "4-4-2",
  "kit": {"shirt": "#1b4d9b", "shorts": "#1b4d9b", "goalkeeper": "#f2c500"},
+ "away_kit": {"shirt": "#f5f5f5", "shorts": "#1b4d9b", "goalkeeper": "#e91e63"},
  "players": [
   {"number": 1, "name": "J. Hartley", "pos": "GK", "starter": true, "slot": [4, 34]},
   {"number": 2, "name": "L. Pemberton", "pos": "RB", "starter": true, "slot": [28, 12]},

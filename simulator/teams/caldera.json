@@ -1,0 +1,23 @@
+{
+ "name": "Caldera SC",
+ "short": "CAL",
+ "formation": "4-2-3-1",
+ "kit": {"shirt": "#ff7f00", "shorts": "#111111", "goalkeeper": "#9ccc65"},
+ "away_kit": {"shirt": "#f5f5f5", "shorts": "#ff7f00", "goalkeeper": "#9ccc65"},
+ "players": [
+  {"number": 1, "name": "T. Brasero", "pos": "GK", "starter": true, "slot": [4, 34]},
+  {"number": 2, "name": "L. Quintela", "pos": "RB", "starter": true, "slot": [30, 12]},
+  {"number": 4, "name": "A. Velarde", "pos": "CB", "starter": true, "slot": [24, 27]},
+  {"number": 5, "name": "M. Arrizabal", "pos": "CB", "starter": true, "slot": [24, 41]},
+  {"number": 3, "name": "J. Covelo", "pos": "LB", "starter": true, "slot": [30, 56]},
+  {"number": 6, "name": "S. Ibarrola", "pos": "DM", "starter": true, "slot": [38, 28]},
+  {"number": 8, "name": "N. Lasarte", "pos": "DM", "starter": true, "slot": [38, 40]},
+  {"number": 7, "name": "E. Montejo", "pos": "RW", "starter": true, "slot": [56, 12]},
+  {"number": 10, "name": "C. Valdemoro", "pos": "AM", "starter": true, "slot": [52, 34]},
+  {"number": 11, "name": "R. Penalver", "pos": "LW", "starter": true, "slot": [56, 56]},
+  {"number": 9, "name": "D. Ondarreta", "pos": "ST", "starter": true, "slot": [62, 34]},
+  {"number": 14, "name": "F. Almazora", "pos": "DM", "starter": false},
+  {"number": 17, "name": "G. Urquidi", "pos": "LW", "starter": false},
+  {"number": 19, "name": "H. Melgosa", "pos": "ST", "starter": false}
+ ]
+}
