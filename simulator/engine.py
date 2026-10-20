@@ -629,7 +629,8 @@ class Match:
             outcome = "goal"
         else:
             r2 = self.rng.random()
-            outcome = "blocked" if (r2 < 0.27 and not penalty) else ("saved" if r2 < 0.62 else "off")
+            # Not a goal: 27% blocked, 30% saved, 43% off target (penalties are never blocked).
+            outcome = "blocked" if (r2 < 0.27 and not penalty) else ("saved" if r2 < 0.57 else "off")
         if outcome in ("goal", "saved"):
             end = self.tw(team, L, 34 + self.rng.uniform(-GOAL_HALF + 0.3, GOAL_HALF - 0.3))
             peak, sub = self.rng.uniform(0.2, 1.8), "on_target"
