@@ -19,7 +19,7 @@ N = 30  # full matches per side of each comparison (events only, fast)
 # Events of a fixed neutral match (Bosphorus v Thames, seed 51, no style and
 # no attributes). Changes when the base engine changes on purpose; update it
 # then, and only then.
-GOLDEN_NEUTRAL = "4d8236acdb6217243758b65570d6891f62b0c96d402c9f570b8223553b389436"
+GOLDEN_NEUTRAL = "10a93b1788fdfba0f65d97099e6415b8e571a25b9e608447f0ad2ca8e3153862"
 
 
 def neutral(key: str) -> dict:

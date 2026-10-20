@@ -55,3 +55,20 @@ def test_event_types_appear_across_short_seeds():
         m.play()
         seen |= {e["type"] for e in m.events}
     assert seen == set(ALL_TYPES)
+
+
+def test_offside_follows_the_ball_that_was_played(short_match, full_matches):
+    """Every offside comes right after the failed pass or free kick that
+    played the ball to the offside player (tracking shows that flight)."""
+    n = 0
+    for m in _all(short_match, full_matches):
+        for i, e in enumerate(m.events):
+            if e["type"] != "offside":
+                continue
+            n += 1
+            ball = m.events[i - 1]
+            assert ball["type"] in ("pass", "free_kick"), ball
+            assert ball["team"] == e["team"] and ball["success"] is False and ball["to"] is None
+            assert ball["end"] == e["start"]
+            assert abs(ball["t"] + ball["duration_s"] - e["t"]) <= 0.02
+    assert n > 0

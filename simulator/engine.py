@@ -519,6 +519,13 @@ class Match:
             self.release()
             self.flight(self.t, self.t + dur, start, end, peak)
             self.run(rec, self.t, self.t + dur, end)
+            # The ball was played (tracking shows its flight): record the pass
+            # or free kick as failed, then the flag when it arrives.
+            e = self.ev(etype, team, passer, None, start, end, subtype=subtype,
+                        distance_m=round(d, 1), speed_kmh=round(kmh), duration_s=round(dur, 2),
+                        success=False)
+            if e.get("subtype") is None:
+                e.pop("subtype")
             self.t += dur
             self.ev("offside", team, rec, None, end, success=False)
             d_team = other(team)
