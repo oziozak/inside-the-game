@@ -13,12 +13,12 @@
   {
    "period": 1,
    "start": 0.0,
-   "end": 303.17
+   "end": 303.39
   },
   {
    "period": 2,
-   "start": 304.17,
-   "end": 625.39
+   "start": 304.39,
+   "end": 605.04
   }
  ],
  "home": {
@@ -30,6 +30,7 @@
    "goalkeeper": "#1d1d1d"
   },
   "formation": "4-3-3",
+  "style": "possession",
   "players": [
    {
     "id": 1,
@@ -140,6 +141,7 @@
    "goalkeeper": "#f2c500"
   },
   "formation": "4-4-2",
+  "style": "counter",
   "players": [
    {
     "id": 101,
