@@ -400,14 +400,13 @@ class Match:
         self.t += self.rng.uniform(3, 8)
         r = self.rng.random()
         if r < self.p["red"]:
-            self.ev("red_card", other(att), fouler, None, spot, subtype="straight_red")
-            self.send_off(fouler)
-        elif r < self.p["red"] + self.p["yellow"]:
-            self.yellows[fouler] += 1
-            self.ev("yellow_card", other(att), fouler, None, spot)
-            if self.yellows[fouler] == 2:
-                self.ev("red_card", other(att), fouler, None, spot, subtype="second_yellow")
+            if self.can_send_off(fouler):
+                self.ev("red_card", other(att), fouler, None, spot, subtype="straight_red")
                 self.send_off(fouler)
+            else:
+                self.book(fouler, spot)           # the guard downgrades the red to a yellow
+        elif r < self.p["red"] + self.p["yellow"]:
+            self.book(fouler, spot)
         x, y = self.tw(att, *spot)
         in_box = x > L - 16.5 and 13.84 < y < W - 13.84
         if in_box:
@@ -428,6 +427,23 @@ class Match:
                 self.deliver("free_kick", None, "cross", att)
             else:
                 self.deliver("free_kick", None, "long" if x < 45 else "short", att)
+
+    def can_send_off(self, pid) -> bool:
+        """A match is abandoned below 7 players, so the simulator never sends
+        off a player whose team is already down to 7."""
+        return len(self.on_pitch[self.players[pid]["team"]]) > 7
+
+    def book(self, pid, spot):
+        """Show a yellow card; a second yellow is a red. If that red is not
+        allowed (team down to 7), no card is shown at all."""
+        team = self.players[pid]["team"]
+        if self.yellows[pid] == 1 and not self.can_send_off(pid):
+            return
+        self.yellows[pid] += 1
+        self.ev("yellow_card", team, pid, None, spot)
+        if self.yellows[pid] == 2:
+            self.ev("red_card", team, pid, None, spot, subtype="second_yellow")
+            self.send_off(pid)
 
     def send_off(self, pid):
         """Player pid leaves the pitch for good (red card)."""
