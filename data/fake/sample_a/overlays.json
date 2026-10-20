@@ -527,7 +527,7 @@
   "duration": 5,
   "graphic": "pass_card",
   "event_ids": [
-   "e0066"
+   "e0067"
   ],
   "player": 8,
   "priority": 0.6,
@@ -547,7 +547,7 @@
   "duration": 5,
   "graphic": "pass_card",
   "event_ids": [
-   "e0066"
+   "e0067"
   ],
   "player": 8,
   "priority": 0.6,
@@ -567,7 +567,7 @@
   "duration": 5,
   "graphic": "pass_card",
   "event_ids": [
-   "e0066"
+   "e0067"
   ],
   "player": 8,
   "priority": 0.6,
@@ -587,7 +587,7 @@
   "duration": 5,
   "graphic": "pass_card",
   "event_ids": [
-   "e0094"
+   "e0095"
   ],
   "player": 2,
   "priority": 0.6,
@@ -607,7 +607,7 @@
   "duration": 5,
   "graphic": "pass_card",
   "event_ids": [
-   "e0094"
+   "e0095"
   ],
   "player": 2,
   "priority": 0.6,
@@ -627,7 +627,7 @@
   "duration": 5,
   "graphic": "pass_card",
   "event_ids": [
-   "e0094"
+   "e0095"
   ],
   "player": 2,
   "priority": 0.6,

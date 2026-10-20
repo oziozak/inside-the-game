@@ -4,8 +4,8 @@ Synthetic sample data so everyone can build before the real simulator and vision
 
 | Folder | What it is | Use it for |
 | --- | --- | --- |
-| `sample_a/` | Short match, 2 x 5 minutes, ~126 events. **Every event type appears at least once**, including a goal, a red card, a penalty or direct free kick, substitutions and offside. | Agents and web player development: every graphic and explanation has something to trigger it. |
-| `sample_b/` | Full match, 2 x 45 minutes, ~1,160 events. Event counts match real-football norms (passes, shots, corners, fouls...). | Realism, performance, the director's screen-time budget, stats code. |
+| `sample_a/` | Short match, 2 x 5 minutes, ~127 events. **Every event type appears at least once**, including a goal, a red card, a penalty or direct free kick, substitutions and offside. | Agents and web player development: every graphic and explanation has something to trigger it. |
+| `sample_b/` | Full match, 2 x 45 minutes, ~1,170 events. Event counts match real-football norms (passes, shots, corners, fouls...). | Realism, performance, the director's screen-time budget, stats code. |
 
 Files:
 
@@ -23,7 +23,7 @@ python scripts/generate_fake_data.py --full-tracking
 
 Checks the simulator passes (`python -m simulator.realism --matches 40`, all four teams; see `simulator/README.md`):
 
-- Over 40 simulated matches, every event type averages inside its real-football range (about 890 passes, 26 shots, 3.6 goals, 11 corners, 21 fouls per match, 81% pass accuracy). `--report` shows the two samples' counts.
+- Over 40 simulated matches, every event type averages inside its real-football range (about 900 passes, 26 shots, 3.6 goals, 11 corners, 21 fouls per match, 81% pass accuracy). `--report` shows the two samples' counts.
 - Top player speed is under 11 m/s (about 10.85, a sprint); nobody teleports, except at the half-time cut.
 - At about 97% of passes and shots, the player nearest the ball is the one who plays it, so "nearest player has possession" works for the vision AI's event rules.
 - Set-piece takers stand within 1 m of the ball when they take it; each team has 7-11 players on the pitch; the ball stays within 1 m of the pitch.
