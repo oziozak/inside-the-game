@@ -265,8 +265,9 @@ class Match:
             self.players[on]["slot"] = self.players[off]["slot"]
             self.on_pitch[team].remove(off)
             self.on_pitch[team].append(on)
-            self.spans[off][1] = self.t
-            self.spans[on] = [self.t, math.inf]
+            # Same (rounded) time as the event, so tracking and events agree to the frame.
+            self.spans[off][1] = round(self.t, 2)
+            self.spans[on] = [round(self.t, 2), math.inf]
             self.ev("substitution", team, on, off, (L / 2, 0.0))
             made += 1
         return made
@@ -453,7 +454,7 @@ class Match:
         """Player pid leaves the pitch for good (red card)."""
         team = self.players[pid]["team"]
         self.on_pitch[team].remove(pid)
-        self.spans[pid][1] = self.t
+        self.spans[pid][1] = round(self.t, 2)     # same time as the red_card event
 
     def deliver(self, etype, subtype, kind, team):
         """A pass-like delivery (pass, throw-in, goal kick, corner, free kick,
