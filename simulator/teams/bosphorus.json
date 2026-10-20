@@ -1,0 +1,22 @@
+{
+ "name": "Bosphorus FC",
+ "short": "BOS",
+ "formation": "4-3-3",
+ "kit": {"shirt": "#c8102e", "shorts": "#ffffff", "goalkeeper": "#1d1d1d"},
+ "players": [
+  {"number": 1, "name": "M. Yilmaz", "pos": "GK", "starter": true, "slot": [4, 34]},
+  {"number": 2, "name": "C. Arslan", "pos": "RB", "starter": true, "slot": [30, 12]},
+  {"number": 4, "name": "B. Kaya", "pos": "CB", "starter": true, "slot": [24, 26]},
+  {"number": 5, "name": "O. Celik", "pos": "CB", "starter": true, "slot": [24, 42]},
+  {"number": 3, "name": "T. Sahin", "pos": "LB", "starter": true, "slot": [30, 56]},
+  {"number": 6, "name": "H. Koc", "pos": "DM", "starter": true, "slot": [38, 34]},
+  {"number": 8, "name": "K. Aydin", "pos": "CM", "starter": true, "slot": [46, 24]},
+  {"number": 10, "name": "E. Demir", "pos": "AM", "starter": true, "slot": [48, 44]},
+  {"number": 7, "name": "S. Polat", "pos": "RW", "starter": true, "slot": [60, 10]},
+  {"number": 9, "name": "A. Kurt", "pos": "ST", "starter": true, "slot": [62, 34]},
+  {"number": 11, "name": "Y. Erdem", "pos": "LW", "starter": true, "slot": [60, 58]},
+  {"number": 14, "name": "F. Ozturk", "pos": "CM", "starter": false},
+  {"number": 17, "name": "R. Aksoy", "pos": "RW", "starter": false},
+  {"number": 19, "name": "D. Tekin", "pos": "ST", "starter": false}
+ ]
+}
