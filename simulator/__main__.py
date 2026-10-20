@@ -48,19 +48,26 @@ def main(argv=None) -> int:
     if args.half_length <= 0:
         print("error: --half-length must be positive", file=sys.stderr)
         return 2
+    if args.start < 0:
+        print("error: --start must be 0 or more", file=sys.stderr)
+        return 2
     if args.end is not None and args.end <= args.start:
         print("error: --end must be after --start", file=sys.stderr)
-        return 2
-    try:
-        home, away = load_team(args.home), load_team(args.away)
-    except ValueError as e:
-        print(f"error: {e}", file=sys.stderr)
         return 2
 
     t0 = time.perf_counter()
     match_id = args.match_id or args.out.resolve().name
-    m = Match(args.seed, args.half_length * 60, args.profile, match_id, home=home, away=away)
+    try:
+        # Bad team files and kit clashes (resolved in Match) are user errors.
+        home, away = load_team(args.home), load_team(args.away)
+        m = Match(args.seed, args.half_length * 60, args.profile, match_id, home=home, away=away)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     m.play()
+    if not args.no_tracking and args.start >= m.t:
+        print(f"error: --start must be before the end of the match ({m.t:.1f} s)", file=sys.stderr)
+        return 2
     files = write_match(args.out, m, tracking=not args.no_tracking, start=args.start, end=args.end)
     took = time.perf_counter() - t0
     print(f"{match_id}: {home['name']} {m.score['home']}-{m.score['away']} {away['name']} "
