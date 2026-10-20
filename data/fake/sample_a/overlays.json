@@ -1,0 +1,584 @@
+[
+ {
+  "id": "o0001",
+  "start": 86.63,
+  "duration": 5,
+  "graphic": "shot_card",
+  "event_ids": [
+   "e0024"
+  ],
+  "player": 109,
+  "priority": 0.8,
+  "position": "bottom-left",
+  "title": "C. Hollis",
+  "text": "Shot 91 km/h, blocked",
+  "values": {
+   "speed_kmh": 91,
+   "distance_m": 5.4
+  },
+  "mode": "analyst",
+  "lang": "en"
+ },
+ {
+  "id": "o0002",
+  "start": 86.63,
+  "duration": 5,
+  "graphic": "shot_card",
+  "event_ids": [
+   "e0024"
+  ],
+  "player": 109,
+  "priority": 0.8,
+  "position": "bottom-left",
+  "title": "C. Hollis",
+  "text": "What a strike from C. Hollis!",
+  "values": {
+   "speed_kmh": 91,
+   "distance_m": 5.4
+  },
+  "mode": "casual",
+  "lang": "en"
+ },
+ {
+  "id": "o0003",
+  "start": 86.63,
+  "duration": 5,
+  "graphic": "shot_card",
+  "event_ids": [
+   "e0024"
+  ],
+  "player": 109,
+  "priority": 0.8,
+  "position": "bottom-left",
+  "title": "C. Hollis",
+  "text": "C. Hollis sert vurdu!",
+  "values": {
+   "speed_kmh": 91,
+   "distance_m": 5.4
+  },
+  "mode": "casual",
+  "lang": "tr"
+ },
+ {
+  "id": "o0004",
+  "start": 238.89,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0057"
+  ],
+  "player": 110,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "M. Draycott",
+  "text": "53 m through pass, 52 km/h",
+  "values": {
+   "distance_m": 52.6,
+   "speed_kmh": 52
+  },
+  "mode": "analyst",
+  "lang": "en"
+ },
+ {
+  "id": "o0005",
+  "start": 238.89,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0057"
+  ],
+  "player": 110,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "M. Draycott",
+  "text": "Great long ball from M. Draycott!",
+  "values": {
+   "distance_m": 52.6,
+   "speed_kmh": 52
+  },
+  "mode": "casual",
+  "lang": "en"
+ },
+ {
+  "id": "o0006",
+  "start": 238.89,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0057"
+  ],
+  "player": 110,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "M. Draycott",
+  "text": "M. Draycott'dan harika uzun pas!",
+  "values": {
+   "distance_m": 52.6,
+   "speed_kmh": 52
+  },
+  "mode": "casual",
+  "lang": "tr"
+ },
+ {
+  "id": "o0007",
+  "start": 274.47,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0068"
+  ],
+  "player": 104,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "T. Castell",
+  "text": "46 m long pass, 74 km/h",
+  "values": {
+   "distance_m": 45.9,
+   "speed_kmh": 74
+  },
+  "mode": "analyst",
+  "lang": "en"
+ },
+ {
+  "id": "o0008",
+  "start": 274.47,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0068"
+  ],
+  "player": 104,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "T. Castell",
+  "text": "Great long ball from T. Castell!",
+  "values": {
+   "distance_m": 45.9,
+   "speed_kmh": 74
+  },
+  "mode": "casual",
+  "lang": "en"
+ },
+ {
+  "id": "o0009",
+  "start": 274.47,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0068"
+  ],
+  "player": 104,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "T. Castell",
+  "text": "T. Castell'dan harika uzun pas!",
+  "values": {
+   "distance_m": 45.9,
+   "speed_kmh": 74
+  },
+  "mode": "casual",
+  "lang": "tr"
+ },
+ {
+  "id": "o0010",
+  "start": 298.58,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0075"
+  ],
+  "player": 9,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "A. Kurt",
+  "text": "41 m through pass, 63 km/h",
+  "values": {
+   "distance_m": 41.2,
+   "speed_kmh": 63
+  },
+  "mode": "analyst",
+  "lang": "en"
+ },
+ {
+  "id": "o0011",
+  "start": 298.58,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0075"
+  ],
+  "player": 9,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "A. Kurt",
+  "text": "Great long ball from A. Kurt!",
+  "values": {
+   "distance_m": 41.2,
+   "speed_kmh": 63
+  },
+  "mode": "casual",
+  "lang": "en"
+ },
+ {
+  "id": "o0012",
+  "start": 298.58,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0075"
+  ],
+  "player": 9,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "A. Kurt",
+  "text": "A. Kurt'dan harika uzun pas!",
+  "values": {
+   "distance_m": 41.2,
+   "speed_kmh": 63
+  },
+  "mode": "casual",
+  "lang": "tr"
+ },
+ {
+  "id": "o0013",
+  "start": 329.76,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0086"
+  ],
+  "player": 10,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "E. Demir",
+  "text": "49 m long pass, 79 km/h",
+  "values": {
+   "distance_m": 48.8,
+   "speed_kmh": 79
+  },
+  "mode": "analyst",
+  "lang": "en"
+ },
+ {
+  "id": "o0014",
+  "start": 329.76,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0086"
+  ],
+  "player": 10,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "E. Demir",
+  "text": "Great long ball from E. Demir!",
+  "values": {
+   "distance_m": 48.8,
+   "speed_kmh": 79
+  },
+  "mode": "casual",
+  "lang": "en"
+ },
+ {
+  "id": "o0015",
+  "start": 329.76,
+  "duration": 5,
+  "graphic": "pass_card",
+  "event_ids": [
+   "e0086"
+  ],
+  "player": 10,
+  "priority": 0.6,
+  "position": "bottom-left",
+  "title": "E. Demir",
+  "text": "E. Demir'dan harika uzun pas!",
+  "values": {
+   "distance_m": 48.8,
+   "speed_kmh": 79
+  },
+  "mode": "casual",
+  "lang": "tr"
+ },
+ {
+  "id": "o0016",
+  "start": 345.44,
+  "duration": 8,
+  "graphic": "goal_banner",
+  "event_ids": [
+   "e0092"
+  ],
+  "player": 9,
+  "priority": 1.0,
+  "position": "top-left",
+  "title": "A. Kurt",
+  "text": "GOAL Bosphorus FC: A. Kurt. 1-0",
+  "values": {
+   "home": 1,
+   "away": 0
+  },
+  "mode": "analyst",
+  "lang": "en"
+ },
+ {
+  "id": "o0017",
+  "start": 345.44,
+  "duration": 8,
+  "graphic": "goal_banner",
+  "event_ids": [
+   "e0092"
+  ],
+  "player": 9,
+  "priority": 1.0,
+  "position": "top-left",
+  "title": "A. Kurt",
+  "text": "GOAL! A. Kurt scores for Bosphorus FC!",
+  "values": {
+   "home": 1,
+   "away": 0
+  },
+  "mode": "casual",
+  "lang": "en"
+ },
+ {
+  "id": "o0018",
+  "start": 345.44,
+  "duration": 8,
+  "graphic": "goal_banner",
+  "event_ids": [
+   "e0092"
+  ],
+  "player": 9,
+  "priority": 1.0,
+  "position": "top-left",
+  "title": "A. Kurt",
+  "text": "GOL! A. Kurt, Bosphorus FC için skoru değiştirdi!",
+  "values": {
+   "home": 1,
+   "away": 0
+  },
+  "mode": "casual",
+  "lang": "tr"
+ },
+ {
+  "id": "o0019",
+  "start": 345.52,
+  "duration": 5,
+  "graphic": "shot_card",
+  "event_ids": [
+   "e0091"
+  ],
+  "player": 9,
+  "priority": 0.8,
+  "position": "bottom-left",
+  "title": "A. Kurt",
+  "text": "Shot 90 km/h, on target",
+  "values": {
+   "speed_kmh": 90,
+   "distance_m": 5.5
+  },
+  "mode": "analyst",
+  "lang": "en"
+ },
+ {
+  "id": "o0020",
+  "start": 345.52,
+  "duration": 5,
+  "graphic": "shot_card",
+  "event_ids": [
+   "e0091"
+  ],
+  "player": 9,
+  "priority": 0.8,
+  "position": "bottom-left",
+  "title": "A. Kurt",
+  "text": "What a strike from A. Kurt!",
+  "values": {
+   "speed_kmh": 90,
+   "distance_m": 5.5
+  },
+  "mode": "casual",
+  "lang": "en"
+ },
+ {
+  "id": "o0021",
+  "start": 345.52,
+  "duration": 5,
+  "graphic": "shot_card",
+  "event_ids": [
+   "e0091"
+  ],
+  "player": 9,
+  "priority": 0.8,
+  "position": "bottom-left",
+  "title": "A. Kurt",
+  "text": "A. Kurt sert vurdu!",
+  "values": {
+   "speed_kmh": 90,
+   "distance_m": 5.5
+  },
+  "mode": "casual",
+  "lang": "tr"
+ },
+ {
+  "id": "o0022",
+  "start": 407.11,
+  "duration": 5,
+  "graphic": "shot_card",
+  "event_ids": [
+   "e0096"
+  ],
+  "player": 110,
+  "priority": 0.8,
+  "position": "bottom-left",
+  "title": "M. Draycott",
+  "text": "Shot 79 km/h, off target",
+  "values": {
+   "speed_kmh": 79,
+   "distance_m": 19.6
+  },
+  "mode": "analyst",
+  "lang": "en"
+ },
+ {
+  "id": "o0023",
+  "start": 407.11,
+  "duration": 5,
+  "graphic": "shot_card",
+  "event_ids": [
+   "e0096"
+  ],
+  "player": 110,
+  "priority": 0.8,
+  "position": "bottom-left",
+  "title": "M. Draycott",
+  "text": "What a strike from M. Draycott!",
+  "values": {
+   "speed_kmh": 79,
+   "distance_m": 19.6
+  },
+  "mode": "casual",
+  "lang": "en"
+ },
+ {
+  "id": "o0024",
+  "start": 407.11,
+  "duration": 5,
+  "graphic": "shot_card",
+  "event_ids": [
+   "e0096"
+  ],
+  "player": 110,
+  "priority": 0.8,
+  "position": "bottom-left",
+  "title": "M. Draycott",
+  "text": "M. Draycott sert vurdu!",
+  "values": {
+   "speed_kmh": 79,
+   "distance_m": 19.6
+  },
+  "mode": "casual",
+  "lang": "tr"
+ },
+ {
+  "id": "o0025",
+  "start": 462.95,
+  "duration": 5,
+  "graphic": "card_banner",
+  "event_ids": [
+   "e0104"
+  ],
+  "player": 9,
+  "priority": 0.9,
+  "position": "top-right",
+  "title": "A. Kurt",
+  "text": "Yellow card: A. Kurt",
+  "values": {},
+  "mode": "analyst",
+  "lang": "en"
+ },
+ {
+  "id": "o0026",
+  "start": 462.95,
+  "duration": 5,
+  "graphic": "card_banner",
+  "event_ids": [
+   "e0104"
+  ],
+  "player": 9,
+  "priority": 0.9,
+  "position": "top-right",
+  "title": "A. Kurt",
+  "text": "Yellow card for A. Kurt",
+  "values": {},
+  "mode": "casual",
+  "lang": "en"
+ },
+ {
+  "id": "o0027",
+  "start": 462.95,
+  "duration": 5,
+  "graphic": "card_banner",
+  "event_ids": [
+   "e0104"
+  ],
+  "player": 9,
+  "priority": 0.9,
+  "position": "top-right",
+  "title": "A. Kurt",
+  "text": "A. Kurt sarı kart gördü",
+  "values": {},
+  "mode": "casual",
+  "lang": "tr"
+ },
+ {
+  "id": "o0028",
+  "start": 592.71,
+  "duration": 5,
+  "graphic": "card_banner",
+  "event_ids": [
+   "e0115"
+  ],
+  "player": 8,
+  "priority": 0.9,
+  "position": "top-right",
+  "title": "K. Aydin",
+  "text": "Red card: K. Aydin",
+  "values": {},
+  "mode": "analyst",
+  "lang": "en"
+ },
+ {
+  "id": "o0029",
+  "start": 592.71,
+  "duration": 5,
+  "graphic": "card_banner",
+  "event_ids": [
+   "e0115"
+  ],
+  "player": 8,
+  "priority": 0.9,
+  "position": "top-right",
+  "title": "K. Aydin",
+  "text": "Red card for K. Aydin",
+  "values": {},
+  "mode": "casual",
+  "lang": "en"
+ },
+ {
+  "id": "o0030",
+  "start": 592.71,
+  "duration": 5,
+  "graphic": "card_banner",
+  "event_ids": [
+   "e0115"
+  ],
+  "player": 8,
+  "priority": 0.9,
+  "position": "top-right",
+  "title": "K. Aydin",
+  "text": "K. Aydin kırmızı kart gördü",
+  "values": {},
+  "mode": "casual",
+  "lang": "tr"
+ }
+]

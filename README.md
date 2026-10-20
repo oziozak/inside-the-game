@@ -37,12 +37,15 @@ See [`schemas/README.md`](schemas/README.md). Key conventions:
 - Events have an `id` so explanations and overlays can cite the evidence behind them.
 - Events have `"source": "cv"` (detected from video) or `"sim"` (copied from the simulator).
 
-Validate any data file before committing:
+## Quick start
 
 ```bash
-pip install jsonschema
-python scripts/validate.py
+pip install -r requirements.txt
+python scripts/generate_fake_data.py --full-tracking   # sample matches in data/fake/ (+ full tracking in data/generated/)
+python scripts/validate.py                             # check data against the schemas
 ```
+
+Sample data is described in [`data/fake/README.md`](data/fake/README.md). Coding agents: read [`AGENTS.md`](AGENTS.md) first.
 
 ## Git workflow
 
