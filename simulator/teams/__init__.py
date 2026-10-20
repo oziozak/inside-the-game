@@ -8,7 +8,8 @@ A team file has:
     style     optional key of config.STYLES (default "balanced")
     kit       {"shirt", "shorts", "goalkeeper"} hex colors
     away_kit  optional second kit, worn when the home kit clashes (see resolve_kits)
-    players   list of {"number", "name", "pos", "starter"}; starters also have "slot"
+    players   list of {"number", "name", "pos", "starter"}; starters also have "slot".
+              Optional attributes 0-100 (default 70): passing, shooting, pace, tackling
 
 Slots are (x, y) in the TEAM frame: own goal at x = 0, attacking toward
 x = 105, with the ball at the center spot. Facing +x, the team's right side
@@ -25,7 +26,7 @@ import math
 import re
 from pathlib import Path
 
-from ..config import GROUP, STYLES, L, W
+from ..config import ATTR_NEUTRAL, ATTR_TEAM_MEAN, ATTRS, GROUP, STYLES, L, W
 
 TEAMS_DIR = Path(__file__).resolve().parent
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -95,6 +96,10 @@ def validate_team(team: dict) -> list[str]:
             errs.append(f"{who}: pos must be one of {', '.join(GROUP)}")
         if not isinstance(p.get("starter"), bool):
             errs.append(f"{who}: starter must be true or false")
+        for a in ATTRS:
+            v = p.get(a, ATTR_NEUTRAL)
+            if not isinstance(v, int) or not 0 <= v <= 100:
+                errs.append(f"{who}: {a} must be an integer 0-100")
         if p.get("starter"):
             slot = p.get("slot")
             if not (isinstance(slot, list) and len(slot) == 2 and 0 <= slot[0] <= L
@@ -108,6 +113,12 @@ def validate_team(team: dict) -> list[str]:
         errs.append("need exactly one starting goalkeeper")
     if any(p.get("pos") == "GK" for p in players if not p.get("starter")):
         errs.append("substitute goalkeepers are not supported (keepers are never substituted)")
+    outfield = [p for p in players if p.get("pos") != "GK"]
+    lo, hi = ATTR_TEAM_MEAN
+    for a in ATTRS:
+        vals = [p.get(a, ATTR_NEUTRAL) for p in outfield if isinstance(p.get(a, ATTR_NEUTRAL), int)]
+        if vals and not lo <= sum(vals) / len(vals) <= hi:
+            errs.append(f"outfield average {a} must be {lo}-{hi} (keeps match totals realistic)")
     lines = str(team["formation"]).split("-")
     if not all(x.isdigit() for x in lines) or sum(int(x) for x in lines) != 10:
         errs.append("formation must be outfield lines adding up to 10, e.g. 4-3-3")

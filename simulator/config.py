@@ -85,6 +85,32 @@ PRESS_PASS = 0.03           # opponent short-pass success - 0.03 * press
 PRESSERS = 2                # players closing down the carrier at press = 1
 PRESS_STANDOFF = 3.5        # m; pressers stay this far from the ball (the carrier stays nearest)
 
+# --------------------------------------------------------------------------
+# Player attributes (team JSON, per player: passing, shooting, pace,
+# tackling; 0-100, missing = 70). 70 is the league average and neutral: a
+# player rated 70 plays exactly like the base model. Ratings follow the
+# position (forwards shoot better than defenders, defenders tackle better),
+# so what matters for match totals is the rating of the players who
+# actually make each action: the team files are tuned so the realism report
+# stays inside the norms, and each attribute's outfield average must stay
+# within ATTR_TEAM_MEAN.
+#
+#   passing   pass-like deliveries: success chance + 0.004 per point over 70
+#   shooting  goal chance x (1 + 0.015 per point) (penalties: 0.005 per point)
+#   tackling  share of challenges won by the defender + 0.004 per point
+#   pace      planned-run speed 9.5 + 0.03 per point m/s (max 10.4 at 100);
+#             with the ball 10.5 + 0.005 per point (max 10.65)
+# --------------------------------------------------------------------------
+ATTRS = ("passing", "shooting", "pace", "tackling")
+ATTR_NEUTRAL = 70
+ATTR_TEAM_MEAN = (60, 80)
+PASS_PER_POINT = 0.004
+SHOT_PER_POINT = 0.015
+PENALTY_PER_POINT = 0.005
+TACKLE_PER_POINT = 0.004
+SPRINT_BASE, SPRINT_PER_POINT = 9.5, 0.03
+CARRY_BASE, CARRY_PER_POINT = 10.5, 0.005
+
 # A failed pass cut out in the first 30% of its path is recorded as a
 # possession_change (interception) only if the defender's position was within
 # this many meters of the cut-out point. Otherwise it is just a failed pass.

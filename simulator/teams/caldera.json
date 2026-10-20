@@ -6,19 +6,19 @@
  "kit": {"shirt": "#ff7f00", "shorts": "#111111", "goalkeeper": "#9ccc65"},
  "away_kit": {"shirt": "#f5f5f5", "shorts": "#ff7f00", "goalkeeper": "#9ccc65"},
  "players": [
-  {"number": 1, "name": "T. Brasero", "pos": "GK", "starter": true, "slot": [4, 34]},
-  {"number": 2, "name": "L. Quintela", "pos": "RB", "starter": true, "slot": [30, 12]},
-  {"number": 4, "name": "A. Velarde", "pos": "CB", "starter": true, "slot": [24, 27]},
-  {"number": 5, "name": "M. Arrizabal", "pos": "CB", "starter": true, "slot": [24, 41]},
-  {"number": 3, "name": "J. Covelo", "pos": "LB", "starter": true, "slot": [30, 56]},
-  {"number": 6, "name": "S. Ibarrola", "pos": "DM", "starter": true, "slot": [40, 28]},
-  {"number": 8, "name": "N. Lasarte", "pos": "DM", "starter": true, "slot": [40, 40]},
-  {"number": 7, "name": "E. Montejo", "pos": "RW", "starter": true, "slot": [60, 10]},
-  {"number": 10, "name": "C. Valdemoro", "pos": "AM", "starter": true, "slot": [50, 34]},
-  {"number": 11, "name": "R. Penalver", "pos": "LW", "starter": true, "slot": [60, 58]},
-  {"number": 9, "name": "D. Ondarreta", "pos": "ST", "starter": true, "slot": [62, 34]},
-  {"number": 14, "name": "F. Almazora", "pos": "DM", "starter": false},
-  {"number": 17, "name": "G. Urquidi", "pos": "LW", "starter": false},
-  {"number": 19, "name": "H. Melgosa", "pos": "ST", "starter": false}
+  {"number": 1, "name": "T. Brasero", "pos": "GK", "starter": true, "slot": [4, 34], "passing": 56, "shooting": 10, "pace": 51, "tackling": 35},
+  {"number": 2, "name": "L. Quintela", "pos": "RB", "starter": true, "slot": [30, 12], "passing": 61, "shooting": 55, "pace": 70, "tackling": 79},
+  {"number": 4, "name": "A. Velarde", "pos": "CB", "starter": true, "slot": [24, 27], "passing": 62, "shooting": 58, "pace": 68, "tackling": 78},
+  {"number": 5, "name": "M. Arrizabal", "pos": "CB", "starter": true, "slot": [24, 41], "passing": 71, "shooting": 54, "pace": 76, "tackling": 75},
+  {"number": 3, "name": "J. Covelo", "pos": "LB", "starter": true, "slot": [30, 56], "passing": 70, "shooting": 56, "pace": 72, "tackling": 75},
+  {"number": 6, "name": "S. Ibarrola", "pos": "DM", "starter": true, "slot": [40, 28], "passing": 82, "shooting": 61, "pace": 66, "tackling": 72},
+  {"number": 8, "name": "N. Lasarte", "pos": "DM", "starter": true, "slot": [40, 40], "passing": 75, "shooting": 63, "pace": 67, "tackling": 75},
+  {"number": 7, "name": "E. Montejo", "pos": "RW", "starter": true, "slot": [60, 10], "passing": 67, "shooting": 71, "pace": 84, "tackling": 50},
+  {"number": 10, "name": "C. Valdemoro", "pos": "AM", "starter": true, "slot": [50, 34], "passing": 80, "shooting": 63, "pace": 66, "tackling": 72},
+  {"number": 11, "name": "R. Penalver", "pos": "LW", "starter": true, "slot": [60, 58], "passing": 64, "shooting": 71, "pace": 77, "tackling": 52},
+  {"number": 9, "name": "D. Ondarreta", "pos": "ST", "starter": true, "slot": [62, 34], "passing": 65, "shooting": 79, "pace": 84, "tackling": 54},
+  {"number": 14, "name": "F. Almazora", "pos": "DM", "starter": false, "passing": 74, "shooting": 63, "pace": 74, "tackling": 68},
+  {"number": 17, "name": "G. Urquidi", "pos": "LW", "starter": false, "passing": 63, "shooting": 72, "pace": 83, "tackling": 51},
+  {"number": 19, "name": "H. Melgosa", "pos": "ST", "starter": false, "passing": 67, "shooting": 74, "pace": 82, "tackling": 49}
  ]
 }

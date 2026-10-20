@@ -6,19 +6,19 @@
  "kit": {"shirt": "#1b4d9b", "shorts": "#1b4d9b", "goalkeeper": "#f2c500"},
  "away_kit": {"shirt": "#f5f5f5", "shorts": "#1b4d9b", "goalkeeper": "#e91e63"},
  "players": [
-  {"number": 1, "name": "J. Hartley", "pos": "GK", "starter": true, "slot": [4, 34]},
-  {"number": 2, "name": "L. Pemberton", "pos": "RB", "starter": true, "slot": [28, 12]},
-  {"number": 5, "name": "D. Okonkwo", "pos": "CB", "starter": true, "slot": [23, 27]},
-  {"number": 6, "name": "R. Whitlock", "pos": "CB", "starter": true, "slot": [23, 41]},
-  {"number": 3, "name": "S. Marsh", "pos": "LB", "starter": true, "slot": [28, 56]},
-  {"number": 7, "name": "N. Fairbairn", "pos": "RM", "starter": true, "slot": [46, 12]},
-  {"number": 4, "name": "T. Castell", "pos": "CM", "starter": true, "slot": [42, 28]},
-  {"number": 8, "name": "G. Ashby", "pos": "CM", "starter": true, "slot": [42, 40]},
-  {"number": 11, "name": "P. Rowntree", "pos": "LM", "starter": true, "slot": [46, 56]},
-  {"number": 9, "name": "C. Hollis", "pos": "ST", "starter": true, "slot": [60, 29]},
-  {"number": 10, "name": "M. Draycott", "pos": "ST", "starter": true, "slot": [60, 39]},
-  {"number": 14, "name": "A. Penrose", "pos": "CM", "starter": false},
-  {"number": 18, "name": "B. Kettering", "pos": "ST", "starter": false},
-  {"number": 16, "name": "W. Thorne", "pos": "LM", "starter": false}
+  {"number": 1, "name": "J. Hartley", "pos": "GK", "starter": true, "slot": [4, 34], "passing": 61, "shooting": 11, "pace": 64, "tackling": 34},
+  {"number": 2, "name": "L. Pemberton", "pos": "RB", "starter": true, "slot": [28, 12], "passing": 67, "shooting": 47, "pace": 78, "tackling": 75},
+  {"number": 5, "name": "D. Okonkwo", "pos": "CB", "starter": true, "slot": [23, 27], "passing": 61, "shooting": 51, "pace": 70, "tackling": 71},
+  {"number": 6, "name": "R. Whitlock", "pos": "CB", "starter": true, "slot": [23, 41], "passing": 72, "shooting": 57, "pace": 72, "tackling": 77},
+  {"number": 3, "name": "S. Marsh", "pos": "LB", "starter": true, "slot": [28, 56], "passing": 65, "shooting": 48, "pace": 69, "tackling": 76},
+  {"number": 7, "name": "N. Fairbairn", "pos": "RM", "starter": true, "slot": [46, 12], "passing": 66, "shooting": 64, "pace": 72, "tackling": 69},
+  {"number": 4, "name": "T. Castell", "pos": "CM", "starter": true, "slot": [42, 28], "passing": 73, "shooting": 60, "pace": 74, "tackling": 63},
+  {"number": 8, "name": "G. Ashby", "pos": "CM", "starter": true, "slot": [42, 40], "passing": 77, "shooting": 66, "pace": 66, "tackling": 67},
+  {"number": 11, "name": "P. Rowntree", "pos": "LM", "starter": true, "slot": [46, 56], "passing": 74, "shooting": 67, "pace": 72, "tackling": 75},
+  {"number": 9, "name": "C. Hollis", "pos": "ST", "starter": true, "slot": [60, 29], "passing": 69, "shooting": 83, "pace": 83, "tackling": 44},
+  {"number": 10, "name": "M. Draycott", "pos": "ST", "starter": true, "slot": [60, 39], "passing": 74, "shooting": 71, "pace": 81, "tackling": 49},
+  {"number": 14, "name": "A. Penrose", "pos": "CM", "starter": false, "passing": 72, "shooting": 69, "pace": 72, "tackling": 60},
+  {"number": 18, "name": "B. Kettering", "pos": "ST", "starter": false, "passing": 72, "shooting": 74, "pace": 77, "tackling": 47},
+  {"number": 16, "name": "W. Thorne", "pos": "LM", "starter": false, "passing": 74, "shooting": 68, "pace": 75, "tackling": 66}
  ]
 }

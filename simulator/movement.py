@@ -13,12 +13,20 @@ import bisect
 import math
 from typing import Iterator
 
-from .config import FPS, L, W
+from .config import (ATTR_NEUTRAL, CARRY_BASE, CARRY_PER_POINT, FPS, SPRINT_BASE,
+                     SPRINT_PER_POINT, L, W)
 from .engine import Match
 
-JOG = 7.0       # m/s, moving with the team shape
-SPRINT = 9.5    # m/s, a planned run (receiver, tackler, set-piece taker)
-CARRY = 10.5    # m/s, the ball carrier keeping up with the ball
+JOG = 7.0       # m/s, moving with the team shape (everyone)
+# Planned runs (receiver, tackler, set-piece taker) and carrying the ball
+# depend on the player's pace: config.SPRINT_* and CARRY_* (pace 70 = 9.5
+# and 10.5 m/s).
+
+
+def top_speeds(pace: int) -> tuple[float, float]:
+    """(sprint, with-the-ball) speed in m/s for a pace attribute."""
+    return (SPRINT_BASE + SPRINT_PER_POINT * (pace - ATTR_NEUTRAL),
+            CARRY_BASE + CARRY_PER_POINT * (pace - ATTR_NEUTRAL))
 
 
 def _paint_runs(runs: list, n0: int, n1: int) -> dict[int, tuple]:
@@ -77,6 +85,7 @@ def iter_tracking(m: Match, t0: float, t1: float) -> Iterator[dict]:
     run_at = {pid: _paint_runs(runs, n0, n1) for pid, runs in m.runs.items()}
     kickoffs = [(kt, taker, period_at(kt)) for kt, taker in m.kickoffs]
     spans = list(m.spans.items())
+    speeds = {pid: top_speeds(pl["pace"]) for pid, pl in m.players.items()}
 
     pos: dict[int, list] = {}
     last_period = None
@@ -108,10 +117,10 @@ def iter_tracking(m: Match, t0: float, t1: float) -> Iterator[dict]:
             vmax = JOG
             run = run_at.get(pid)
             if run is not None and fr in run:
-                tgt, vmax = run[fr], SPRINT
+                tgt, vmax = run[fr], speeds[pid][0]
             if car == pid:
                 back = 0.6 * sign
-                tgt, vmax = (bx - back, by), CARRY
+                tgt, vmax = (bx - back, by), speeds[pid][1]
             if kick_takers and (car != pid) and pid not in kick_takers:
                 # Same as the team-frame clamp x <= 51 (own half), in world coordinates.
                 x, y = tgt

@@ -19,9 +19,10 @@ import math
 import random
 from collections import Counter, defaultdict
 
-from .config import (ALL_TYPES, BALL_GROUND, FPS, GOAL_HALF, GROUP, INTERCEPT_REACH, LINE_OFFSIDE,
-                     LINE_THROUGH, MIN_X, NORMS, PRESS_CHALLENGE, PRESS_PASS, PROFILES, STYLES,
-                     TRANSITION_S, WIDE, L, W)
+from .config import (ALL_TYPES, ATTR_NEUTRAL, ATTRS, BALL_GROUND, FPS, GOAL_HALF, GROUP,
+                     INTERCEPT_REACH, LINE_OFFSIDE, LINE_THROUGH, MIN_X, NORMS, PASS_PER_POINT,
+                     PENALTY_PER_POINT, PRESS_CHALLENGE, PRESS_PASS, PROFILES, SHOT_PER_POINT, STYLES,
+                     TACKLE_PER_POINT, TRANSITION_S, WIDE, L, W)
 from .geometry import clamp, dist, other
 from .teams import load_team, resolve_kits
 
@@ -77,6 +78,9 @@ class Match:
                 self.players[pid] = dict(id=pid, number=pl["number"], name=pl["name"], pos=pl["pos"],
                                          team=team, slot=pl.get("slot") if pl["starter"] else None,
                                          group=GROUP[pl["pos"]])
+                # Attributes (0-100); 70 is league average and neutral.
+                for a in ATTRS:
+                    self.players[pid][a] = pl.get(a, ATTR_NEUTRAL)
                 if pl["starter"]:
                     self.on_pitch[team].append(pid)
                     self.spans[pid] = [0.0, math.inf]
@@ -393,10 +397,12 @@ class Match:
         victim = self.carrier
         tackler = self.nearest(d, (self.bx, self.by))
         self.run(tackler, self.t - 1.5, self.t, (self.bx, self.by))
+        # A better tackler wins the ball more often (70 = the base 42%).
+        won = 0.42 + TACKLE_PER_POINT * (self.players[tackler]["tackling"] - ATTR_NEUTRAL)
         r = self.rng.random()
         if r < self.p["foul_given_challenge"]:
             self.foul(tackler, victim)
-        elif r < self.p["foul_given_challenge"] + 0.42:
+        elif r < self.p["foul_given_challenge"] + won:
             self.release()
             self.gain(tackler)
             self.ev("possession_change", d, tackler, victim, (self.bx, self.by),
@@ -498,6 +504,10 @@ class Match:
         if kind == "through" and opp_style["line"]:
             base *= 1 + LINE_THROUGH * opp_style["line"]
         offside_p = self.p["offside"] * (1 + LINE_OFFSIDE * opp_style["line"])
+        # The passer's passing attribute (70 = no change).
+        skill = self.players[passer]["passing"] - ATTR_NEUTRAL if passer is not None else 0
+        if skill:
+            base = clamp(base + PASS_PER_POINT * skill, 0.05, 0.97)
         sx, _ = self.tw(team, *start)
         ex, _ = self.tw(team, *end)
 
@@ -638,6 +648,10 @@ class Match:
             p_goal = 0.08
         else:
             p_goal = clamp(0.34 * math.exp(-(dgoal - 6) / 8.0), 0.02, 0.45) * (0.6 if header else 1)
+        # The shooter's shooting attribute scales the chance (70 = no change).
+        skill = self.players[shooter]["shooting"] - ATTR_NEUTRAL
+        if skill:
+            p_goal *= 1 + (PENALTY_PER_POINT if penalty else SHOT_PER_POINT) * skill
         kmh = self.rng.uniform(55, 75) if header else self.rng.uniform(75, 118)
         r = self.rng.random()
         if r < p_goal:
