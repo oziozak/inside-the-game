@@ -35,6 +35,11 @@ PROFILES = {
                   offside=0.30, shot_boost=2.5, subs_per_team=1),
 }
 
+# A failed pass cut out in the first 30% of its path is recorded as a
+# possession_change (interception) only if the defender's position was within
+# this many meters of the cut-out point. Otherwise it is just a failed pass.
+INTERCEPT_REACH = 10.0
+
 ALL_TYPES = ["kickoff", "pass", "possession_change", "clearance", "throw_in", "shot",
              "free_kick", "foul", "goal_kick", "corner", "substitution", "offside",
              "yellow_card", "red_card", "goal", "half_time", "full_time"]

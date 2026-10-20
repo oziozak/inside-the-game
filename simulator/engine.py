@@ -19,7 +19,8 @@ import math
 import random
 from collections import Counter, defaultdict
 
-from .config import ALL_TYPES, BALL_GROUND, FPS, GOAL_HALF, GROUP, MIN_X, NORMS, PROFILES, WIDE, L, W
+from .config import (ALL_TYPES, BALL_GROUND, FPS, GOAL_HALF, GROUP, INTERCEPT_REACH, MIN_X, NORMS,
+                     PROFILES, WIDE, L, W)
 from .geometry import clamp, dist, other
 from .teams import load_team, resolve_kits
 
@@ -536,8 +537,8 @@ class Match:
                 e.pop("subtype")
             self.t = t0 + idur
             self.gain(best)
-            if bf <= 0.3:
-                # Cut out right at the passer's feet: a clear interception.
+            if bf <= 0.3 and bd <= INTERCEPT_REACH:
+                # Cut out right at the passer's feet by a defender who was close: a clear interception.
                 self.ev("possession_change", opp, best, passer, ip, subtype="interception",
                         success=True)
             ix, _ = self.tw(opp, *ip)
