@@ -8,7 +8,7 @@ import statistics
 
 from test_styles import neutral
 
-from simulator import Match, build_tracking, load_team
+from simulator import Match, build_tracking, engine, load_team, movement
 from simulator.config import ATTRS
 from simulator.movement import top_speeds
 from simulator.teams import validate_team
@@ -32,16 +32,53 @@ def _home(team, opp, seeds=range(N)):
         yield m
 
 
-def test_all_seventy_is_neutral():
-    base, opp = neutral("bosphorus"), neutral("thames")
-    seventy = rated(base, **{a: 70 for a in ATTRS})
-    for p in seventy["players"]:
-        p.update({a: 70 for a in ATTRS})
-    a = Match(3, 900, "full", "x", home=base, away=opp)
-    b = Match(3, 900, "full", "x", home=seventy, away=opp)
-    a.play()
-    b.play()
-    assert a.events == b.events
+def everyone(team: dict, values: dict) -> dict:
+    """Copy of team with the given attributes for every player, keeper included."""
+    t = copy.deepcopy(team)
+    for p in t["players"]:
+        p.update(values)
+    return t
+
+
+def _play(home: dict, away: dict, seeds=range(60)) -> tuple[list, list]:
+    """Events of many full matches (exact equality over many matches catches
+    even small changes), plus tracking of the first two minutes of one."""
+    events = []
+    for s in seeds:
+        m = Match(s, 2700, "full", "x", home=home, away=away)
+        m.play()
+        events.append(m.events)
+    return events, build_tracking(m, 0, 120)
+
+
+def _effects_off(monkeypatch):
+    """Switch every attribute effect off: ratings then change nothing."""
+    for name in ("PASS_PER_POINT", "SHOT_PER_POINT", "PENALTY_PER_POINT", "TACKLE_PER_POINT"):
+        monkeypatch.setattr(engine, name, 0.0)
+    for name in ("SPRINT_PER_POINT", "CARRY_PER_POINT"):
+        monkeypatch.setattr(movement, name, 0.0)
+
+
+SEVENTY = {a: 70 for a in ATTRS}
+EXTREME_HOME = {"passing": 95, "shooting": 40, "pace": 95, "tackling": 40}
+EXTREME_AWAY = {"passing": 40, "shooting": 95, "pace": 40, "tackling": 95}
+
+
+def test_all_seventy_is_neutral(monkeypatch):
+    """Everyone rated 70 with the effects on plays exactly like extreme,
+    non-default ratings with the effects off: 70 changes nothing."""
+    seventy = _play(everyone(neutral("bosphorus"), SEVENTY), everyone(neutral("thames"), SEVENTY))
+    _effects_off(monkeypatch)
+    extreme = _play(everyone(neutral("bosphorus"), EXTREME_HOME), everyone(neutral("thames"), EXTREME_AWAY))
+    assert seventy == extreme
+
+
+def test_attribute_check_is_sensitive():
+    """With the effects on, a one-point change (71) does change the match."""
+    seventy = _play(everyone(neutral("bosphorus"), SEVENTY), everyone(neutral("thames"), SEVENTY))
+    seventy_one = _play(everyone(neutral("bosphorus"), {a: 71 for a in ATTRS}),
+                        everyone(neutral("thames"), SEVENTY))
+    assert seventy != seventy_one
 
 
 def test_passing_raises_pass_success():

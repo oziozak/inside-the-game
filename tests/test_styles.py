@@ -12,6 +12,7 @@ import statistics
 import pytest
 
 from simulator import Match, load_team
+from simulator.config import STYLES
 from simulator.movement import iter_tracking
 
 N = 30  # full matches per side of each comparison (events only, fast)
@@ -45,13 +46,40 @@ def test_golden_neutral_match():
     assert digest == GOLDEN_NEUTRAL
 
 
-def test_balanced_style_is_a_no_op():
-    a = Match(5, 600, "full", "x", home=neutral("caldera"), away=neutral("saltmarsh"))
-    b = Match(5, 600, "full", "x", home=with_style(neutral("caldera"), "balanced"),
-              away=with_style(neutral("saltmarsh"), "balanced"))
-    a.play()
-    b.play()
-    assert a.events == b.events
+# A style that sets every knob to its identity value explicitly, so every
+# style code path runs (re-weighting, tempo, line, press).
+IDENTITY = dict(weights={k: 1.0 for k in ("short", "long", "through", "cross", "dribble", "shot", "clear")},
+                transition={k: 1.0 for k in ("short", "long", "through", "cross", "dribble", "shot")},
+                tempo=1.0, line=0.0, press=0.0)
+
+
+def _play_both(style: str, seeds=range(30)) -> tuple[list, list]:
+    """Events of full matches where both teams play `style` (exact equality
+    over many matches catches even small changes), plus tracking of the
+    first two minutes of the first one."""
+    events, tracking = [], []
+    for s in seeds:
+        m = Match(s, 2700, "full", "x", home=with_style(neutral("caldera"), style),
+                  away=with_style(neutral("saltmarsh"), style))
+        m.play()
+        events.append(m.events)
+        if not tracking:
+            tracking = list(iter_tracking(m, 0, 120))
+    return events, tracking
+
+
+def test_balanced_style_is_a_no_op(monkeypatch):
+    """ "balanced" plays exactly like an explicit identity style (a different,
+    non-default key). Fails if a balanced knob stops being neutral."""
+    monkeypatch.setitem(STYLES, "test_identity", copy.deepcopy(IDENTITY))
+    assert _play_both("balanced") == _play_both("test_identity")
+
+
+def test_neutrality_check_is_sensitive(monkeypatch):
+    """The comparison above does catch a small change (tempo 1.01)."""
+    monkeypatch.setitem(STYLES, "test_identity", copy.deepcopy(IDENTITY))
+    monkeypatch.setitem(STYLES, "test_tempo", dict(copy.deepcopy(IDENTITY), tempo=1.01))
+    assert _play_both("test_tempo")[0] != _play_both("test_identity")[0]
 
 
 def _home_metrics(home: dict, away: dict) -> dict:
