@@ -274,6 +274,7 @@ class Match:
     def restart(self, kind, team, spot, taker=None, delay=(10, 20)):
         """Dead ball: wait, make subs, place the ball, the taker runs in."""
         self.release()
+        t_dead = self.t
         self.t += self.rng.uniform(*delay)
         if self.do_subs():
             self.t += self.rng.uniform(8, 12)     # let the substitute jog on
@@ -283,7 +284,10 @@ class Match:
             taker = self.nearest(team, spot, ball=spot, exclude=fresh)
         self.bp(max(self.t - 1.0, self.period_start), *spot)
         self.bp(self.t, *spot)
-        self.run(taker, max(self.t - 6, self.period_start - 1.0), self.t, spot)
+        # The taker heads for the ball from when it went dead (at least 6 s,
+        # at most 12 s before the restart), so even a player on the far flank
+        # is standing at a corner flag when he takes it.
+        self.run(taker, max(min(t_dead, self.t - 6), self.t - 12, self.period_start - 1.0), self.t, spot)
         self.gain(taker)
         if kind == "kickoff":
             self.kickoffs.append((self.t, taker))
