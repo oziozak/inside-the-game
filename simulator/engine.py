@@ -19,8 +19,9 @@ import math
 import random
 from collections import Counter, defaultdict
 
-from .config import (ALL_TYPES, BALL_GROUND, FPS, GOAL_HALF, GROUP, INTERCEPT_REACH, MIN_X, NORMS,
-                     PROFILES, WIDE, L, W)
+from .config import (ALL_TYPES, BALL_GROUND, FPS, GOAL_HALF, GROUP, INTERCEPT_REACH, LINE_OFFSIDE,
+                     LINE_THROUGH, MIN_X, NORMS, PRESS_CHALLENGE, PRESS_PASS, PROFILES, STYLES,
+                     TRANSITION_S, WIDE, L, W)
 from .geometry import clamp, dist, other
 from .teams import load_team, resolve_kits
 
@@ -48,6 +49,8 @@ class Match:
         # The away side changes kit if the colors clash (the vision AI separates teams by color).
         home_kit, away_kit = resolve_kits(self.teams["home"], self.teams["away"])
         self.kits = {"home": home_kit, "away": away_kit}
+        # Playing style per side (config.STYLES); "balanced" is neutral.
+        self.style = {team: STYLES[cfg.get("style", "balanced")] for team, cfg in self.teams.items()}
         self.t = 0.0
         self.period = 1
         self.period_start = 0.0
@@ -129,6 +132,9 @@ class Match:
             # Outfield players shift with the ball and push up when their team has it.
             sx, sy = pl["slot"]
             x = sx + 0.55 * (bx - 52.5) + (4 if team_in_poss == team else -4)
+            line = self.style[team]["line"]
+            if line and team_in_poss != team:
+                x += line                         # defending: the style's high or deep block
             y = sy + 0.30 * (by - 34)
             lo_x, hi_x, lo_y, hi_y = MIN_X[pl["group"]], 100, 2, 66
         # clamp(v, lo, hi) == max(lo, min(hi, v)), written out.
@@ -368,7 +374,9 @@ class Match:
         nx = clamp(x + d * math.cos(ang), 2, 103)
         ny = clamp(y + d * math.sin(ang), 2, 66)
         dur = d / self.rng.uniform(4.5, 6.5)
-        if self.rng.random() < self.p["challenge"]:
+        # A pressing opponent challenges more often.
+        press = self.style[other(team)]["press"]
+        if self.rng.random() < self.p["challenge"] * (1 + PRESS_CHALLENGE * press):
             f = self.rng.uniform(0.3, 1.0)
             cx, cy = x + f * (nx - x), y + f * (ny - y)
             self.t += dur * f
@@ -483,12 +491,19 @@ class Match:
             base = 0.86
         if etype == "corner":
             base = 0.45
+        # The opponent's style: pressing closes short options; a high line leaves space in behind.
+        opp_style = self.style[other(team)]
+        if etype == "pass" and kind == "short" and opp_style["press"]:
+            base -= PRESS_PASS * opp_style["press"]
+        if kind == "through" and opp_style["line"]:
+            base *= 1 + LINE_THROUGH * opp_style["line"]
+        offside_p = self.p["offside"] * (1 + LINE_OFFSIDE * opp_style["line"])
         sx, _ = self.tw(team, *start)
         ex, _ = self.tw(team, *end)
 
         # Offside on forward balls in behind.
         if (etype in ("pass", "free_kick") and kind in ("through", "long") and ex - sx > 10
-                and ex > 60 and self.rng.random() < self.p["offside"]):
+                and ex > 60 and self.rng.random() < offside_p):
             self.release()
             self.flight(self.t, self.t + dur, start, end, peak)
             self.run(rec, self.t, self.t + dur, end)
@@ -714,7 +729,8 @@ class Match:
             self.clearance()
             return
         self.just_won_in_own_third = False
-        self.hold()
+        style = self.style[team]
+        self.hold(0.3 * style["tempo"], 1.1 * style["tempo"])
         b = self.p["shot_boost"]
         wide = y < 16 or y > 52
         # Action weights by zone (x in the team frame: 0 = own goal, 105 = their goal).
@@ -731,6 +747,11 @@ class Match:
                  "dribble": 22}
         else:
             w = {"shot": 26 * b, "short": 38, "cross": 6 if wide else 0, "dribble": 28}
+        # Style: scale the weights; a counter-attacking side goes forward right after winning it.
+        mult = style["weights"]
+        trans = style["transition"] if self.t - self.poss[-1][0] < TRANSITION_S else {}
+        if mult or trans:
+            w = {k: v * mult.get(k, 1.0) * trans.get(k, 1.0) for k, v in w.items()}
         act = self.rng.choices(list(w), list(w.values()))[0]
         if act == "dribble":
             self.dribble()

@@ -1,0 +1,89 @@
+"""Team styles: "balanced" is neutral, and each style changes play the way
+config.STYLES documents (compared with the same team playing "balanced")."""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import statistics
+
+import pytest
+
+from simulator import Match, load_team
+
+N = 30  # full matches per side of each comparison (events only, fast)
+
+# Events of a fixed neutral match (Bosphorus v Thames, seed 51, no style and
+# no attributes). Changes when the base engine changes on purpose; update it
+# then, and only then.
+GOLDEN_NEUTRAL = "4d8236acdb6217243758b65570d6891f62b0c96d402c9f570b8223553b389436"
+
+
+def neutral(key: str) -> dict:
+    """A team with its style and player attributes removed."""
+    t = copy.deepcopy(load_team(key))
+    t.pop("style", None)
+    for p in t["players"]:
+        for a in ("passing", "shooting", "pace", "tackling"):
+            p.pop(a, None)
+    return t
+
+
+def with_style(team: dict, style: str) -> dict:
+    t = copy.deepcopy(team)
+    t["style"] = style
+    return t
+
+
+def test_golden_neutral_match():
+    m = Match(51, 2700, "full", "golden", home=neutral("bosphorus"), away=neutral("thames"))
+    m.play()
+    digest = hashlib.sha256(json.dumps(m.events, sort_keys=True).encode()).hexdigest()
+    assert digest == GOLDEN_NEUTRAL
+
+
+def test_balanced_style_is_a_no_op():
+    a = Match(5, 600, "full", "x", home=neutral("caldera"), away=neutral("saltmarsh"))
+    b = Match(5, 600, "full", "x", home=with_style(neutral("caldera"), "balanced"),
+              away=with_style(neutral("saltmarsh"), "balanced"))
+    a.play()
+    b.play()
+    assert a.events == b.events
+
+
+def _home_metrics(home: dict, away: dict) -> dict:
+    """Mean per-match numbers for the home side over N seeds."""
+    rows = []
+    for s in range(N):
+        m = Match(800 + s, 2700, "full", "style", home=home, away=away)
+        m.play()
+        mine = [e for e in m.events if e["team"] == "home"]
+        passes = [e for e in mine if e["type"] == "pass"]
+        rows.append({
+            "passes": len(passes),
+            "long_share": sum(e.get("subtype") in ("long", "cross") for e in passes) / len(passes),
+            "through": sum(e.get("subtype") == "through" for e in passes),
+            "tackles_fouls": sum(e["type"] == "foul" or e.get("subtype") == "tackle" for e in mine),
+            "opp_offside": sum(e["type"] == "offside" and e["team"] == "away" for e in m.events),
+        })
+    return {k: statistics.fmean(r[k] for r in rows) for k in rows[0]}
+
+
+@pytest.mark.parametrize("style, metric, factor", [
+    ("possession", "passes", 1.1),          # more passes
+    ("counter", "through", 1.15),           # more through balls (after winning the ball)
+    ("counter", "opp_offside", -0.85),      # deep line: opponents caught offside less (lower)
+    ("pressing", "tackles_fouls", 1.1),     # more challenges
+    ("pressing", "opp_offside", 1.1),       # high line: opponents caught offside more
+    ("direct", "long_share", 1.06),         # more long balls and crosses
+])
+def test_style_changes_play(style, metric, factor):
+    team = neutral("bosphorus")
+    opp = neutral("thames")
+    styled = _home_metrics(with_style(team, style), opp)[metric]
+    base = _home_metrics(team, opp)[metric]
+    if factor > 0:
+        assert styled > base * factor, (styled, base)
+    else:
+        assert styled < base * -factor, (styled, base)

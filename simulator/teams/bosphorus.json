@@ -2,6 +2,7 @@
  "name": "Bosphorus FC",
  "short": "BOS",
  "formation": "4-3-3",
+ "style": "possession",
  "kit": {"shirt": "#c8102e", "shorts": "#ffffff", "goalkeeper": "#1d1d1d"},
  "away_kit": {"shirt": "#f5f5f5", "shorts": "#c8102e", "goalkeeper": "#2e7d32"},
  "players": [

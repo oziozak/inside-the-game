@@ -2,6 +2,7 @@
  "name": "Caldera SC",
  "short": "CAL",
  "formation": "4-2-3-1",
+ "style": "pressing",
  "kit": {"shirt": "#ff7f00", "shorts": "#111111", "goalkeeper": "#9ccc65"},
  "away_kit": {"shirt": "#f5f5f5", "shorts": "#ff7f00", "goalkeeper": "#9ccc65"},
  "players": [

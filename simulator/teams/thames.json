@@ -2,6 +2,7 @@
  "name": "Thames United",
  "short": "THU",
  "formation": "4-4-2",
+ "style": "counter",
  "kit": {"shirt": "#1b4d9b", "shorts": "#1b4d9b", "goalkeeper": "#f2c500"},
  "away_kit": {"shirt": "#f5f5f5", "shorts": "#1b4d9b", "goalkeeper": "#e91e63"},
  "players": [

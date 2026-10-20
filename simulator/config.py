@@ -35,6 +35,56 @@ PROFILES = {
                   offside=0.30, shot_boost=2.5, subs_per_team=1),
 }
 
+# --------------------------------------------------------------------------
+# Team styles (team JSON: "style"). Every knob is relative to "balanced",
+# which is neutral: all multipliers 1, no shifts, no pressing. A team plays
+# its style the whole match.
+#
+#   weights     multipliers on the ball carrier's action weights in
+#               Match.step() (short, long, through, cross, dribble, shot)
+#   transition  extra multipliers for the first TRANSITION_S seconds after
+#               winning the ball (a counter-attacking team goes forward fast)
+#   tempo       multiplier on how long the carrier holds the ball before
+#               acting (> 1 = patient build-up, < 1 = quick play)
+#   line        defensive line height: meters the outfield block is pushed
+#               up (+) or dropped (-) from its formation slots while the
+#               OTHER team has the ball (in possession the team keeps its
+#               formation shape). A high line is
+#               easier to beat in behind: the OPPONENT's offside chance and
+#               through-ball success both grow with it (LINE_OFFSIDE,
+#               LINE_THROUGH per meter)
+#   press       pressing intensity 0-1, applied when the team does NOT have
+#               the ball:
+#                 event layer: opponent dribbles are challenged more often
+#                   (x (1 + PRESS_CHALLENGE * press)) and opponent short
+#                   passes fail more often (- PRESS_PASS * press success)
+#                 movement layer: round(PRESSERS * press) players close down
+#                   the ball carrier, stopping PRESS_STANDOFF m from the ball
+# --------------------------------------------------------------------------
+STYLES = {
+    "balanced": dict(weights={}, transition={}, tempo=1.0, line=0.0, press=0.0),
+    # Quick short passing, few long balls, a slightly high block.
+    "possession": dict(weights={"short": 1.3, "long": 0.6, "through": 0.8, "dribble": 0.85},
+                       transition={}, tempo=0.9, line=3.0, press=0.3),
+    # Sit deep, win it, then go forward fast with through balls and long passes.
+    "counter": dict(weights={"long": 1.15},
+                    transition={"through": 2.0, "long": 1.3, "dribble": 1.3},
+                    tempo=1.0, line=-5.0, press=0.1),
+    # High line, hunt the ball in packs, play quickly once it is won.
+    "pressing": dict(weights={"through": 1.1}, transition={"through": 1.3},
+                     tempo=0.85, line=5.0, press=0.6),
+    # Long balls and crosses early, little build-up.
+    "direct": dict(weights={"long": 2.0, "cross": 1.3, "short": 0.9},
+                   transition={}, tempo=0.85, line=0.0, press=0.4),
+}
+TRANSITION_S = 8.0
+LINE_OFFSIDE = 0.08         # opponent offside chance x (1 + 0.08 per meter of line height)
+LINE_THROUGH = 0.015        # opponent through-ball success x (1 + 0.015 per meter)
+PRESS_CHALLENGE = 0.6       # challenge chance x (1 + 0.6 * press)
+PRESS_PASS = 0.03           # opponent short-pass success - 0.03 * press
+PRESSERS = 2                # players closing down the carrier at press = 1
+PRESS_STANDOFF = 3.5        # m; pressers stay this far from the ball (the carrier stays nearest)
+
 # A failed pass cut out in the first 30% of its path is recorded as a
 # possession_change (interception) only if the defender's position was within
 # this many meters of the cut-out point. Otherwise it is just a failed pass.

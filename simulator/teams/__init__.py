@@ -5,6 +5,7 @@ e.g. simulator/teams/bosphorus.json -> --home bosphorus.
 
 A team file has:
     name, short (<= 4 letters), formation ("4-3-3"; outfield lines must add up to 10)
+    style     optional key of config.STYLES (default "balanced")
     kit       {"shirt", "shorts", "goalkeeper"} hex colors
     away_kit  optional second kit, worn when the home kit clashes (see resolve_kits)
     players   list of {"number", "name", "pos", "starter"}; starters also have "slot"
@@ -24,7 +25,7 @@ import math
 import re
 from pathlib import Path
 
-from ..config import GROUP, L, W
+from ..config import GROUP, STYLES, L, W
 
 TEAMS_DIR = Path(__file__).resolve().parent
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -76,6 +77,8 @@ def validate_team(team: dict) -> list[str]:
         return errs
     if not 1 <= len(team["short"]) <= 4:
         errs.append("short must be 1-4 characters")
+    if team.get("style", "balanced") not in STYLES:
+        errs.append(f"style must be one of {', '.join(STYLES)}")
     errs += _check_kit(team["kit"], "kit")
     if "away_kit" in team:
         errs += _check_kit(team["away_kit"], "away_kit")
