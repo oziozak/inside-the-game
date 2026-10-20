@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "overlay.schema.json",
+  "title": "Overlay",
+  "description": "One on-screen graphic. Produced by the director agent, drawn by the web player.",
+  "type": "object",
+  "required": ["id", "start", "duration", "graphic", "event_ids", "text", "mode", "lang"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^o[0-9]{4,}$" },
+    "start": { "type": "number", "minimum": 0, "description": "Seconds since kick-off when the graphic appears." },
+    "duration": { "type": "number", "exclusiveMinimum": 0, "description": "Seconds on screen." },
+    "graphic": {
+      "enum": ["player_tag", "pass_card", "shot_card", "speed_badge", "distance_badge", "stat_compare", "momentum_bar", "goal_banner", "card_banner", "insight_text"]
+    },
+    "event_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Events this graphic is based on. The evidence behind every claim."
+    },
+    "player": { "type": ["integer", "null"] },
+    "priority": { "type": "number", "minimum": 0, "maximum": 1 },
+    "position": { "enum": ["top-left", "top-right", "bottom-left", "bottom-right", "bottom-center", "follow-player"] },
+    "title": { "type": "string" },
+    "text": { "type": "string" },
+    "values": {
+      "type": "object",
+      "description": "Numbers shown on the graphic, e.g. {\"distance_m\": 31, \"difficulty\": 8}. Must be computed by code, never by the LLM."
+    },
+    "mode": { "enum": ["analyst", "casual", "player_focus"] },
+    "lang": { "type": "string", "examples": ["en", "tr", "es"] }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "match_id": "m001",
+  "fps": 25,
+  "pitch": [105, 68],
+  "origin": "bottom-left",
+  "kickoff_direction": { "home": "left_to_right" },
+  "home": {
+    "name": "Bosphorus FC",
+    "short": "BOS",
+    "kit": { "shirt": "#c8102e", "shorts": "#ffffff", "goalkeeper": "#1d1d1d" },
+    "formation": "4-3-3",
+    "players": [
+      { "id": 1, "number": 1, "name": "M. Yilmaz", "pos": "GK", "starter": true },
+      { "id": 8, "number": 8, "name": "K. Aydin", "pos": "CM", "starter": true },
+      { "id": 10, "number": 10, "name": "E. Demir", "pos": "AM", "starter": true }
+    ]
+  },
+  "away": {
+    "name": "Thames United",
+    "short": "THU",
+    "kit": { "shirt": "#1b4d9b", "shorts": "#1b4d9b", "goalkeeper": "#f2c500" },
+    "formation": "4-4-2",
+    "players": [
+      { "id": 101, "number": 1, "name": "J. Hartley", "pos": "GK", "starter": true },
+      { "id": 105, "number": 5, "name": "D. Okafor", "pos": "CB", "starter": true }
+    ]
+  }
+}

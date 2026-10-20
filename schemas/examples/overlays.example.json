@@ -1,0 +1,16 @@
+[
+  {
+    "id": "o0031", "start": 2056.0, "duration": 6, "graphic": "pass_card",
+    "event_ids": ["e0412"], "player": 8, "priority": 0.9, "position": "bottom-left",
+    "title": "K. Aydin", "text": "23 m through ball, set up the shot",
+    "values": { "distance_m": 23, "speed_kmh": 64 },
+    "mode": "analyst", "lang": "en"
+  },
+  {
+    "id": "o0032", "start": 2056.0, "duration": 6, "graphic": "pass_card",
+    "event_ids": ["e0412"], "player": 8, "priority": 0.9, "position": "bottom-left",
+    "title": "K. Aydin", "text": "Harika pas! Savunmayi ikiye boldu.",
+    "values": { "distance_m": 23 },
+    "mode": "casual", "lang": "tr"
+  }
+]

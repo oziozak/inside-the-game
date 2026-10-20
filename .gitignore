@@ -1,0 +1,35 @@
+# Secrets
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+dist/
+.next/
+
+# Large generated files (share via cloud storage, not git)
+*.mp4
+*.avi
+*.mov
+data/frames/
+data/renders/
+data/generated/
+runs/
+*.pt
+*.onnx
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
