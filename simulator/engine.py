@@ -801,7 +801,8 @@ class Match:
             pl = [{"id": p["number"] + base, "number": p["number"], "name": p["name"],
                    "pos": p["pos"], "starter": p["starter"]} for p in cfg["players"]]
             info[team] = {"name": cfg["name"], "short": cfg["short"], "kit": self.kits[team],
-                          "formation": cfg["formation"], "players": pl}
+                          "formation": cfg["formation"], "style": cfg.get("style", "balanced"),
+                          "players": pl}
         return info
 
 
