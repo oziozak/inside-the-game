@@ -64,6 +64,7 @@ class Match:
         self.runs: dict[int, list] = defaultdict(list)   # pid -> [(t0, t1, x, y)]
         self.poss: list[tuple] = []               # (t, team)
         self.kickoffs: list[tuple] = []           # (t, taker)
+        self.restarts: set = set()                # times the ball was put back in play
         self.periods: list[dict] = []
         self.spans: dict[int, list] = {}          # pid -> [t_on, t_off]
 
@@ -301,6 +302,7 @@ class Match:
         # is standing at a corner flag when he takes it.
         self.run(taker, max(min(t_dead, self.t - 6), self.t - 12, self.period_start - 1.0), self.t, spot)
         self.gain(taker)
+        self.restarts.add(self.t)
         if kind == "kickoff":
             self.kickoffs.append((self.t, taker))
         return taker

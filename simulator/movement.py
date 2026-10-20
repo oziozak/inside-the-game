@@ -13,8 +13,8 @@ import bisect
 import math
 from typing import Iterator
 
-from .config import (ATTR_NEUTRAL, CARRY_BASE, CARRY_PER_POINT, FPS, SPRINT_BASE,
-                     SPRINT_PER_POINT, L, W)
+from .config import (ATTR_NEUTRAL, CARRY_BASE, CARRY_PER_POINT, FPS, PRESS_STANDOFF, PRESSERS,
+                     SPRINT_BASE, SPRINT_PER_POINT, L, W)
 from .engine import Match
 
 JOG = 7.0       # m/s, moving with the team shape (everyone)
@@ -66,10 +66,11 @@ def iter_tracking(m: Match, t0: float, t1: float) -> Iterator[dict]:
         return tuple(a[k] + f * (b[k] - a[k]) for k in (1, 2, 3))
 
     def carrier_at(t):
+        """(carrier id, time he got the ball), or (None, None) when the ball is loose."""
         i = bisect.bisect_right(carry_t, t) - 1
         if i >= 0 and m.carry[i][0] <= t < m.carry[i][1]:
-            return m.carry[i][2]
-        return None
+            return m.carry[i][2], m.carry[i][0]
+        return None, None
 
     def team_poss_at(t):
         i = bisect.bisect_right(poss_t, t) - 1
@@ -86,6 +87,7 @@ def iter_tracking(m: Match, t0: float, t1: float) -> Iterator[dict]:
     kickoffs = [(kt, taker, period_at(kt)) for kt, taker in m.kickoffs]
     spans = list(m.spans.items())
     speeds = {pid: top_speeds(pl["pace"]) for pid, pl in m.players.items()}
+    n_press = {team: round(PRESSERS * m.style[team]["press"]) for team in ("home", "away")}
 
     pos: dict[int, list] = {}
     last_period = None
@@ -99,7 +101,20 @@ def iter_tracking(m: Match, t0: float, t1: float) -> Iterator[dict]:
         bx, by, bz = ball_at(t)
         ref = ball_at(max(0.0, t - 0.8))[:2]       # shapes react with a small delay
         tp = team_poss_at(t)
-        car = carrier_at(t)
+        car, car_since = carrier_at(t)
+        # Pressing: the defending team's nearest outfield players close down
+        # the carrier (not at a set piece, e.g. a penalty taker on the spot).
+        press_to: dict[int, tuple] = {}
+        if car is not None and car_since not in m.restarts:
+            defending = "away" if m.players[car]["team"] == "home" else "home"
+            if n_press[defending]:
+                near = sorted((math.hypot(q[0] - bx, q[1] - by), pid) for pid, q in pos.items()
+                              if m.players[pid]["team"] == defending and m.players[pid]["group"] != "gk")
+                for d, pid in near[:n_press[defending]]:
+                    q = pos[pid]
+                    k = PRESS_STANDOFF / d if d > PRESS_STANDOFF else 1.0
+                    # Stop PRESS_STANDOFF m short of the ball, on the line from the ball to him.
+                    press_to[pid] = (bx + (q[0] - bx) * k, by + (q[1] - by) * k)
         # Kickoff in the next 5 s: everyone except the taker waits in his own half.
         kick_takers = [k[1] for k in kickoffs if k[0] - 5 <= t <= k[0] and k[2] == period]
         players = []
@@ -115,6 +130,8 @@ def iter_tracking(m: Match, t0: float, t1: float) -> Iterator[dict]:
             wob = 0.8 * math.sin(0.4 * t + pid) , 0.8 * math.cos(0.33 * t + 2 * pid)
             tgt = (tgt[0] + wob[0], tgt[1] + wob[1])
             vmax = JOG
+            if pid in press_to:
+                tgt, vmax = press_to[pid], speeds[pid][0]
             run = run_at.get(pid)
             if run is not None and fr in run:
                 tgt, vmax = run[fr], speeds[pid][0]

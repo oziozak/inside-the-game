@@ -6,11 +6,13 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import statistics
 
 import pytest
 
 from simulator import Match, load_team
+from simulator.movement import iter_tracking
 
 N = 30  # full matches per side of each comparison (events only, fast)
 
@@ -87,3 +89,30 @@ def test_style_changes_play(style, metric, factor):
         assert styled > base * factor, (styled, base)
     else:
         assert styled < base * -factor, (styled, base)
+
+
+def _closing_down(home: dict, away: dict) -> float:
+    """Mean distance (m) from the ball to the nearest home outfield player
+    while an away player carries the ball."""
+    m = Match(21, 600, "full", "press", home=home, away=away)
+    m.play()
+    carry = {}
+    for t0, t1, pid in m.carry:
+        if m.players[pid]["team"] == "away" and t0 not in m.restarts:
+            for fr in range(int(t0 * 25) + 1, int(t1 * 25)):
+                carry[fr] = pid
+    dists = []
+    for f in iter_tracking(m, 0, m.t):
+        if f["frame"] in carry:
+            ball = f["ball"][:2]
+            dists.append(min(math.dist(p["pos"], ball) for p in f["players"]
+                             if p["team"] == "home" and p["id"] != m.gk("home")))
+    return statistics.fmean(dists)
+
+
+def test_pressing_team_closes_down_the_carrier():
+    team, opp = neutral("caldera"), neutral("thames")
+    pressing = _closing_down(with_style(team, "pressing"), opp)
+    balanced = _closing_down(team, opp)
+    assert pressing < balanced - 1.0, (pressing, balanced)
+    assert pressing > 3.0          # pressers stop short of the ball (PRESS_STANDOFF)

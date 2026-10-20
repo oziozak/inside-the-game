@@ -82,7 +82,7 @@ LINE_OFFSIDE = 0.08         # opponent offside chance x (1 + 0.08 per meter of l
 LINE_THROUGH = 0.015        # opponent through-ball success x (1 + 0.015 per meter)
 PRESS_CHALLENGE = 0.6       # challenge chance x (1 + 0.6 * press)
 PRESS_PASS = 0.03           # opponent short-pass success - 0.03 * press
-PRESSERS = 2                # players closing down the carrier at press = 1
+PRESSERS = 3                # players closing down the carrier at press = 1
 PRESS_STANDOFF = 3.5        # m; pressers stay this far from the ball (the carrier stays nearest)
 
 # --------------------------------------------------------------------------
