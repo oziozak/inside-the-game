@@ -72,3 +72,19 @@ def test_offside_follows_the_ball_that_was_played(short_match, full_matches):
             assert ball["end"] == e["start"]
             assert abs(ball["t"] + ball["duration_s"] - e["t"]) <= 0.02
     assert n > 0
+
+
+def test_possession_change_names_winner_and_loser(short_match, full_matches):
+    """possession_change: from = player who won the ball, to = player who
+    lost it (schemas/README.md), always on opposite teams. Includes the
+    keeper claiming a ball in his box."""
+    keeper_claims = 0
+    for m in _all(short_match, full_matches):
+        for e in m.events:
+            if e["type"] != "possession_change":
+                continue
+            assert e["from"] is not None and e["to"] is not None, e
+            assert m.players[e["from"]]["team"] == e["team"]
+            assert m.players[e["to"]]["team"] != e["team"]
+            keeper_claims += m.players[e["from"]]["group"] == "gk"
+    assert keeper_claims > 0

@@ -347,10 +347,11 @@ class Match:
         d = other(attacking)
         if self.rng.random() < 0.25:              # keeper claims
             g = self.gk(d)
+            lost = self.carrier                   # the attacker who had the ball
             self.run(g, self.t - 1, self.t, (self.bx, self.by))
             self.release()
             self.gain(g)
-            self.ev("possession_change", d, g, None, (self.bx, self.by), subtype="interception",
+            self.ev("possession_change", d, g, lost, (self.bx, self.by), subtype="interception",
                     success=True)
             self.hold(2.5, 5)
         else:
