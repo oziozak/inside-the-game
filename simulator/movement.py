@@ -136,7 +136,7 @@ def iter_tracking(m: Match, t0: float, t1: float) -> Iterator[dict]:
             py = py if py > -2 else -2
             p[0], p[1] = px, py
             players.append({"id": pid, "team": team, "pos": [round(px, 2), round(py, 2)]})
-        yield {"match_id": m.match_id, "frame": fr, "t": round(t, 2),
+        yield {"match_id": m.match_id, "frame": fr, "t": round(t, 2), "period": period,
                "ball": [round(bx, 2), round(by, 2), round(bz, 2)], "players": players}
 
 

@@ -18,6 +18,7 @@ Examples of each are in [`examples/`](examples/).
 - **Directions:** home attacks toward x = 105 in the first half and toward x = 0 in the second.
 - **Positions:** meters on a 105 x 68 m pitch. `(0, 0)` is the bottom-left corner. `x` runs goal to goal (0-105), `y` sideline to sideline (0-68).
 - **Ball height:** tracking `ball` is `[x, y, z]`; `z` is meters above the grass.
+- **Tracking period:** a tracking frame may carry an optional `period` (1 or 2). The simulator always writes it; the vision AI may leave it out, in which case derive it from `match_info.periods`.
 - **Player ids:** unique across both teams. Home 1-99, away 101-199.
 - **Event ids:** `e` + 4 digits (`e0412`). Overlay ids: `o` + 4 digits.
 - **Files:** events and overlays are JSON arrays sorted by time. Tracking is JSON Lines (one frame per line) because it is large.
