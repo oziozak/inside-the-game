@@ -1,2 +1,8 @@
 # Shared Python dependencies. Add per-stage ones (ultralytics, opencv, azure SDKs) as they are needed.
 jsonschema>=4.18
+
+# agents/ (Microsoft Agent Framework on Microsoft Foundry). Not needed for --backend mock.
+agent-framework-core>=1.22
+agent-framework-openai>=1.17
+azure-identity>=1.26
+python-dotenv>=1.0
