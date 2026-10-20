@@ -1,0 +1,73 @@
+[
+  {
+    "id": "e0001",
+    "match_id": "renderer_calibration_v1",
+    "t": 2,
+    "period": 1,
+    "type": "pass",
+    "subtype": "short",
+    "team": "home",
+    "from": 8,
+    "to": 10,
+    "start": [
+      55.75,
+      24.25
+    ],
+    "end": [
+      72.75,
+      29.25
+    ],
+    "duration_s": 2,
+    "distance_m": 17.720045146669353,
+    "speed_kmh": 31.896081264004835,
+    "success": true,
+    "source": "sim",
+    "confidence": 1
+  },
+  {
+    "id": "e0002",
+    "match_id": "renderer_calibration_v1",
+    "t": 8,
+    "period": 1,
+    "type": "shot",
+    "subtype": "on_target",
+    "team": "home",
+    "from": 10,
+    "to": null,
+    "start": [
+      87.75,
+      33.25
+    ],
+    "end": [
+      106,
+      34
+    ],
+    "duration_s": 1,
+    "distance_m": 18.26540445760783,
+    "speed_kmh": 65.7554560473882,
+    "success": true,
+    "source": "sim",
+    "confidence": 1
+  },
+  {
+    "id": "e0003",
+    "match_id": "renderer_calibration_v1",
+    "t": 8.945205479452055,
+    "period": 1,
+    "type": "goal",
+    "subtype": "open_play",
+    "team": "home",
+    "from": 10,
+    "to": null,
+    "start": [
+      105,
+      33.95890410958904
+    ],
+    "score": {
+      "home": 1,
+      "away": 0
+    },
+    "source": "sim",
+    "confidence": 1
+  }
+]
