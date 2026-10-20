@@ -16,6 +16,7 @@ from agents.stats import attacks_positive_x, display_minute, pass_difficulty
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_A = ROOT / "data" / "fake" / "sample_a"
+SAMPLE_B = ROOT / "data" / "fake" / "sample_b"
 OVERLAY_SCHEMA = Draft202012Validator(json.loads((ROOT / "schemas" / "overlay.schema.json").read_text("utf-8")))
 
 
@@ -52,6 +53,19 @@ class VerifierTest(unittest.TestCase):
         out = parse_json_reply('```json\n{"en": {"title": "a", "text": "b"}}\n```', ["en", "tr"])
         self.assertEqual(out["en"]["text"], "b")
         self.assertEqual(out["tr"]["text"], "")
+
+
+class DirectorTest(unittest.TestCase):
+    def test_screen_time_spread_over_match(self):
+        # The budget window must only look back; counting later graphics piled overlays at the end.
+        candidates, _ = direct(load_match(SAMPLE_B))
+        blocks = [0] * 6
+        for c in candidates:
+            if "analyst" in c.modes and c.priority < 0.9 and c.start < 5400:
+                blocks[int(c.start // 900)] += 1
+        mean = sum(blocks) / len(blocks)
+        for n in blocks:
+            self.assertLessEqual(abs(n - mean), 0.5 * mean, blocks)
 
 
 class PipelineTest(unittest.TestCase):

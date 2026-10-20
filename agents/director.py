@@ -154,7 +154,7 @@ def schedule(candidates: list[Candidate]) -> tuple[list[Candidate], list[dict]]:
             if any(s < b_end + MIN_GAP_S and b_start < end + MIN_GAP_S for b_start, b_end in busy):
                 log.append(_log(c, mode, "skipped", "slot busy"))
                 continue
-            window = [(bs, be) for bs, be in busy if bs > s - BUDGET_WINDOW_S]
+            window = [(bs, be) for bs, be in busy if s - BUDGET_WINDOW_S < bs <= s]
             used = sum(be - bs for bs, be in window) + c.duration
             if c.priority < 0.9 and used / BUDGET_WINDOW_S > MODE_RULES[mode]["max_share"]:
                 log.append(_log(c, mode, "skipped", "screen-time budget"))
