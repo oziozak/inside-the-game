@@ -24,7 +24,7 @@ from pathlib import Path
 from .engine import generate
 from .fake_overlays import build_overlays
 from .io import write_json, write_jsonl
-from .movement import build_tracking
+from .movement import build_tracking, iter_tracking
 from .realism import report
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -58,8 +58,8 @@ def main(argv=None):
 
     if args.full_tracking:
         gen = ROOT / "data" / "generated"
-        write_jsonl(gen / "sample_a" / "tracking.jsonl", build_tracking(ma, 0, ma.t))
-        write_jsonl(gen / "sample_b" / "tracking.jsonl", build_tracking(mb, 0, mb.t))
+        write_jsonl(gen / "sample_a" / "tracking.jsonl", iter_tracking(ma, 0, ma.t))
+        write_jsonl(gen / "sample_b" / "tracking.jsonl", iter_tracking(mb, 0, mb.t))
         print("full tracking written to data/generated/")
 
     if args.report:

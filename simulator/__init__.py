@@ -12,7 +12,7 @@ Quick use:
 """
 
 from .engine import Match, generate
-from .movement import build_tracking
+from .movement import build_tracking, iter_tracking
 from .teams import list_teams, load_team
 
-__all__ = ["Match", "generate", "build_tracking", "list_teams", "load_team"]
+__all__ = ["Match", "generate", "build_tracking", "iter_tracking", "list_teams", "load_team"]

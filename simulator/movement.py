@@ -11,14 +11,36 @@ from __future__ import annotations
 
 import bisect
 import math
+from typing import Iterator
 
 from .config import FPS, L, W
 from .engine import Match
-from .geometry import clamp
+
+JOG = 7.0       # m/s, moving with the team shape
+SPRINT = 9.5    # m/s, a planned run (receiver, tackler, set-piece taker)
+CARRY = 10.5    # m/s, the ball carrier keeping up with the ball
 
 
-def build_tracking(m: Match, t0: float, t1: float):
-    """Tracking frames (dicts following tracking.schema.json) for t0 <= t < t1."""
+def _paint_runs(runs: list, n0: int, n1: int) -> dict[int, tuple]:
+    """frame -> run target for one player, for frames n0 <= frame < n1.
+
+    A run (r0, r1, x, y) is active at time t when r0 - 0.5 <= t <= r1 + 0.3
+    (start a little early, arrive a little late). When runs overlap, the one
+    planned first wins, so runs are painted last-to-first."""
+    out: dict[int, tuple] = {}
+    for r0, r1, rx, ry in reversed(runs):
+        lo = max(n0, math.ceil((r0 - 0.5) * FPS) - 1)
+        hi = min(n1 - 1, math.floor((r1 + 0.3) * FPS) + 1)
+        for fr in range(lo, hi + 1):
+            t = fr / FPS
+            if r0 - 0.5 <= t <= r1 + 0.3:       # the exact test, safe at the edges
+                out[fr] = (rx, ry)
+    return out
+
+
+def iter_tracking(m: Match, t0: float, t1: float) -> Iterator[dict]:
+    """Yield tracking frames (dicts following tracking.schema.json) for
+    t0 <= t < t1. The match must have been played (m.play())."""
     bt = [w[0] for w in m.ball_path]
     carry_t = [c[0] for c in m.carry]
     poss_t = [p[0] for p in m.poss]
@@ -51,46 +73,49 @@ def build_tracking(m: Match, t0: float, t1: float):
                 return p
         return 2
 
-    pos: dict[int, list] = {}
-    frames = []
-    last_period = None
     n0, n1 = int(round(t0 * FPS)), int(round(t1 * FPS))
+    run_at = {pid: _paint_runs(runs, n0, n1) for pid, runs in m.runs.items()}
+    kickoffs = [(kt, taker, period_at(kt)) for kt, taker in m.kickoffs]
+    spans = list(m.spans.items())
+
+    pos: dict[int, list] = {}
+    last_period = None
     dt = 1 / FPS
     for fr in range(n0, n1):
         t = fr / FPS
-        m.period = period_at(t)
-        if m.period != last_period:               # broadcast cuts at half-time: re-place everyone
+        period = period_at(t)
+        if period != last_period:                 # broadcast cuts at half-time: re-place everyone
             pos.clear()
-            last_period = m.period
+            last_period = period
         bx, by, bz = ball_at(t)
         ref = ball_at(max(0.0, t - 0.8))[:2]       # shapes react with a small delay
         tp = team_poss_at(t)
         car = carrier_at(t)
-        upcoming_kick = [k for k in m.kickoffs
-                         if k[0] - 5 <= t <= k[0] and period_at(k[0]) == m.period]
+        # Kickoff in the next 5 s: everyone except the taker waits in his own half.
+        kick_takers = [k[1] for k in kickoffs if k[0] - 5 <= t <= k[0] and k[2] == period]
         players = []
-        for pid, (on, off) in m.spans.items():
+        for pid, (on, off) in spans:
             if not (on <= t < off):
                 pos.pop(pid, None)
                 continue
-            pl = m.players[pid]
-            team = pl["team"]
-            tgt = m.slot_world(pid, ref, tp)
+            team = m.players[pid]["team"]
+            # +1 if this team attacks toward x = 105 in this period.
+            sign = 1 if (team == "home") == (period == 1) else -1
+            tgt = m.slot_world(pid, ref, tp, period)
             # A gentle wobble so players are never perfectly still.
             wob = 0.8 * math.sin(0.4 * t + pid) , 0.8 * math.cos(0.33 * t + 2 * pid)
             tgt = (tgt[0] + wob[0], tgt[1] + wob[1])
-            vmax = 7.0
-            for (r0, r1, rx, ry) in m.runs.get(pid, ()):
-                if r0 - 0.5 <= t <= r1 + 0.3:
-                    tgt, vmax = (rx, ry), 9.5
-                    break
+            vmax = JOG
+            run = run_at.get(pid)
+            if run is not None and fr in run:
+                tgt, vmax = run[fr], SPRINT
             if car == pid:
-                back = 0.6 * m.dirn(team)
-                tgt, vmax = (bx - back, by), 10.5
-            # Before a kickoff everyone except the taker stays in his own half.
-            if upcoming_kick and (car != pid) and all(k[1] != pid for k in upcoming_kick):
-                x, y = m.tw(team, *tgt)
-                tgt = m.tw(team, min(x, 51.0), y)
+                back = 0.6 * sign
+                tgt, vmax = (bx - back, by), CARRY
+            if kick_takers and (car != pid) and pid not in kick_takers:
+                # Same as the team-frame clamp x <= 51 (own half), in world coordinates.
+                x, y = tgt
+                tgt = (min(x, 51.0), y) if sign == 1 else (L - min(L - x, 51.0), W - (W - y))
             if pid not in pos:
                 entering = on > 0 and t - on < 1.0     # substitute walking on
                 pos[pid] = [L / 2, -1.0] if entering else list(tgt)
@@ -103,8 +128,18 @@ def build_tracking(m: Match, t0: float, t1: float):
                 p[1] += dy / d * step
             else:
                 p[0], p[1] = tgt
-            p[0], p[1] = clamp(p[0], -2, L + 2), clamp(p[1], -2, W + 2)
-            players.append({"id": pid, "team": team, "pos": [round(p[0], 2), round(p[1], 2)]})
-        frames.append({"match_id": m.match_id, "frame": fr, "t": round(t, 2),
-                       "ball": [round(bx, 2), round(by, 2), round(bz, 2)], "players": players})
-    return frames
+            # Players may stand just off the pitch (throw-ins, walking on).
+            px, py = p[0], p[1]
+            px = px if px < L + 2 else L + 2
+            px = px if px > -2 else -2
+            py = py if py < W + 2 else W + 2
+            py = py if py > -2 else -2
+            p[0], p[1] = px, py
+            players.append({"id": pid, "team": team, "pos": [round(px, 2), round(py, 2)]})
+        yield {"match_id": m.match_id, "frame": fr, "t": round(t, 2),
+               "ball": [round(bx, 2), round(by, 2), round(bz, 2)], "players": players}
+
+
+def build_tracking(m: Match, t0: float, t1: float) -> list[dict]:
+    """All tracking frames for t0 <= t < t1 as a list (see iter_tracking)."""
+    return list(iter_tracking(m, t0, t1))

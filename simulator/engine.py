@@ -103,22 +103,36 @@ class Match:
         frac = (self.t - self.period_start) / self.half_len
         return frac * 45 + (0 if self.period == 1 else 45)
 
-    def slot_world(self, pid: int, ball, team_in_poss: str | None):
-        """Where a player stands given the ball position (formation shift)."""
+    def slot_world(self, pid: int, ball, team_in_poss: str | None, period: int | None = None):
+        """Where a player stands given the ball position (formation shift).
+
+        `period` defaults to the current period; the movement layer passes it
+        explicitly. This runs for every player in every frame, so the team
+        frame flip and clamp() are written out inline (same results)."""
         pl = self.players[pid]
         team = pl["team"]
-        bx, by = self.tw(team, *ball)
-        sx, sy = pl["slot"]
+        flip = (team == "home") != ((self.period if period is None else period) == 1)
+        if flip:
+            bx, by = L - ball[0], W - ball[1]
+        else:
+            bx, by = ball[0], ball[1]
         if pl["group"] == "gk":
             # The keeper follows the ball a little, staying near his goal.
-            x = clamp(4 + 0.10 * (bx - 52.5), 1.5, 16)
-            y = clamp(34 + 0.15 * (by - 34), 28, 40)
+            x = 4 + 0.10 * (bx - 52.5)
+            y = 34 + 0.15 * (by - 34)
+            lo_x, hi_x, lo_y, hi_y = 1.5, 16, 28, 40
         else:
             # Outfield players shift with the ball and push up when their team has it.
-            push = 4 if team_in_poss == team else -4
-            x = clamp(sx + 0.55 * (bx - 52.5) + push, MIN_X[pl["group"]], 100)
-            y = clamp(sy + 0.30 * (by - 34), 2, 66)
-        return self.tw(team, x, y)
+            sx, sy = pl["slot"]
+            x = sx + 0.55 * (bx - 52.5) + (4 if team_in_poss == team else -4)
+            y = sy + 0.30 * (by - 34)
+            lo_x, hi_x, lo_y, hi_y = MIN_X[pl["group"]], 100, 2, 66
+        # clamp(v, lo, hi) == max(lo, min(hi, v)), written out.
+        x = x if x < hi_x else hi_x
+        x = x if x > lo_x else lo_x
+        y = y if y < hi_y else hi_y
+        y = y if y > lo_y else lo_y
+        return (L - x, W - y) if flip else (x, y)
 
     def possessing(self) -> str | None:
         """Team of the current ball carrier, or None when the ball is loose."""
