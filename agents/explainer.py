@@ -15,7 +15,7 @@ from . import templates, verifier
 from .data_io import Match
 from .director import BUDGET_WINDOW_S, Candidate
 
-FACT_KEYS = ("minute", "score_home", "score_away", "zone", "key_pass", "into_box",
+FACT_KEYS = ("minute", "score_home", "score_away", "zone", "into_box",
              "into_final_third", "team_shots", "team_pass_accuracy")
 
 
@@ -53,7 +53,7 @@ def build_request(c: Candidate, mode: str, match: Match, langs: list[str]) -> di
         "target": match.player_name(e.get("to")),
         "home": match.team_name("home"),
         "away": match.team_name("away"),
-        "key_pass": c.facts.get("key_pass", False),
+        "setup_by": match.player_name(c.setup["from"]) if c.setup else None,
         "facts": {k: c.facts[k] for k in FACT_KEYS if k in c.facts},
         "values": mode_values(c, mode),
     }
@@ -63,7 +63,7 @@ async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: lis
                       report: dict) -> list[dict]:
     req = build_request(c, mode, match, langs)
     roster = {p["name"] for p in match.players.values()}
-    involved = {n for n in (req["actor"], req["target"]) if n}
+    involved = {n for n in (req["actor"], req["target"], req["setup_by"]) if n}
 
     def problems(out: dict, lang: str) -> list[str]:
         t = out.get(lang, {"title": "", "text": ""})
@@ -99,7 +99,7 @@ async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: lis
             "start": c.start,
             "duration": c.duration,
             "graphic": c.graphic,
-            "event_ids": [c.event["id"]],
+            "event_ids": c.event_ids,
             "player": c.player,
             "priority": c.priority,
             "position": "follow-player" if mode == "player_focus" and c.graphic == "pass_card" else c.position,

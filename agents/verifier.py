@@ -16,7 +16,24 @@ import re
 MAX_TEXT_CHARS = 110
 MAX_TITLE_CHARS = 40
 NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)?")
-NAME_RE = re.compile(r"\b[A-Z]\. [A-Z][a-zA-Z'-]+")  # roster names look like "K. Aydin"
+# Roster names look like "K. Aydin". Any script's letters, so "Ç. Uydurma" and "K. Aydın" are seen too.
+NAME_RE = re.compile(r"\b([^\W\d_])\. ([^\W\d_][\w'’-]*)")
+APOSTROPHES = "'’"
+
+
+def names_in(s: str, roster_names: set[str]) -> set[str]:
+    """Player-like names in `s`. A Turkish case suffix after an apostrophe ("K. Aydin'den")
+    is stripped unless the full form is itself a roster name."""
+    out = set()
+    for m in NAME_RE.finditer(s):
+        initial, surname = m.groups()
+        if not (initial.isupper() and surname[0].isupper()):
+            continue
+        name = f"{initial}. {surname}".rstrip(APOSTROPHES + "-")
+        while name not in roster_names and any(a in name for a in APOSTROPHES):
+            name = name[:max(name.rfind(a) for a in APOSTROPHES)]  # drop the last suffix
+        out.add(name)
+    return out
 
 
 def allowed_numbers(values: dict, facts: dict) -> set[float]:
@@ -44,7 +61,7 @@ def check(text: str, title: str, values: dict, facts: dict, involved_names: set[
         if n not in ok_nums:
             problems.append(f"number {raw} is not backed by the event data (allowed: {sorted(ok_nums)})")
 
-    for name in set(NAME_RE.findall(f"{title} {text}")):
+    for name in names_in(f"{title} {text}", roster_names):
         if name not in roster_names:
             problems.append(f"unknown player name '{name}'")
         elif name not in involved_names:

@@ -66,6 +66,7 @@ def render(req: dict, lang: str) -> dict:
 
     if g == "shot_card":
         out = OUTCOME[lang if lang in OUTCOME else "en"].get(sub, "")
+        setup = req.get("setup_by")
         if mode == "casual":
             text = f"{actor} sert vurdu!" if tr else f"What a strike from {actor}!"
         else:
@@ -75,21 +76,20 @@ def render(req: dict, lang: str) -> dict:
             if "speed_kmh" in v:
                 parts.append(f"{v['speed_kmh']} km/s" if tr else f"{v['speed_kmh']} km/h")
             text = (f"Şut {' '.join(parts)}, {out}" if tr else f"Shot {', '.join(parts)}, {out}").rstrip(", ")
+        if setup:
+            # "Pas: X" avoids a Turkish genitive suffix that depends on the name's vowels.
+            text += f". Pas: {setup}" if tr else f". Set up by {setup}"
         return {"title": actor, "text": text}
 
     if g == "pass_card":
-        key = req.get("key_pass")
         if mode == "casual":
-            text = (f"Harika pas! {target} şuta kaldı" if tr else f"Brilliant ball, {target} gets a shot away") if key \
-                else ("Ne pas ama!" if tr else "What a pass!")
+            text = "Ne pas ama!" if tr else "What a pass!"
         elif mode == "player_focus" and "player_passes" in v:
             text = (f"{v['player_passes_completed']}/{v['player_passes']} isabetli pas, bu {v['distance_m']} m" if tr
                     else f"{v['player_passes_completed']}/{v['player_passes']} passes completed, this one {v['distance_m']} m")
         else:
             text = (f"{v['distance_m']} m pas, zorluk {v['difficulty']}/10" if tr
                     else f"{v['distance_m']} m pass, difficulty {v['difficulty']}/10")
-            if key:
-                text += ", şutu hazırladı" if tr else ", set up the shot"
         return {"title": actor, "text": text}
 
     return {"title": actor, "text": ""}

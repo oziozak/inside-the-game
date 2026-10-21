@@ -49,6 +49,17 @@ class VerifierTest(unittest.TestCase):
     def test_accepts_backed_text(self):
         self.assertEqual(verifier.check("23 m pass", "K. Aydin", {"distance_m": 23.0}, {}, {"K. Aydin"}, {"K. Aydin"}), [])
 
+    def test_turkish_suffix_on_a_real_name_passes(self):
+        self.assertEqual(verifier.check("K. Aydin'den harika pas", "", {}, {}, {"K. Aydin"}, {"K. Aydin"}), [])
+
+    def test_turkish_letters_are_read_as_one_name(self):
+        p = verifier.check("K. Aydın ile hücum", "", {}, {}, {"K. Aydin"}, {"K. Aydin"})
+        self.assertEqual(p, ["unknown player name 'K. Aydın'"])
+
+    def test_invented_name_with_turkish_initial_is_rejected(self):
+        p = verifier.check("Ç. Uydurma'dan gol", "", {}, {}, {"K. Aydin"}, {"K. Aydin"})
+        self.assertEqual(p, ["unknown player name 'Ç. Uydurma'"])
+
     def test_parse_fenced_json(self):
         out = parse_json_reply('```json\n{"en": {"title": "a", "text": "b"}}\n```', ["en", "tr"])
         self.assertEqual(out["en"]["text"], "b")
@@ -66,6 +77,21 @@ class DirectorTest(unittest.TestCase):
         mean = sum(blocks) / len(blocks)
         for n in blocks:
             self.assertLessEqual(abs(n - mean), 0.5 * mean, blocks)
+
+    def test_setup_pass_is_credited_on_the_shot_card(self):
+        # No separate key-pass card: it would show before the shot and spoil it.
+        match = load_match(SAMPLE_B)
+        by_id = {e["id"]: e for e in match.events}
+        candidates, _ = direct(match)
+        self.assertFalse(any("key pass" in c.reason for c in candidates))
+        setups = [c for c in candidates if c.setup]
+        self.assertGreater(len(setups), 0)
+        for c in setups:
+            p, shot = by_id[c.event_ids[0]], by_id[c.event_ids[1]]
+            self.assertEqual(c.event_ids, [p["id"], shot["id"]])
+            self.assertEqual(p["to"], shot["from"])
+            self.assertLessEqual(shot["t"] - p["t"], 6.0)
+            self.assertGreaterEqual(c.start, shot["t"])
 
 
 class PipelineTest(unittest.TestCase):

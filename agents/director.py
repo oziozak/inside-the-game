@@ -25,6 +25,7 @@ MODE_RULES = {
 }
 BUDGET_WINDOW_S = 300.0
 MIN_GAP_S = 2.0
+SETUP_WINDOW_S = 6.0  # a pass is the setup of a shot if the receiver shoots within this time
 
 GRAPHIC_LAYOUT = {  # graphic -> (position, seconds on screen)
     "goal_banner": ("bottom-center", 8.0),
@@ -51,10 +52,16 @@ class Candidate:
     start: float = 0.0
     duration: float = 5.0
     position: str = "bottom-left"
+    setup: dict | None = None  # the pass that set up a shot (shot_card only)
 
     @property
     def player(self) -> int | None:
         return self.event.get("from")
+
+    @property
+    def event_ids(self) -> list[str]:
+        """Evidence for the overlay, in time order: the setup pass (if any), then the event."""
+        return ([self.setup["id"]] if self.setup else []) + [self.event["id"]]
 
 
 def _pick(f: dict, *keys: str) -> dict:
@@ -81,8 +88,6 @@ def propose(e: dict, f: dict) -> Candidate | None:
         return Candidate(e, "insight_text", 0.6, f"{sub or 'ball win'} high up the pitch", f, {})
     if typ in PASS_TYPES and e.get("success") and "difficulty" in f:
         vals = _pick(f, "distance_m", "speed_kmh", "difficulty", "progress_m")
-        if f.get("key_pass"):
-            return Candidate(e, "pass_card", 0.8, "key pass (led to a shot)", f, vals)
         if f.get("into_box"):
             return Candidate(e, "pass_card", 0.7, "pass into the box", f, vals)
         if f["difficulty"] >= 7:
@@ -125,12 +130,21 @@ def direct(match: Match) -> tuple[list[Candidate], list[dict]]:
     """Run the director over a whole match. Returns accepted candidates + decision log."""
     state = MatchState(info=match.info)
     candidates, snapshots = [], []
-    ev = match.events
-    for i, e in enumerate(ev):
+    last_pass_to: dict[int, dict] = {}  # receiver id -> last completed pass to them
+    for e in match.events:
         state.update(e)
-        f = event_facts(e, ev[i + 1:i + 6], state)
+        f = event_facts(e, state)
         snapshots.append((e["t"], e, f))
         c = propose(e, f)
+        if c and c.graphic == "shot_card":
+            # Credit the setup on the shot card itself: a separate key-pass card would have
+            # to wait for the shot and then fight it for the same slot.
+            p = last_pass_to.get(e.get("from"))
+            if p and p.get("team") == e.get("team") and e["t"] - p["t"] <= SETUP_WINDOW_S:
+                c.setup = p
+                c.reason += ", set up by a pass"
+        if e["type"] in PASS_TYPES and e.get("success") and e.get("to") is not None:
+            last_pass_to[e["to"]] = e
         if c:
             c.modes = {m for m in MODES if c.priority >= MODE_RULES[m]["min_priority"]}
             candidates.append(c)

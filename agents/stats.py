@@ -2,7 +2,7 @@
 
 Two things live here:
 - `event_facts(event, state)`: the numbers and flags about one event (distance, progress,
-  difficulty, key pass...).
+  difficulty, into the box...).
 - `MatchState`: running totals updated event by event (score, shots, pass accuracy,
   momentum, per-player counts), so every fact is "as of that moment" and never uses the future.
 """
@@ -134,11 +134,10 @@ class MatchState:
             self.score = dict(e["score"])
 
 
-def event_facts(e: dict, nxt: list[dict], state: MatchState) -> dict:
+def event_facts(e: dict, state: MatchState) -> dict:
     """Numbers and flags about one event, as of that moment.
 
-    `nxt` is the next few events (for "led to a shot" checks). `state` must already
-    include this event (call state.update(e) first).
+    `state` must already include this event (call state.update(e) first).
     """
     info = state.info
     side, typ = e.get("team", "none"), e["type"]
@@ -168,11 +167,6 @@ def event_facts(e: dict, nxt: list[dict], state: MatchState) -> dict:
         f["difficulty"] = pass_difficulty(e.get("distance_m", 0), e.get("speed_kmh", 0), progress, e.get("subtype"))
         f["into_final_third"] = bool(e.get("success")) and fx < 70 <= end_fx
         f["into_box"] = bool(e.get("success")) and in_box(end_fx, ey)
-        # Key pass: the receiver shoots (or scores) within 6 seconds.
-        f["key_pass"] = bool(e.get("success")) and any(
-            n["type"] in ("shot", "goal") and n.get("from") == e.get("to") and n["t"] - e["t"] <= 6.0
-            for n in nxt
-        )
     elif typ == "shot":
         goal_x = PITCH_X if attacks_positive_x(side, period, info) else 0.0
         f["goal_distance_m"] = round(((sx - goal_x) ** 2 + (sy - GOAL_Y) ** 2) ** 0.5)
