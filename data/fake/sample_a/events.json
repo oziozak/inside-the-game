@@ -13,12 +13,12 @@
    34.0
   ],
   "end": [
-   39.9,
-   37.8
+   41.3,
+   39.4
   ],
-  "distance_m": 13.1,
-  "speed_kmh": 36,
-  "duration_s": 1.52,
+  "distance_m": 12.4,
+  "speed_kmh": 45,
+  "duration_s": 1.15,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -26,24 +26,24 @@
  {
   "id": "e0002",
   "match_id": "fake_a",
-  "t": 2.54,
+  "t": 2.11,
   "period": 1,
   "type": "pass",
   "team": "home",
   "from": 6,
-  "to": 10,
+  "to": 9,
   "start": [
-   40.0,
-   38.8
+   41.7,
+   38.4
   ],
   "end": [
-   47.7,
-   46.1
+   69.2,
+   33.2
   ],
-  "subtype": "short",
-  "distance_m": 10.6,
-  "speed_kmh": 40,
-  "duration_s": 1.09,
+  "subtype": "long",
+  "distance_m": 28.0,
+  "speed_kmh": 47,
+  "duration_s": 2.46,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -51,24 +51,24 @@
  {
   "id": "e0003",
   "match_id": "fake_a",
-  "t": 4.09,
+  "t": 4.89,
   "period": 1,
   "type": "pass",
   "team": "home",
-  "from": 10,
+  "from": 9,
   "to": 6,
   "start": [
-   48.1,
-   46.9
+   69.5,
+   33.8
   ],
   "end": [
-   37.0,
-   34.2
+   41.7,
+   35.7
   ],
-  "subtype": "short",
-  "distance_m": 16.9,
-  "speed_kmh": 42,
-  "duration_s": 1.67,
+  "subtype": "long",
+  "distance_m": 27.9,
+  "speed_kmh": 41,
+  "duration_s": 2.78,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -76,65 +76,74 @@
  {
   "id": "e0004",
   "match_id": "fake_a",
-  "t": 9.7,
+  "t": 8.31,
   "period": 1,
-  "type": "offside",
+  "type": "pass",
   "team": "home",
-  "from": 11,
-  "to": null,
+  "from": 6,
+  "to": 9,
   "start": [
-   74.3,
-   67
+   41.7,
+   35.2
   ],
-  "success": false,
+  "end": [
+   72.4,
+   34.0
+  ],
+  "subtype": "long",
+  "distance_m": 30.8,
+  "speed_kmh": 46,
+  "duration_s": 2.77,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0005",
   "match_id": "fake_a",
-  "t": 21.94,
+  "t": 12.03,
   "period": 1,
-  "type": "free_kick",
-  "team": "away",
-  "from": 107,
-  "to": null,
+  "type": "pass",
+  "team": "home",
+  "from": 9,
+  "to": 8,
   "start": [
-   74.3,
-   67
+   73.6,
+   34.3
   ],
   "end": [
    54.6,
-   53.7
+   19.2
   ],
-  "distance_m": 23.8,
-  "speed_kmh": 76,
-  "duration_s": 1.29,
-  "success": false,
+  "subtype": "short",
+  "distance_m": 24.2,
+  "speed_kmh": 49,
+  "duration_s": 2.04,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0006",
   "match_id": "fake_a",
-  "t": 23.57,
+  "t": 14.96,
   "period": 1,
   "type": "pass",
   "team": "home",
-  "from": 10,
+  "from": 8,
   "to": 11,
   "start": [
-   55.3,
-   54.2
+   56.0,
+   19.0
   ],
   "end": [
-   72.7,
-   65.7
+   71.8,
+   65.5
   ],
-  "subtype": "short",
-  "distance_m": 20.8,
-  "speed_kmh": 40,
-  "duration_s": 2.16,
+  "subtype": "long",
+  "distance_m": 49.2,
+  "speed_kmh": 71,
+  "duration_s": 2.85,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -142,42 +151,49 @@
  {
   "id": "e0007",
   "match_id": "fake_a",
-  "t": 29.38,
+  "t": 18.31,
   "period": 1,
   "type": "pass",
   "team": "home",
   "from": 11,
-  "to": null,
+  "to": 9,
   "start": [
-   85.4,
-   66.9
+   71.9,
+   66.3
   ],
   "end": [
-   77.6,
-   61.8
+   78.1,
+   35.4
   ],
   "subtype": "long",
-  "distance_m": 9.3,
-  "speed_kmh": 49,
-  "duration_s": 0.79,
-  "success": false,
+  "distance_m": 31.5,
+  "speed_kmh": 42,
+  "duration_s": 3.13,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0008",
   "match_id": "fake_a",
-  "t": 30.17,
+  "t": 21.9,
   "period": 1,
-  "type": "possession_change",
-  "team": "away",
-  "from": 107,
-  "to": 11,
+  "type": "pass",
+  "team": "home",
+  "from": 9,
+  "to": 10,
   "start": [
-   77.6,
-   61.8
+   78.9,
+   35.1
   ],
-  "subtype": "interception",
+  "end": [
+   60.5,
+   48.5
+  ],
+  "subtype": "short",
+  "distance_m": 22.8,
+  "speed_kmh": 52,
+  "duration_s": 1.82,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -185,47 +201,49 @@
  {
   "id": "e0009",
   "match_id": "fake_a",
-  "t": 30.17,
+  "t": 24.3,
   "period": 1,
-  "type": "clearance",
-  "team": "away",
-  "from": 107,
-  "to": null,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": 9,
   "start": [
-   77.6,
-   61.8
+   60.8,
+   49.3
   ],
   "end": [
-   32.8,
-   68.5
+   76.0,
+   35.0
   ],
-  "distance_m": 45.3,
-  "speed_kmh": 78,
-  "duration_s": 2.39,
-  "success": false,
+  "subtype": "short",
+  "distance_m": 20.8,
+  "speed_kmh": 50,
+  "duration_s": 1.72,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0010",
   "match_id": "fake_a",
-  "t": 44.46,
+  "t": 26.88,
   "period": 1,
-  "type": "throw_in",
+  "type": "pass",
   "team": "home",
-  "from": 11,
-  "to": 10,
+  "from": 9,
+  "to": 7,
   "start": [
-   32.8,
-   68.0
+   77.3,
+   34.3
   ],
   "end": [
-   44.1,
-   51.2
+   84.1,
+   1.5
   ],
-  "distance_m": 20.3,
-  "speed_kmh": 39,
-  "duration_s": 2.13,
+  "subtype": "through",
+  "distance_m": 33.5,
+  "speed_kmh": 52,
+  "duration_s": 2.69,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -233,17 +251,24 @@
  {
   "id": "e0011",
   "match_id": "fake_a",
-  "t": 49.15,
+  "t": 30.51,
   "period": 1,
-  "type": "possession_change",
-  "team": "away",
-  "from": 109,
-  "to": 10,
+  "type": "pass",
+  "team": "home",
+  "from": 7,
+  "to": 8,
   "start": [
-   54.0,
-   55.5
+   83.9,
+   2.2
   ],
-  "subtype": "tackle",
+  "end": [
+   57.5,
+   18.0
+  ],
+  "subtype": "long",
+  "distance_m": 30.8,
+  "speed_kmh": 43,
+  "duration_s": 2.97,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -251,24 +276,24 @@
  {
   "id": "e0012",
   "match_id": "fake_a",
-  "t": 49.92,
+  "t": 34.05,
   "period": 1,
   "type": "pass",
-  "team": "away",
-  "from": 109,
-  "to": 108,
+  "team": "home",
+  "from": 8,
+  "to": 9,
   "start": [
-   53.0,
-   55.0
+   59.0,
+   17.7
   ],
   "end": [
-   62.7,
-   29.5
+   75.7,
+   31.1
   ],
-  "subtype": "long",
-  "distance_m": 27.2,
-  "speed_kmh": 51,
-  "duration_s": 2.2,
+  "subtype": "short",
+  "distance_m": 21.5,
+  "speed_kmh": 52,
+  "duration_s": 1.72,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -276,24 +301,24 @@
  {
   "id": "e0013",
   "match_id": "fake_a",
-  "t": 53.12,
+  "t": 36.14,
   "period": 1,
   "type": "pass",
-  "team": "away",
-  "from": 108,
-  "to": 111,
+  "team": "home",
+  "from": 9,
+  "to": 10,
   "start": [
-   61.9,
-   28.5
+   76.5,
+   32.0
   ],
   "end": [
-   59.9,
-   4.6
+   57.4,
+   47.9
   ],
   "subtype": "short",
-  "distance_m": 24.0,
-  "speed_kmh": 45,
-  "duration_s": 2.2,
+  "distance_m": 24.8,
+  "speed_kmh": 49,
+  "duration_s": 2.12,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -301,24 +326,24 @@
  {
   "id": "e0014",
   "match_id": "fake_a",
-  "t": 59.04,
+  "t": 39.22,
   "period": 1,
   "type": "pass",
-  "team": "away",
-  "from": 111,
-  "to": 110,
+  "team": "home",
+  "from": 10,
+  "to": 9,
   "start": [
-   45.4,
-   4.4
+   57.0,
+   47.1
   ],
   "end": [
-   31.8,
-   25.5
+   74.6,
+   35.1
   ],
-  "subtype": "long",
-  "distance_m": 25.0,
-  "speed_kmh": 56,
-  "duration_s": 1.85,
+  "subtype": "short",
+  "distance_m": 21.4,
+  "speed_kmh": 50,
+  "duration_s": 1.76,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -326,24 +351,24 @@
  {
   "id": "e0015",
   "match_id": "fake_a",
-  "t": 61.63,
+  "t": 41.69,
   "period": 1,
   "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": 108,
+  "team": "home",
+  "from": 9,
+  "to": 5,
   "start": [
-   30.9,
-   26.0
+   74.6,
+   35.5
   ],
   "end": [
-   54.7,
-   26.1
+   95.1,
+   35.5
   ],
-  "subtype": "short",
-  "distance_m": 23.8,
-  "speed_kmh": 47,
-  "duration_s": 2.09,
+  "subtype": "cross",
+  "distance_m": 20.5,
+  "speed_kmh": 77,
+  "duration_s": 1.11,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -351,24 +376,24 @@
  {
   "id": "e0016",
   "match_id": "fake_a",
-  "t": 64.47,
+  "t": 43.32,
   "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 108,
-  "to": 111,
+  "type": "shot",
+  "team": "home",
+  "from": 5,
+  "to": null,
   "start": [
-   54.7,
-   26.0
+   95.1,
+   35.0
   ],
   "end": [
-   59.1,
-   5.1
+   105.0,
+   35.5
   ],
-  "subtype": "short",
-  "distance_m": 21.3,
-  "speed_kmh": 40,
-  "duration_s": 2.21,
+  "subtype": "on_target",
+  "distance_m": 9.9,
+  "speed_kmh": 86,
+  "duration_s": 0.41,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -376,1864 +401,15 @@
  {
   "id": "e0017",
   "match_id": "fake_a",
-  "t": 67.22,
+  "t": 43.73,
   "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 111,
-  "to": 103,
-  "start": [
-   57.6,
-   6.1
-  ],
-  "end": [
-   85.8,
-   2.9
-  ],
-  "subtype": "long",
-  "distance_m": 28.4,
-  "speed_kmh": 48,
-  "duration_s": 2.46,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0018",
-  "match_id": "fake_a",
-  "t": 70.47,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 103,
-  "to": 106,
-  "start": [
-   85.4,
-   3.1
-  ],
-  "end": [
-   98.7,
-   22.2
-  ],
-  "subtype": "short",
-  "distance_m": 23.3,
-  "speed_kmh": 53,
-  "duration_s": 1.83,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0019",
-  "match_id": "fake_a",
-  "t": 73.2,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 106,
-  "to": null,
-  "start": [
-   99.1,
-   22.3
-  ],
-  "end": [
-   86.9,
-   33.9
-  ],
-  "subtype": "long",
-  "distance_m": 16.9,
-  "speed_kmh": 81,
-  "duration_s": 0.87,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0020",
-  "match_id": "fake_a",
-  "t": 77.23,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 9,
-  "to": 10,
-  "start": [
-   92.0,
-   41.1
-  ],
-  "end": [
-   64.5,
-   45.8
-  ],
-  "subtype": "long",
-  "distance_m": 27.9,
-  "speed_kmh": 52,
-  "duration_s": 2.24,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0021",
-  "match_id": "fake_a",
-  "t": 80.12,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 10,
-  "to": 3,
-  "start": [
-   65.5,
-   46.2
-  ],
-  "end": [
-   37.0,
-   65.0
-  ],
-  "subtype": "through",
-  "distance_m": 34.1,
-  "speed_kmh": 50,
-  "duration_s": 2.8,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0022",
-  "match_id": "fake_a",
-  "t": 83.98,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 3,
-  "to": null,
-  "start": [
-   37.7,
-   64.8
-  ],
-  "end": [
-   29.0,
-   59.1
-  ],
-  "subtype": "long",
-  "distance_m": 10.4,
-  "speed_kmh": 54,
-  "duration_s": 0.79,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0023",
-  "match_id": "fake_a",
-  "t": 84.77,
-  "period": 1,
-  "type": "possession_change",
-  "team": "away",
-  "from": 109,
-  "to": 3,
-  "start": [
-   29.0,
-   59.1
-  ],
-  "subtype": "interception",
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0024",
-  "match_id": "fake_a",
-  "t": 85.83,
-  "period": 1,
-  "type": "shot",
-  "team": "away",
-  "from": 109,
-  "to": null,
-  "start": [
-   29.1,
-   59.7
-  ],
-  "end": [
-   25.0,
-   56.0
-  ],
-  "subtype": "blocked",
-  "distance_m": 5.4,
-  "speed_kmh": 91,
-  "duration_s": 0.21,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0025",
-  "match_id": "fake_a",
-  "t": 115.7,
-  "period": 1,
-  "type": "corner",
-  "team": "away",
-  "from": 107,
-  "to": null,
-  "start": [
-   0.5,
-   0.5
-  ],
-  "end": [
-   4.3,
-   17.5
-  ],
-  "distance_m": 17.4,
-  "speed_kmh": 60,
-  "duration_s": 1.2,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0026",
-  "match_id": "fake_a",
-  "t": 116.9,
-  "period": 1,
-  "type": "clearance",
-  "team": "home",
-  "from": 4,
-  "to": null,
-  "start": [
-   4.3,
-   17.5
-  ],
-  "end": [
-   -0.5,
-   9.7
-  ],
-  "distance_m": 9.1,
-  "speed_kmh": 93,
-  "duration_s": 0.6,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0027",
-  "match_id": "fake_a",
-  "t": 147.73,
-  "period": 1,
-  "type": "corner",
-  "team": "away",
-  "from": 111,
-  "to": null,
-  "start": [
-   0.5,
-   0.5
-  ],
-  "end": [
-   5.9,
-   16.9
-  ],
-  "distance_m": 17.2,
-  "speed_kmh": 70,
-  "duration_s": 1.02,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0028",
-  "match_id": "fake_a",
-  "t": 149.82,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 4,
-  "to": null,
-  "start": [
-   7.4,
-   16.1
-  ],
-  "end": [
-   37.3,
-   8.2
-  ],
-  "subtype": "long",
-  "distance_m": 30.9,
-  "speed_kmh": 74,
-  "duration_s": 1.74,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0029",
-  "match_id": "fake_a",
-  "t": 153.71,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 111,
-  "to": null,
-  "start": [
-   32.1,
-   8.8
-  ],
-  "end": [
-   11.5,
-   32.5
-  ],
-  "subtype": "cross",
-  "distance_m": 31.4,
-  "speed_kmh": 77,
-  "duration_s": 1.68,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0030",
-  "match_id": "fake_a",
-  "t": 155.39,
-  "period": 1,
-  "type": "clearance",
-  "team": "home",
-  "from": 5,
-  "to": null,
-  "start": [
-   11.5,
-   32.5
-  ],
-  "end": [
-   55.8,
-   44.2
-  ],
-  "distance_m": 45.8,
-  "speed_kmh": 69,
-  "duration_s": 2.76,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0031",
-  "match_id": "fake_a",
-  "t": 158.6,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 109,
-  "to": 110,
-  "start": [
-   55.9,
-   44.2
-  ],
-  "end": [
-   36.6,
-   29.8
-  ],
-  "subtype": "short",
-  "distance_m": 24.1,
-  "speed_kmh": 52,
-  "duration_s": 1.92,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0032",
-  "match_id": "fake_a",
-  "t": 164.55,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": 105,
-  "start": [
-   25.5,
-   26.4
-  ],
-  "end": [
-   11.6,
-   26.9
-  ],
-  "subtype": "cross",
-  "distance_m": 13.9,
-  "speed_kmh": 77,
-  "duration_s": 0.75,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0033",
-  "match_id": "fake_a",
-  "t": 165.88,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 105,
-  "to": 110,
-  "start": [
-   11.6,
-   27.0
-  ],
-  "end": [
-   23.5,
-   24.9
-  ],
-  "subtype": "short",
-  "distance_m": 12.0,
-  "speed_kmh": 41,
-  "duration_s": 1.21,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0034",
-  "match_id": "fake_a",
-  "t": 167.88,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": 104,
-  "start": [
-   22.3,
-   24.0
-  ],
-  "end": [
-   53.0,
-   42.4
-  ],
-  "subtype": "long",
-  "distance_m": 35.8,
-  "speed_kmh": 48,
-  "duration_s": 3.09,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0035",
-  "match_id": "fake_a",
-  "t": 171.36,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 104,
-  "to": 108,
-  "start": [
-   52.7,
-   42.2
-  ],
-  "end": [
-   61.2,
-   28.4
-  ],
-  "subtype": "short",
-  "distance_m": 16.2,
-  "speed_kmh": 58,
-  "duration_s": 1.16,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0036",
-  "match_id": "fake_a",
-  "t": 173.41,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 108,
-  "to": 106,
-  "start": [
-   60.1,
-   28.2
-  ],
-  "end": [
-   93.8,
-   22.6
-  ],
-  "subtype": "long",
-  "distance_m": 34.2,
-  "speed_kmh": 60,
-  "duration_s": 2.35,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0037",
-  "match_id": "fake_a",
-  "t": 176.56,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 106,
-  "to": 108,
-  "start": [
-   92.8,
-   22.4
-  ],
-  "end": [
-   74.4,
-   23.6
-  ],
-  "subtype": "short",
-  "distance_m": 18.5,
-  "speed_kmh": 48,
-  "duration_s": 1.61,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0038",
-  "match_id": "fake_a",
-  "t": 179.24,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 108,
-  "to": 109,
-  "start": [
-   74.5,
-   23.9
-  ],
-  "end": [
-   41.6,
-   39.7
-  ],
-  "subtype": "long",
-  "distance_m": 36.5,
-  "speed_kmh": 44,
-  "duration_s": 3.42,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0039",
-  "match_id": "fake_a",
-  "t": 187.52,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 109,
-  "to": 104,
-  "start": [
-   31.6,
-   36.5
-  ],
-  "end": [
-   54.8,
-   41.2
-  ],
-  "subtype": "short",
-  "distance_m": 23.6,
-  "speed_kmh": 55,
-  "duration_s": 1.77,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0040",
-  "match_id": "fake_a",
-  "t": 189.79,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 104,
-  "to": 110,
-  "start": [
-   53.8,
-   42.1
-  ],
-  "end": [
-   36.1,
-   27.2
-  ],
-  "subtype": "short",
-  "distance_m": 23.2,
-  "speed_kmh": 54,
-  "duration_s": 1.79,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0041",
-  "match_id": "fake_a",
-  "t": 191.89,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": 111,
-  "start": [
-   34.8,
-   26.6
-  ],
-  "end": [
-   48.4,
-   5.5
-  ],
-  "subtype": "long",
-  "distance_m": 25.1,
-  "speed_kmh": 47,
-  "duration_s": 2.22,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0042",
-  "match_id": "fake_a",
-  "t": 194.61,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 111,
-  "to": 110,
-  "start": [
-   47.5,
-   5.5
-  ],
-  "end": [
-   32.5,
-   24.7
-  ],
-  "subtype": "short",
-  "distance_m": 24.3,
-  "speed_kmh": 47,
-  "duration_s": 2.12,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0043",
-  "match_id": "fake_a",
-  "t": 197.11,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": null,
-  "start": [
-   32.1,
-   23.7
-  ],
-  "end": [
-   29.5,
-   40.9
-  ],
-  "subtype": "short",
-  "distance_m": 17.4,
-  "speed_kmh": 48,
-  "duration_s": 1.5,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0044",
-  "match_id": "fake_a",
-  "t": 199.53,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 10,
-  "to": 4,
-  "start": [
-   30.9,
-   40.6
-  ],
-  "end": [
-   10.3,
-   23.8
-  ],
-  "subtype": "long",
-  "distance_m": 26.6,
-  "speed_kmh": 44,
-  "duration_s": 2.53,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0045",
-  "match_id": "fake_a",
-  "t": 202.48,
-  "period": 1,
-  "type": "clearance",
-  "team": "home",
-  "from": 4,
-  "to": null,
-  "start": [
-   11.2,
-   24.3
-  ],
-  "end": [
-   45.6,
-   39.6
-  ],
-  "distance_m": 37.6,
-  "speed_kmh": 85,
-  "duration_s": 1.83,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0046",
-  "match_id": "fake_a",
-  "t": 204.66,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 10,
-  "to": 9,
-  "start": [
-   45.4,
-   40.0
-  ],
-  "end": [
-   78.0,
-   35.6
-  ],
-  "subtype": "through",
-  "distance_m": 32.8,
-  "speed_kmh": 50,
-  "duration_s": 2.74,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0047",
-  "match_id": "fake_a",
-  "t": 208.23,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 9,
-  "to": 6,
-  "start": [
-   79.2,
-   34.8
-  ],
-  "end": [
-   44.0,
-   33.8
-  ],
-  "subtype": "long",
-  "distance_m": 35.1,
-  "speed_kmh": 40,
-  "duration_s": 3.66,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0048",
-  "match_id": "fake_a",
-  "t": 212.25,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 6,
-  "to": 9,
-  "start": [
-   44.6,
-   34.6
-  ],
-  "end": [
-   80.4,
-   35.7
-  ],
-  "subtype": "through",
-  "distance_m": 35.9,
-  "speed_kmh": 54,
-  "duration_s": 2.76,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0049",
-  "match_id": "fake_a",
-  "t": 215.74,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 9,
-  "to": 8,
-  "start": [
-   81.8,
-   35.4
-  ],
-  "end": [
-   56.1,
-   21.8
-  ],
-  "subtype": "long",
-  "distance_m": 29.1,
-  "speed_kmh": 49,
-  "duration_s": 2.48,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0050",
-  "match_id": "fake_a",
-  "t": 218.62,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 8,
-  "to": 9,
-  "start": [
-   57.4,
-   21.6
-  ],
-  "end": [
-   77.6,
-   32.6
-  ],
-  "subtype": "short",
-  "distance_m": 23.0,
-  "speed_kmh": 51,
-  "duration_s": 1.88,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0051",
-  "match_id": "fake_a",
-  "t": 221.45,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 9,
-  "to": 10,
-  "start": [
-   78.7,
-   32.5
-  ],
-  "end": [
-   60.2,
-   45.8
-  ],
-  "subtype": "short",
-  "distance_m": 22.8,
-  "speed_kmh": 55,
-  "duration_s": 1.72,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0052",
-  "match_id": "fake_a",
-  "t": 225.95,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 10,
-  "to": 11,
-  "start": [
-   72.0,
-   44.4
-  ],
-  "end": [
-   79.0,
-   67.0
-  ],
-  "subtype": "short",
-  "distance_m": 23.6,
-  "speed_kmh": 48,
-  "duration_s": 2.02,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0053",
-  "match_id": "fake_a",
-  "t": 229.28,
-  "period": 1,
-  "type": "possession_change",
-  "team": "away",
-  "from": 107,
-  "to": 11,
-  "start": [
-   80.9,
-   66.0
-  ],
-  "subtype": "tackle",
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0054",
-  "match_id": "fake_a",
-  "t": 229.83,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 107,
-  "to": 104,
-  "start": [
-   80.0,
-   65.2
-  ],
-  "end": [
-   68.4,
-   44.0
-  ],
-  "subtype": "short",
-  "distance_m": 24.2,
-  "speed_kmh": 54,
-  "duration_s": 1.84,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0055",
-  "match_id": "fake_a",
-  "t": 232.16,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 104,
-  "to": 109,
-  "start": [
-   67.6,
-   43.6
-  ],
-  "end": [
-   41.7,
-   41.4
-  ],
-  "subtype": "long",
-  "distance_m": 26.0,
-  "speed_kmh": 39,
-  "duration_s": 2.76,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0056",
-  "match_id": "fake_a",
-  "t": 235.39,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 109,
-  "to": 110,
-  "start": [
-   40.4,
-   42.3
-  ],
-  "end": [
-   29.6,
-   28.6
-  ],
-  "subtype": "short",
-  "distance_m": 17.4,
-  "speed_kmh": 53,
-  "duration_s": 1.37,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0057",
-  "match_id": "fake_a",
-  "t": 237.39,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": 106,
-  "start": [
-   28.1,
-   29.1
-  ],
-  "end": [
-   80.3,
-   22.6
-  ],
-  "subtype": "through",
-  "distance_m": 52.6,
-  "speed_kmh": 52,
-  "duration_s": 4.17,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0058",
-  "match_id": "fake_a",
-  "t": 242.38,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 106,
-  "to": 104,
-  "start": [
-   79.2,
-   22.1
-  ],
-  "end": [
-   70.2,
-   40.0
-  ],
-  "subtype": "short",
-  "distance_m": 20.0,
-  "speed_kmh": 39,
-  "duration_s": 2.13,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0059",
-  "match_id": "fake_a",
-  "t": 245.37,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 104,
-  "to": 106,
-  "start": [
-   68.8,
-   40.4
-  ],
-  "end": [
-   98.4,
-   26.2
-  ],
-  "subtype": "long",
-  "distance_m": 32.8,
-  "speed_kmh": 49,
-  "duration_s": 2.8,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0060",
-  "match_id": "fake_a",
-  "t": 248.89,
-  "period": 1,
-  "type": "clearance",
-  "team": "away",
-  "from": 106,
-  "to": null,
-  "start": [
-   97.9,
-   27.0
-  ],
-  "end": [
-   53.3,
-   8.5
-  ],
-  "distance_m": 48.3,
-  "speed_kmh": 65,
-  "duration_s": 3.07,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0061",
-  "match_id": "fake_a",
-  "t": 252.49,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 111,
-  "to": 109,
-  "start": [
-   52.1,
-   7.7
-  ],
-  "end": [
-   32.8,
-   36.7
-  ],
-  "subtype": "long",
-  "distance_m": 34.8,
-  "speed_kmh": 56,
-  "duration_s": 2.59,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0062",
-  "match_id": "fake_a",
-  "t": 258.8,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 109,
-  "to": 110,
-  "start": [
-   26.9,
-   46.3
-  ],
-  "end": [
-   25.9,
-   30.5
-  ],
-  "subtype": "short",
-  "distance_m": 15.8,
-  "speed_kmh": 55,
-  "duration_s": 1.19,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0063",
-  "match_id": "fake_a",
-  "t": 260.55,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": 108,
-  "start": [
-   25.5,
-   29.5
-  ],
-  "end": [
-   57.0,
-   27.3
-  ],
-  "subtype": "long",
-  "distance_m": 31.5,
-  "speed_kmh": 54,
-  "duration_s": 2.4,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0064",
-  "match_id": "fake_a",
-  "t": 263.32,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 108,
-  "to": 110,
-  "start": [
-   57.1,
-   27.1
-  ],
-  "end": [
-   33.4,
-   26.8
-  ],
-  "subtype": "short",
-  "distance_m": 23.6,
-  "speed_kmh": 42,
-  "duration_s": 2.32,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0065",
-  "match_id": "fake_a",
-  "t": 266.59,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": 104,
-  "start": [
-   32.9,
-   27.5
-  ],
-  "end": [
-   55.8,
-   39.5
-  ],
-  "subtype": "long",
-  "distance_m": 25.9,
-  "speed_kmh": 57,
-  "duration_s": 1.87,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0066",
-  "match_id": "fake_a",
-  "t": 269.08,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 104,
-  "to": 109,
-  "start": [
-   56.3,
-   40.0
-  ],
-  "end": [
-   39.5,
-   41.0
-  ],
-  "subtype": "short",
-  "distance_m": 16.8,
-  "speed_kmh": 50,
-  "duration_s": 1.39,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0067",
-  "match_id": "fake_a",
-  "t": 270.8,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 109,
-  "to": 104,
-  "start": [
-   38.5,
-   40.1
-  ],
-  "end": [
-   57.2,
-   42.5
-  ],
-  "subtype": "short",
-  "distance_m": 18.9,
-  "speed_kmh": 55,
-  "duration_s": 1.42,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0068",
-  "match_id": "fake_a",
-  "t": 272.97,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 104,
-  "to": 103,
-  "start": [
-   57.2,
-   41.7
-  ],
-  "end": [
-   87.1,
-   6.7
-  ],
-  "subtype": "long",
-  "distance_m": 45.9,
-  "speed_kmh": 74,
-  "duration_s": 2.57,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0069",
-  "match_id": "fake_a",
-  "t": 276.09,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 103,
-  "to": 108,
-  "start": [
-   86.7,
-   6.8
-  ],
-  "end": [
-   73.4,
-   23.0
-  ],
-  "subtype": "short",
-  "distance_m": 20.9,
-  "speed_kmh": 55,
-  "duration_s": 1.59,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0070",
-  "match_id": "fake_a",
-  "t": 280.06,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 108,
-  "to": 111,
-  "start": [
-   69.1,
-   20.5
-  ],
-  "end": [
-   61.8,
-   3.8
-  ],
-  "subtype": "short",
-  "distance_m": 18.3,
-  "speed_kmh": 50,
-  "duration_s": 1.52,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0071",
-  "match_id": "fake_a",
-  "t": 282.58,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 111,
-  "to": 108,
-  "start": [
-   61.4,
-   3.1
-  ],
-  "end": [
-   65.6,
-   23.6
-  ],
-  "subtype": "short",
-  "distance_m": 20.9,
-  "speed_kmh": 57,
-  "duration_s": 1.52,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0072",
-  "match_id": "fake_a",
-  "t": 285.16,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 108,
-  "to": 110,
-  "start": [
-   65.0,
-   23.5
-  ],
-  "end": [
-   38.0,
-   27.7
-  ],
-  "subtype": "long",
-  "distance_m": 27.3,
-  "speed_kmh": 46,
-  "duration_s": 2.45,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0073",
-  "match_id": "fake_a",
-  "t": 292.37,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": 109,
-  "start": [
-   20.9,
-   36.6
-  ],
-  "end": [
-   23.8,
-   40.8
-  ],
-  "subtype": "short",
-  "distance_m": 5.2,
-  "speed_kmh": 47,
-  "duration_s": 0.45,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0074",
-  "match_id": "fake_a",
-  "t": 293.54,
-  "period": 1,
-  "type": "pass",
-  "team": "away",
-  "from": 109,
-  "to": null,
-  "start": [
-   22.9,
-   40.6
-  ],
-  "end": [
-   41.6,
-   41.1
-  ],
-  "subtype": "long",
-  "distance_m": 18.7,
-  "speed_kmh": 39,
-  "duration_s": 1.98,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0075",
-  "match_id": "fake_a",
-  "t": 297.08,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 9,
-  "to": 11,
-  "start": [
-   43.5,
-   40.0
-  ],
-  "end": [
-   76.2,
-   65.1
-  ],
-  "subtype": "through",
-  "distance_m": 41.2,
-  "speed_kmh": 63,
-  "duration_s": 2.69,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0076",
-  "match_id": "fake_a",
-  "t": 300.85,
-  "period": 1,
-  "type": "pass",
-  "team": "home",
-  "from": 11,
-  "to": 10,
-  "start": [
-   76.2,
-   64.6
-  ],
-  "end": [
-   59.1,
-   48.6
-  ],
-  "subtype": "short",
-  "distance_m": 23.4,
-  "speed_kmh": 53,
-  "duration_s": 1.82,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0077",
-  "match_id": "fake_a",
-  "t": 303.17,
-  "period": 1,
-  "type": "half_time",
-  "team": "none",
-  "from": null,
-  "to": null,
-  "start": [
-   52.5,
-   34.0
-  ],
-  "score": {
-   "home": 0,
-   "away": 0
-  },
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0078",
-  "match_id": "fake_a",
-  "t": 304.17,
-  "period": 2,
-  "type": "kickoff",
-  "team": "away",
-  "from": 109,
-  "to": 108,
-  "start": [
-   52.5,
-   34.0
-  ],
-  "end": [
-   44.9,
-   35.4
-  ],
-  "distance_m": 7.7,
-  "speed_kmh": 37,
-  "duration_s": 0.87,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0079",
-  "match_id": "fake_a",
-  "t": 306.08,
-  "period": 2,
-  "type": "pass",
-  "team": "away",
-  "from": 108,
-  "to": 104,
-  "start": [
-   46.0,
-   35.3
-  ],
-  "end": [
-   40.8,
-   25.5
-  ],
-  "subtype": "short",
-  "distance_m": 11.1,
-  "speed_kmh": 38,
-  "duration_s": 1.2,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0080",
-  "match_id": "fake_a",
-  "t": 309.9,
-  "period": 2,
-  "type": "pass",
-  "team": "away",
-  "from": 104,
-  "to": 110,
-  "start": [
-   49.0,
-   28.0
-  ],
-  "end": [
-   69.8,
-   38.8
-  ],
-  "subtype": "short",
-  "distance_m": 23.4,
-  "speed_kmh": 52,
-  "duration_s": 1.87,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0081",
-  "match_id": "fake_a",
-  "t": 314.02,
-  "period": 2,
-  "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": 108,
-  "start": [
-   75.3,
-   41.2
-  ],
-  "end": [
-   49.7,
-   43.5
-  ],
-  "subtype": "long",
-  "distance_m": 25.7,
-  "speed_kmh": 50,
-  "duration_s": 2.15,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0082",
-  "match_id": "fake_a",
-  "t": 318.51,
-  "period": 2,
-  "type": "pass",
-  "team": "away",
-  "from": 108,
-  "to": 110,
-  "start": [
-   53.8,
-   40.0
-  ],
-  "end": [
-   70.4,
-   39.2
-  ],
-  "subtype": "short",
-  "distance_m": 16.6,
-  "speed_kmh": 57,
-  "duration_s": 1.22,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0083",
-  "match_id": "fake_a",
-  "t": 320.31,
-  "period": 2,
-  "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": null,
-  "start": [
-   70.7,
-   38.8
-  ],
-  "end": [
-   58.1,
-   57.6
-  ],
-  "subtype": "long",
-  "distance_m": 22.6,
-  "speed_kmh": 53,
-  "duration_s": 1.78,
-  "success": false,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0084",
-  "match_id": "fake_a",
-  "t": 322.79,
-  "period": 2,
-  "type": "pass",
-  "team": "home",
-  "from": 7,
-  "to": 6,
-  "start": [
-   58.1,
-   56.9
-  ],
-  "end": [
-   71.9,
-   37.7
-  ],
-  "subtype": "short",
-  "distance_m": 23.6,
-  "speed_kmh": 40,
-  "duration_s": 2.43,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0085",
-  "match_id": "fake_a",
-  "t": 326.0,
-  "period": 2,
-  "type": "pass",
-  "team": "home",
-  "from": 6,
-  "to": 10,
-  "start": [
-   71.8,
-   37.1
-  ],
-  "end": [
-   62.1,
-   21.7
-  ],
-  "subtype": "short",
-  "distance_m": 18.2,
-  "speed_kmh": 41,
-  "duration_s": 1.85,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0086",
-  "match_id": "fake_a",
-  "t": 328.26,
-  "period": 2,
-  "type": "pass",
-  "team": "home",
-  "from": 10,
-  "to": 7,
-  "start": [
-   60.6,
-   20.9
-  ],
-  "end": [
-   38.7,
-   64.5
-  ],
-  "subtype": "long",
-  "distance_m": 48.8,
-  "speed_kmh": 79,
-  "duration_s": 2.56,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0087",
-  "match_id": "fake_a",
-  "t": 331.44,
-  "period": 2,
-  "type": "pass",
-  "team": "home",
-  "from": 7,
-  "to": 5,
-  "start": [
-   38.9,
-   64.0
-  ],
-  "end": [
-   5.3,
-   38.8
-  ],
-  "subtype": "cross",
-  "distance_m": 42.0,
-  "speed_kmh": 78,
-  "duration_s": 2.23,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0088",
-  "match_id": "fake_a",
-  "t": 336.42,
-  "period": 2,
-  "type": "pass",
-  "team": "home",
-  "from": 5,
-  "to": 9,
-  "start": [
-   1.4,
-   37.4
-  ],
-  "end": [
-   19.4,
-   33.3
-  ],
-  "subtype": "short",
-  "distance_m": 18.5,
-  "speed_kmh": 40,
-  "duration_s": 1.9,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0089",
-  "match_id": "fake_a",
-  "t": 338.69,
-  "period": 2,
-  "type": "pass",
-  "team": "home",
-  "from": 9,
-  "to": 7,
-  "start": [
-   19.4,
-   32.7
-  ],
-  "end": [
-   6.9,
-   25.8
-  ],
-  "subtype": "cross",
-  "distance_m": 14.3,
-  "speed_kmh": 63,
-  "duration_s": 0.94,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0090",
-  "match_id": "fake_a",
-  "t": 340.15,
-  "period": 2,
-  "type": "pass",
-  "team": "home",
-  "from": 7,
-  "to": 9,
-  "start": [
-   6.4,
-   25.4
-  ],
-  "end": [
-   17.3,
-   34.2
-  ],
-  "subtype": "short",
-  "distance_m": 14.0,
-  "speed_kmh": 55,
-  "duration_s": 1.06,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0091",
-  "match_id": "fake_a",
-  "t": 344.72,
-  "period": 2,
-  "type": "shot",
-  "team": "home",
-  "from": 9,
-  "to": null,
-  "start": [
-   5.5,
-   36.6
-  ],
-  "end": [
-   0.0,
-   37.1
-  ],
-  "subtype": "on_target",
-  "distance_m": 5.5,
-  "speed_kmh": 90,
-  "duration_s": 0.22,
-  "success": true,
-  "source": "sim",
-  "confidence": 1.0
- },
- {
-  "id": "e0092",
-  "match_id": "fake_a",
-  "t": 344.94,
-  "period": 2,
   "type": "goal",
   "team": "home",
-  "from": 9,
+  "from": 5,
   "to": null,
   "start": [
-   0.0,
-   37.1
+   105.0,
+   35.5
   ],
   "subtype": "open_play",
   "success": true,
@@ -2245,10 +421,10 @@
   "confidence": 1.0
  },
  {
-  "id": "e0093",
+  "id": "e0018",
   "match_id": "fake_a",
-  "t": 396.06,
-  "period": 2,
+  "t": 88.98,
+  "period": 1,
   "type": "kickoff",
   "team": "away",
   "from": 109,
@@ -2258,12 +434,1791 @@
    34.0
   ],
   "end": [
-   43.9,
-   31.7
+   65.6,
+   26.3
   ],
-  "distance_m": 8.9,
+  "distance_m": 15.2,
   "speed_kmh": 41,
+  "duration_s": 1.52,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0019",
+  "match_id": "fake_a",
+  "t": 91.35,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 108,
+  "to": 104,
+  "start": [
+   65.6,
+   26.6
+  ],
+  "end": [
+   66.5,
+   40.8
+  ],
+  "subtype": "short",
+  "distance_m": 14.1,
+  "speed_kmh": 47,
+  "duration_s": 1.25,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0020",
+  "match_id": "fake_a",
+  "t": 93.52,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 104,
+  "to": 109,
+  "start": [
+   66.9,
+   41.2
+  ],
+  "end": [
+   36.8,
+   42.6
+  ],
+  "subtype": "long",
+  "distance_m": 30.1,
+  "speed_kmh": 49,
+  "duration_s": 2.53,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0021",
+  "match_id": "fake_a",
+  "t": 96.37,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 109,
+  "to": 103,
+  "start": [
+   36.5,
+   42.1
+  ],
+  "end": [
+   73.1,
+   6.5
+  ],
+  "subtype": "through",
+  "distance_m": 51.1,
+  "speed_kmh": 69,
+  "duration_s": 3.06,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0022",
+  "match_id": "fake_a",
+  "t": 99.96,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 103,
+  "to": null,
+  "start": [
+   73.2,
+   7.0
+  ],
+  "end": [
+   80.6,
+   17.3
+  ],
+  "subtype": "long",
+  "distance_m": 12.6,
+  "speed_kmh": 71,
+  "duration_s": 0.73,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0023",
+  "match_id": "fake_a",
+  "t": 101.01,
+  "period": 1,
+  "type": "shot",
+  "team": "home",
+  "from": 9,
+  "to": null,
+  "start": [
+   81.6,
+   18.1
+  ],
+  "end": [
+   87.2,
+   22.0
+  ],
+  "subtype": "blocked",
+  "distance_m": 6.8,
+  "speed_kmh": 116,
+  "duration_s": 0.21,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0024",
+  "match_id": "fake_a",
+  "t": 133.29,
+  "period": 1,
+  "type": "corner",
+  "team": "home",
+  "from": 10,
+  "to": null,
+  "start": [
+   104.5,
+   67.5
+  ],
+  "end": [
+   99.3,
+   51.0
+  ],
+  "distance_m": 17.3,
+  "speed_kmh": 73,
+  "duration_s": 0.97,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0025",
+  "match_id": "fake_a",
+  "t": 135.4,
+  "period": 1,
+  "type": "foul",
+  "team": "home",
+  "from": 9,
+  "to": 105,
+  "start": [
+   97.9,
+   50.8
+  ],
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0026",
+  "match_id": "fake_a",
+  "t": 139.5,
+  "period": 1,
+  "type": "red_card",
+  "team": "home",
+  "from": 9,
+  "to": null,
+  "start": [
+   97.9,
+   50.8
+  ],
+  "subtype": "straight_red",
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0027",
+  "match_id": "fake_a",
+  "t": 162.37,
+  "period": 1,
+  "type": "free_kick",
+  "team": "away",
+  "from": 105,
+  "to": 110,
+  "start": [
+   97.9,
+   50.8
+  ],
+  "end": [
+   48.3,
+   30.7
+  ],
+  "distance_m": 53.5,
+  "speed_kmh": 84,
+  "duration_s": 2.65,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0028",
+  "match_id": "fake_a",
+  "t": 165.32,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 110,
+  "to": 104,
+  "start": [
+   47.0,
+   29.9
+  ],
+  "end": [
+   60.6,
+   40.0
+  ],
+  "subtype": "short",
+  "distance_m": 17.0,
+  "speed_kmh": 46,
+  "duration_s": 1.53,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0029",
+  "match_id": "fake_a",
+  "t": 167.24,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 104,
+  "to": 108,
+  "start": [
+   59.4,
+   40.7
+  ],
+  "end": [
+   65.0,
+   28.0
+  ],
+  "subtype": "short",
+  "distance_m": 13.9,
+  "speed_kmh": 55,
+  "duration_s": 1.05,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0030",
+  "match_id": "fake_a",
+  "t": 171.1,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 108,
+  "to": 109,
+  "start": [
+   59.4,
+   30.6
+  ],
+  "end": [
+   39.2,
+   40.5
+  ],
+  "subtype": "short",
+  "distance_m": 22.4,
+  "speed_kmh": 48,
+  "duration_s": 1.92,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0031",
+  "match_id": "fake_a",
+  "t": 174.45,
+  "period": 1,
+  "type": "possession_change",
+  "team": "home",
+  "from": 10,
+  "to": 109,
+  "start": [
+   35.0,
+   39.4
+  ],
+  "subtype": "tackle",
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0032",
+  "match_id": "fake_a",
+  "t": 177.69,
+  "period": 1,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": 8,
+  "start": [
+   43.8,
+   45.3
+  ],
+  "end": [
+   46.9,
+   22.6
+  ],
+  "subtype": "short",
+  "distance_m": 22.9,
+  "speed_kmh": 54,
+  "duration_s": 1.74,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0033",
+  "match_id": "fake_a",
+  "t": 180.74,
+  "period": 1,
+  "type": "foul",
+  "team": "away",
+  "from": 110,
+  "to": 8,
+  "start": [
+   53.9,
+   21.7
+  ],
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0034",
+  "match_id": "fake_a",
+  "t": 186.27,
+  "period": 1,
+  "type": "yellow_card",
+  "team": "away",
+  "from": 110,
+  "to": null,
+  "start": [
+   53.9,
+   21.7
+  ],
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0035",
+  "match_id": "fake_a",
+  "t": 207.4,
+  "period": 1,
+  "type": "free_kick",
+  "team": "home",
+  "from": 8,
+  "to": 4,
+  "start": [
+   53.9,
+   21.7
+  ],
+  "end": [
+   14.2,
+   20.0
+  ],
+  "distance_m": 39.7,
+  "speed_kmh": 41,
+  "duration_s": 4.04,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0036",
+  "match_id": "fake_a",
+  "t": 212.41,
+  "period": 1,
+  "type": "pass",
+  "team": "home",
+  "from": 4,
+  "to": null,
+  "start": [
+   14.8,
+   19.8
+  ],
+  "end": [
+   26.0,
+   33.1
+  ],
+  "subtype": "short",
+  "distance_m": 17.5,
+  "speed_kmh": 39,
+  "duration_s": 1.84,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0037",
+  "match_id": "fake_a",
+  "t": 216.68,
+  "period": 1,
+  "type": "shot",
+  "team": "away",
+  "from": 109,
+  "to": null,
+  "start": [
+   15.9,
+   37.5
+  ],
+  "end": [
+   0.0,
+   36.4
+  ],
+  "subtype": "on_target",
+  "distance_m": 15.9,
+  "speed_kmh": 102,
+  "duration_s": 0.56,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0038",
+  "match_id": "fake_a",
+  "t": 249.98,
+  "period": 1,
+  "type": "corner",
+  "team": "away",
+  "from": 111,
+  "to": 110,
+  "start": [
+   0.5,
+   0.5
+  ],
+  "end": [
+   11.9,
+   37.6
+  ],
+  "distance_m": 38.8,
+  "speed_kmh": 63,
+  "duration_s": 2.57,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0039",
+  "match_id": "fake_a",
+  "t": 252.89,
+  "period": 1,
+  "type": "shot",
+  "team": "away",
+  "from": 110,
+  "to": null,
+  "start": [
+   12.3,
+   36.7
+  ],
+  "end": [
+   -0.5,
+   40.7
+  ],
+  "subtype": "off_target",
+  "distance_m": 13.4,
+  "speed_kmh": 93,
+  "duration_s": 0.52,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0040",
+  "match_id": "fake_a",
+  "t": 276.63,
+  "period": 1,
+  "type": "goal_kick",
+  "team": "home",
+  "from": 1,
+  "to": null,
+  "start": [
+   5.5,
+   43.2
+  ],
+  "end": [
+   42.8,
+   13.6
+  ],
+  "distance_m": 47.6,
+  "speed_kmh": 81,
+  "duration_s": 2.42,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0041",
+  "match_id": "fake_a",
+  "t": 279.72,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 111,
+  "to": 105,
+  "start": [
+   42.4,
+   13.2
+  ],
+  "end": [
+   86.7,
+   43.0
+  ],
+  "subtype": "through",
+  "distance_m": 53.4,
+  "speed_kmh": 62,
+  "duration_s": 3.55,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0042",
+  "match_id": "fake_a",
+  "t": 283.57,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 105,
+  "to": 104,
+  "start": [
+   86.2,
+   43.4
+  ],
+  "end": [
+   72.3,
+   42.5
+  ],
+  "subtype": "short",
+  "distance_m": 13.9,
+  "speed_kmh": 57,
+  "duration_s": 1.01,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0043",
+  "match_id": "fake_a",
+  "t": 285.66,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 104,
+  "to": 108,
+  "start": [
+   72.2,
+   42.7
+  ],
+  "end": [
+   67.2,
+   25.2
+  ],
+  "subtype": "short",
+  "distance_m": 18.3,
+  "speed_kmh": 39,
+  "duration_s": 1.95,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0044",
+  "match_id": "fake_a",
+  "t": 288.52,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 108,
+  "to": 111,
+  "start": [
+   65.8,
+   24.4
+  ],
+  "end": [
+   60.9,
+   3.9
+  ],
+  "subtype": "short",
+  "distance_m": 21.1,
+  "speed_kmh": 54,
+  "duration_s": 1.63,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0045",
+  "match_id": "fake_a",
+  "t": 290.99,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 111,
+  "to": 108,
+  "start": [
+   61.3,
+   3.9
+  ],
+  "end": [
+   63.0,
+   20.3
+  ],
+  "subtype": "short",
+  "distance_m": 16.4,
+  "speed_kmh": 50,
+  "duration_s": 1.36,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0046",
+  "match_id": "fake_a",
+  "t": 293.15,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 108,
+  "to": 111,
+  "start": [
+   63.0,
+   19.4
+  ],
+  "end": [
+   58.2,
+   3.6
+  ],
+  "subtype": "short",
+  "distance_m": 16.5,
+  "speed_kmh": 57,
+  "duration_s": 1.2,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0047",
+  "match_id": "fake_a",
+  "t": 295.16,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 111,
+  "to": 110,
+  "start": [
+   57.7,
+   4.1
+  ],
+  "end": [
+   37.1,
+   25.6
+  ],
+  "subtype": "long",
+  "distance_m": 29.8,
+  "speed_kmh": 43,
+  "duration_s": 2.89,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0048",
+  "match_id": "fake_a",
+  "t": 298.86,
+  "period": 1,
+  "type": "pass",
+  "team": "away",
+  "from": 110,
+  "to": null,
+  "start": [
+   36.8,
+   24.7
+  ],
+  "end": [
+   42.6,
+   24.7
+  ],
+  "subtype": "short",
+  "distance_m": 5.7,
+  "speed_kmh": 46,
+  "duration_s": 0.51,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0049",
+  "match_id": "fake_a",
+  "t": 299.37,
+  "period": 1,
+  "type": "possession_change",
+  "team": "home",
+  "from": 8,
+  "to": 110,
+  "start": [
+   42.6,
+   24.7
+  ],
+  "subtype": "interception",
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0050",
+  "match_id": "fake_a",
+  "t": 300.27,
+  "period": 1,
+  "type": "pass",
+  "team": "home",
+  "from": 8,
+  "to": 2,
+  "start": [
+   43.9,
+   25.1
+  ],
+  "end": [
+   18.6,
+   3.0
+  ],
+  "subtype": "long",
+  "distance_m": 33.6,
+  "speed_kmh": 53,
+  "duration_s": 2.62,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0051",
+  "match_id": "fake_a",
+  "t": 303.39,
+  "period": 1,
+  "type": "half_time",
+  "team": "none",
+  "from": null,
+  "to": null,
+  "start": [
+   52.5,
+   34.0
+  ],
+  "score": {
+   "home": 1,
+   "away": 0
+  },
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0052",
+  "match_id": "fake_a",
+  "t": 304.39,
+  "period": 2,
+  "type": "kickoff",
+  "team": "away",
+  "from": 109,
+  "to": 107,
+  "start": [
+   52.5,
+   34.0
+  ],
+  "end": [
+   38.2,
+   25.3
+  ],
+  "distance_m": 16.7,
+  "speed_kmh": 38,
+  "duration_s": 1.8,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0053",
+  "match_id": "fake_a",
+  "t": 306.73,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 107,
+  "to": 105,
+  "start": [
+   39.2,
+   24.7
+  ],
+  "end": [
+   7.7,
+   22.7
+  ],
+  "subtype": "long",
+  "distance_m": 31.6,
+  "speed_kmh": 54,
+  "duration_s": 2.42,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0054",
+  "match_id": "fake_a",
+  "t": 309.8,
+  "period": 2,
+  "type": "clearance",
+  "team": "away",
+  "from": 105,
+  "to": null,
+  "start": [
+   8.2,
+   22.3
+  ],
+  "end": [
+   51.6,
+   12.8
+  ],
+  "distance_m": 44.4,
+  "speed_kmh": 93,
+  "duration_s": 1.98,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0055",
+  "match_id": "fake_a",
+  "t": 312.08,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": 11,
+  "start": [
+   51.6,
+   12.0
+  ],
+  "end": [
+   33.4,
+   1.5
+  ],
+  "subtype": "short",
+  "distance_m": 21.1,
+  "speed_kmh": 46,
+  "duration_s": 1.88,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0056",
+  "match_id": "fake_a",
+  "t": 314.51,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 11,
+  "to": null,
+  "start": [
+   33.8,
+   1.0
+  ],
+  "end": [
+   21.2,
+   18.6
+  ],
+  "subtype": "cross",
+  "distance_m": 21.7,
+  "speed_kmh": 77,
+  "duration_s": 1.16,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0057",
+  "match_id": "fake_a",
+  "t": 315.67,
+  "period": 2,
+  "type": "clearance",
+  "team": "away",
+  "from": 104,
+  "to": null,
+  "start": [
+   21.2,
+   18.6
+  ],
+  "end": [
+   68.6,
+   -0.5
+  ],
+  "distance_m": 51.1,
+  "speed_kmh": 77,
+  "duration_s": 2.65,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0058",
+  "match_id": "fake_a",
+  "t": 332.01,
+  "period": 2,
+  "type": "throw_in",
+  "team": "home",
+  "from": 11,
+  "to": 10,
+  "start": [
+   68.6,
+   0.0
+  ],
+  "end": [
+   57.2,
+   15.7
+  ],
+  "distance_m": 19.4,
+  "speed_kmh": 29,
+  "duration_s": 2.73,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0059",
+  "match_id": "fake_a",
+  "t": 342.98,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": 11,
+  "start": [
+   30.4,
+   11.3
+  ],
+  "end": [
+   27.3,
+   1.9
+  ],
+  "subtype": "short",
+  "distance_m": 9.9,
+  "speed_kmh": 47,
+  "duration_s": 0.87,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0060",
+  "match_id": "fake_a",
+  "t": 344.55,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 11,
+  "to": 10,
+  "start": [
+   26.8,
+   2.0
+  ],
+  "end": [
+   44.7,
+   18.9
+  ],
+  "subtype": "short",
+  "distance_m": 24.6,
+  "speed_kmh": 41,
+  "duration_s": 2.5,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0061",
+  "match_id": "fake_a",
+  "t": 347.88,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": null,
+  "start": [
+   43.6,
+   19.7
+  ],
+  "end": [
+   35.0,
+   7.3
+  ],
+  "subtype": "short",
+  "distance_m": 15.1,
+  "speed_kmh": 57,
+  "duration_s": 1.1,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0062",
+  "match_id": "fake_a",
+  "t": 349.98,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 107,
+  "to": 104,
+  "start": [
+   35.1,
+   8.0
+  ],
+  "end": [
+   38.3,
+   23.0
+  ],
+  "subtype": "short",
+  "distance_m": 15.3,
+  "speed_kmh": 56,
+  "duration_s": 1.13,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0063",
+  "match_id": "fake_a",
+  "t": 351.42,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 104,
+  "to": null,
+  "start": [
+   38.4,
+   23.7
+  ],
+  "end": [
+   75.3,
+   29.7
+  ],
+  "subtype": "through",
+  "distance_m": 37.3,
+  "speed_kmh": 60,
+  "duration_s": 2.57,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0064",
+  "match_id": "fake_a",
+  "t": 353.99,
+  "period": 2,
+  "type": "offside",
+  "team": "away",
+  "from": 109,
+  "to": null,
+  "start": [
+   75.3,
+   29.7
+  ],
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0065",
+  "match_id": "fake_a",
+  "t": 369.0,
+  "period": 2,
+  "type": "free_kick",
+  "team": "home",
+  "from": 6,
+  "to": 7,
+  "start": [
+   75.3,
+   29.7
+  ],
+  "end": [
+   40.9,
+   66.0
+  ],
+  "distance_m": 50.0,
+  "speed_kmh": 70,
+  "duration_s": 2.94,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0066",
+  "match_id": "fake_a",
+  "t": 372.24,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 7,
+  "to": 8,
+  "start": [
+   41.2,
+   66.4
+  ],
+  "end": [
+   50.5,
+   48.7
+  ],
+  "subtype": "short",
+  "distance_m": 20.0,
+  "speed_kmh": 50,
+  "duration_s": 1.66,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0067",
+  "match_id": "fake_a",
+  "t": 374.59,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 8,
+  "to": 4,
+  "start": [
+   49.0,
+   48.9
+  ],
+  "end": [
+   89.0,
+   45.6
+  ],
+  "subtype": "long",
+  "distance_m": 40.1,
+  "speed_kmh": 65,
+  "duration_s": 2.55,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0068",
+  "match_id": "fake_a",
+  "t": 377.82,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 4,
+  "to": 11,
+  "start": [
+   88.8,
+   46.5
+  ],
+  "end": [
+   46.4,
+   2.2
+  ],
+  "subtype": "long",
+  "distance_m": 61.4,
+  "speed_kmh": 61,
+  "duration_s": 4.15,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0069",
+  "match_id": "fake_a",
+  "t": 382.79,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 11,
+  "to": null,
+  "start": [
+   45.8,
+   3.0
+  ],
+  "end": [
+   55.3,
+   3.0
+  ],
+  "subtype": "long",
+  "distance_m": 9.5,
+  "speed_kmh": 40,
+  "duration_s": 0.98,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0070",
+  "match_id": "fake_a",
+  "t": 384.52,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 109,
+  "to": 107,
+  "start": [
+   56.7,
+   2.9
+  ],
+  "end": [
+   48.2,
+   2.2
+  ],
+  "subtype": "short",
+  "distance_m": 8.5,
+  "speed_kmh": 40,
   "duration_s": 0.88,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0071",
+  "match_id": "fake_a",
+  "t": 389.98,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 107,
+  "to": null,
+  "start": [
+   63.6,
+   3.6
+  ],
+  "end": [
+   72.0,
+   25.0
+  ],
+  "subtype": "long",
+  "distance_m": 23.0,
+  "speed_kmh": 56,
+  "duration_s": 1.71,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0072",
+  "match_id": "fake_a",
+  "t": 392.55,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 6,
+  "to": 8,
+  "start": [
+   70.7,
+   24.9
+  ],
+  "end": [
+   62.6,
+   44.5
+  ],
+  "subtype": "short",
+  "distance_m": 21.1,
+  "speed_kmh": 51,
+  "duration_s": 1.71,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0073",
+  "match_id": "fake_a",
+  "t": 394.72,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 8,
+  "to": 10,
+  "start": [
+   62.9,
+   44.7
+  ],
+  "end": [
+   55.6,
+   20.3
+  ],
+  "subtype": "long",
+  "distance_m": 25.5,
+  "speed_kmh": 50,
+  "duration_s": 2.11,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0074",
+  "match_id": "fake_a",
+  "t": 397.12,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": 11,
+  "start": [
+   54.6,
+   20.4
+  ],
+  "end": [
+   35.4,
+   1.0
+  ],
+  "subtype": "long",
+  "distance_m": 27.3,
+  "speed_kmh": 51,
+  "duration_s": 2.2,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0075",
+  "match_id": "fake_a",
+  "t": 401.05,
+  "period": 2,
+  "type": "foul",
+  "team": "away",
+  "from": 107,
+  "to": 11,
+  "start": [
+   30.2,
+   1.8
+  ],
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0076",
+  "match_id": "fake_a",
+  "t": 449.88,
+  "period": 2,
+  "type": "substitution",
+  "team": "home",
+  "from": 14,
+  "to": 6,
+  "start": [
+   52.5,
+   0.0
+  ],
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0077",
+  "match_id": "fake_a",
+  "t": 459.81,
+  "period": 2,
+  "type": "free_kick",
+  "team": "home",
+  "from": 11,
+  "to": 10,
+  "start": [
+   30.2,
+   1.8
+  ],
+  "end": [
+   45.4,
+   17.0
+  ],
+  "distance_m": 21.5,
+  "speed_kmh": 51,
+  "duration_s": 1.75,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0078",
+  "match_id": "fake_a",
+  "t": 462.24,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": 11,
+  "start": [
+   44.0,
+   16.9
+  ],
+  "end": [
+   32.1,
+   2.6
+  ],
+  "subtype": "short",
+  "distance_m": 18.7,
+  "speed_kmh": 56,
+  "duration_s": 1.37,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0079",
+  "match_id": "fake_a",
+  "t": 464.49,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 11,
+  "to": 10,
+  "start": [
+   32.0,
+   1.8
+  ],
+  "end": [
+   45.0,
+   18.1
+  ],
+  "subtype": "short",
+  "distance_m": 20.8,
+  "speed_kmh": 47,
+  "duration_s": 1.84,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0080",
+  "match_id": "fake_a",
+  "t": 466.76,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": 14,
+  "start": [
+   44.8,
+   18.0
+  ],
+  "end": [
+   67.1,
+   32.7
+  ],
+  "subtype": "long",
+  "distance_m": 26.7,
+  "speed_kmh": 54,
+  "duration_s": 2.06,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0081",
+  "match_id": "fake_a",
+  "t": 469.69,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 14,
+  "to": 5,
+  "start": [
+   65.7,
+   32.0
+  ],
+  "end": [
+   93.7,
+   21.5
+  ],
+  "subtype": "long",
+  "distance_m": 29.9,
+  "speed_kmh": 39,
+  "duration_s": 3.2,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0082",
+  "match_id": "fake_a",
+  "t": 473.47,
+  "period": 2,
+  "type": "clearance",
+  "team": "home",
+  "from": 5,
+  "to": null,
+  "start": [
+   93.1,
+   21.4
+  ],
+  "end": [
+   59.7,
+   2.5
+  ],
+  "distance_m": 38.4,
+  "speed_kmh": 72,
+  "duration_s": 2.19,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0083",
+  "match_id": "fake_a",
+  "t": 476.4,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 109,
+  "to": 107,
+  "start": [
+   59.4,
+   2.2
+  ],
+  "end": [
+   50.9,
+   2.7
+  ],
+  "subtype": "short",
+  "distance_m": 8.5,
+  "speed_kmh": 52,
+  "duration_s": 0.68,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0084",
+  "match_id": "fake_a",
+  "t": 477.96,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 107,
+  "to": 109,
+  "start": [
+   50.8,
+   2.0
+  ],
+  "end": [
+   71.2,
+   24.9
+  ],
+  "subtype": "long",
+  "distance_m": 30.7,
+  "speed_kmh": 52,
+  "duration_s": 2.44,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0085",
+  "match_id": "fake_a",
+  "t": 481.17,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 109,
+  "to": null,
+  "start": [
+   71.5,
+   24.1
+  ],
+  "end": [
+   68.8,
+   18.4
+  ],
+  "subtype": "through",
+  "distance_m": 6.3,
+  "speed_kmh": 58,
+  "duration_s": 0.45,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0086",
+  "match_id": "fake_a",
+  "t": 481.62,
+  "period": 2,
+  "type": "possession_change",
+  "team": "home",
+  "from": 10,
+  "to": 109,
+  "start": [
+   68.8,
+   18.4
+  ],
+  "subtype": "interception",
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0087",
+  "match_id": "fake_a",
+  "t": 481.92,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": 14,
+  "start": [
+   68.3,
+   18.0
+  ],
+  "end": [
+   73.9,
+   31.1
+  ],
+  "subtype": "short",
+  "distance_m": 14.3,
+  "speed_kmh": 50,
+  "duration_s": 1.17,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0088",
+  "match_id": "fake_a",
+  "t": 483.75,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 14,
+  "to": 8,
+  "start": [
+   72.6,
+   31.9
+  ],
+  "end": [
+   61.2,
+   47.2
+  ],
+  "subtype": "short",
+  "distance_m": 19.1,
+  "speed_kmh": 43,
+  "duration_s": 1.84,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0089",
+  "match_id": "fake_a",
+  "t": 486.17,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 8,
+  "to": 14,
+  "start": [
+   60.8,
+   47.5
+  ],
+  "end": [
+   72.3,
+   33.6
+  ],
+  "subtype": "short",
+  "distance_m": 18.0,
+  "speed_kmh": 52,
+  "duration_s": 1.43,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0090",
+  "match_id": "fake_a",
+  "t": 488.09,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 14,
+  "to": 2,
+  "start": [
+   72.5,
+   33.2
+  ],
+  "end": [
+   87.4,
+   64.2
+  ],
+  "subtype": "long",
+  "distance_m": 34.4,
+  "speed_kmh": 46,
+  "duration_s": 3.11,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0091",
+  "match_id": "fake_a",
+  "t": 493.65,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 2,
+  "to": 8,
+  "start": [
+   80.2,
+   65.3
+  ],
+  "end": [
+   63.4,
+   51.5
+  ],
+  "subtype": "short",
+  "distance_m": 21.8,
+  "speed_kmh": 53,
+  "duration_s": 1.7,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0092",
+  "match_id": "fake_a",
+  "t": 496.2,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 8,
+  "to": 2,
+  "start": [
+   62.6,
+   52.0
+  ],
+  "end": [
+   84.8,
+   64.3
+  ],
+  "subtype": "long",
+  "distance_m": 25.3,
+  "speed_kmh": 41,
+  "duration_s": 2.56,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0093",
+  "match_id": "fake_a",
+  "t": 499.3,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 2,
+  "to": 8,
+  "start": [
+   85.1,
+   64.1
+  ],
+  "end": [
+   65.7,
+   47.0
+  ],
+  "subtype": "long",
+  "distance_m": 25.8,
+  "speed_kmh": 49,
+  "duration_s": 2.16,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2271,24 +2226,24 @@
  {
   "id": "e0094",
   "match_id": "fake_a",
-  "t": 399.6,
+  "t": 502.23,
   "period": 2,
   "type": "pass",
-  "team": "away",
-  "from": 108,
-  "to": 109,
+  "team": "home",
+  "from": 8,
+  "to": 2,
   "start": [
-   49.7,
-   31.1
+   64.4,
+   46.8
   ],
   "end": [
-   67.9,
-   26.3
+   85.3,
+   65.5
   ],
-  "subtype": "short",
-  "distance_m": 18.8,
-  "speed_kmh": 41,
-  "duration_s": 1.89,
+  "subtype": "long",
+  "distance_m": 28.1,
+  "speed_kmh": 50,
+  "duration_s": 2.33,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2296,24 +2251,24 @@
  {
   "id": "e0095",
   "match_id": "fake_a",
-  "t": 402.03,
+  "t": 505.33,
   "period": 2,
   "type": "pass",
-  "team": "away",
-  "from": 109,
-  "to": 110,
+  "team": "home",
+  "from": 2,
+  "to": 5,
   "start": [
-   67.6,
-   26.2
+   84.3,
+   65.9
   ],
   "end": [
-   74.9,
-   38.6
+   98.7,
+   26.3
   ],
-  "subtype": "short",
-  "distance_m": 14.4,
-  "speed_kmh": 45,
-  "duration_s": 1.34,
+  "subtype": "long",
+  "distance_m": 42.1,
+  "speed_kmh": 84,
+  "duration_s": 2.07,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2321,72 +2276,74 @@
  {
   "id": "e0096",
   "match_id": "fake_a",
-  "t": 406.31,
+  "t": 507.83,
   "period": 2,
-  "type": "shot",
-  "team": "away",
-  "from": 110,
-  "to": null,
+  "type": "pass",
+  "team": "home",
+  "from": 5,
+  "to": 14,
   "start": [
-   86.0,
-   37.0
+   98.8,
+   26.8
   ],
   "end": [
-   105.5,
-   39.1
+   83.7,
+   33.3
   ],
-  "subtype": "off_target",
-  "distance_m": 19.6,
-  "speed_kmh": 79,
-  "duration_s": 0.89,
-  "success": false,
+  "subtype": "short",
+  "distance_m": 16.4,
+  "speed_kmh": 51,
+  "duration_s": 1.33,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0097",
   "match_id": "fake_a",
-  "t": 427.3,
+  "t": 509.87,
   "period": 2,
-  "type": "goal_kick",
+  "type": "pass",
   "team": "home",
-  "from": 1,
-  "to": null,
+  "from": 14,
+  "to": 10,
   "start": [
-   99.5,
-   24.8
+   83.5,
+   33.6
   ],
   "end": [
-   94.0,
-   68.5
+   61.9,
+   23.3
   ],
-  "distance_m": 44.1,
-  "speed_kmh": 46,
-  "duration_s": 3.92,
-  "success": false,
+  "subtype": "short",
+  "distance_m": 24.0,
+  "speed_kmh": 40,
+  "duration_s": 2.48,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0098",
   "match_id": "fake_a",
-  "t": 439.36,
+  "t": 513.09,
   "period": 2,
-  "type": "throw_in",
-  "team": "away",
-  "from": 110,
-  "to": 111,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": 14,
   "start": [
-   94.0,
-   68.0
+   60.5,
+   23.7
   ],
   "end": [
-   61.5,
-   63.4
+   72.0,
+   34.9
   ],
-  "distance_m": 32.8,
-  "speed_kmh": 32,
-  "duration_s": 4.27,
+  "subtype": "short",
+  "distance_m": 16.1,
+  "speed_kmh": 46,
+  "duration_s": 1.44,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2394,24 +2351,24 @@
  {
   "id": "e0099",
   "match_id": "fake_a",
-  "t": 444.45,
+  "t": 515.43,
   "period": 2,
   "type": "pass",
-  "team": "away",
-  "from": 111,
-  "to": 110,
+  "team": "home",
+  "from": 14,
+  "to": 4,
   "start": [
-   62.7,
-   63.2
+   72.5,
+   35.4
   ],
   "end": [
-   71.9,
-   42.9
+   95.8,
+   44.5
   ],
-  "subtype": "short",
-  "distance_m": 22.3,
-  "speed_kmh": 41,
-  "duration_s": 2.24,
+  "subtype": "long",
+  "distance_m": 25.0,
+  "speed_kmh": 47,
+  "duration_s": 2.2,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2419,24 +2376,24 @@
  {
   "id": "e0100",
   "match_id": "fake_a",
-  "t": 447.01,
+  "t": 518.27,
   "period": 2,
   "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": 108,
+  "team": "home",
+  "from": 4,
+  "to": 5,
   "start": [
-   71.5,
-   42.5
+   95.0,
+   45.2
   ],
   "end": [
-   54.7,
-   40.8
+   98.7,
+   25.1
   ],
-  "subtype": "through",
-  "distance_m": 17.0,
-  "speed_kmh": 53,
-  "duration_s": 1.33,
+  "subtype": "short",
+  "distance_m": 20.4,
+  "speed_kmh": 44,
+  "duration_s": 1.92,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2444,49 +2401,48 @@
  {
   "id": "e0101",
   "match_id": "fake_a",
-  "t": 448.67,
+  "t": 521.13,
   "period": 2,
-  "type": "pass",
-  "team": "away",
-  "from": 108,
-  "to": 104,
+  "type": "clearance",
+  "team": "home",
+  "from": 5,
+  "to": null,
   "start": [
-   55.2,
-   41.3
+   98.6,
+   26.1
   ],
   "end": [
-   44.9,
-   26.9
+   58.3,
+   29.5
   ],
-  "subtype": "short",
-  "distance_m": 17.7,
-  "speed_kmh": 54,
-  "duration_s": 1.35,
-  "success": true,
+  "distance_m": 40.5,
+  "speed_kmh": 93,
+  "duration_s": 1.8,
+  "success": false,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0102",
   "match_id": "fake_a",
-  "t": 450.68,
+  "t": 523.61,
   "period": 2,
   "type": "pass",
   "team": "away",
-  "from": 104,
-  "to": 108,
+  "from": 109,
+  "to": 107,
   "start": [
-   46.4,
-   26.2
+   59.4,
+   30.1
   ],
   "end": [
-   41.8,
-   40.3
+   48.2,
+   6.3
   ],
-  "subtype": "short",
-  "distance_m": 14.8,
-  "speed_kmh": 39,
-  "duration_s": 1.57,
+  "subtype": "long",
+  "distance_m": 26.3,
+  "speed_kmh": 46,
+  "duration_s": 2.36,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2494,16 +2450,24 @@
  {
   "id": "e0103",
   "match_id": "fake_a",
-  "t": 454.83,
+  "t": 527.06,
   "period": 2,
-  "type": "foul",
-  "team": "home",
-  "from": 9,
-  "to": 108,
+  "type": "pass",
+  "team": "away",
+  "from": 107,
+  "to": 102,
   "start": [
-   49.6,
-   38.6
+   48.7,
+   6.2
   ],
+  "end": [
+   20.0,
+   3.2
+  ],
+  "subtype": "long",
+  "distance_m": 28.8,
+  "speed_kmh": 45,
+  "duration_s": 2.67,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2511,39 +2475,49 @@
  {
   "id": "e0104",
   "match_id": "fake_a",
-  "t": 461.95,
+  "t": 530.1,
   "period": 2,
-  "type": "yellow_card",
-  "team": "home",
-  "from": 9,
-  "to": null,
+  "type": "pass",
+  "team": "away",
+  "from": 102,
+  "to": 107,
   "start": [
-   49.6,
-   38.6
+   20.7,
+   3.9
   ],
+  "end": [
+   39.5,
+   2.0
+  ],
+  "subtype": "short",
+  "distance_m": 18.9,
+  "speed_kmh": 43,
+  "duration_s": 1.82,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0105",
   "match_id": "fake_a",
-  "t": 477.25,
+  "t": 535.35,
   "period": 2,
-  "type": "free_kick",
+  "type": "pass",
   "team": "away",
-  "from": 108,
-  "to": 109,
+  "from": 107,
+  "to": 102,
   "start": [
-   49.6,
-   38.6
+   46.8,
+   2.8
   ],
   "end": [
-   70.4,
-   28.0
+   19.0,
+   2.6
   ],
-  "distance_m": 23.4,
-  "speed_kmh": 44,
-  "duration_s": 2.18,
+  "subtype": "long",
+  "distance_m": 27.8,
+  "speed_kmh": 39,
+  "duration_s": 2.94,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2551,24 +2525,24 @@
  {
   "id": "e0106",
   "match_id": "fake_a",
-  "t": 479.96,
+  "t": 539.0,
   "period": 2,
   "type": "pass",
   "team": "away",
-  "from": 109,
-  "to": 108,
+  "from": 102,
+  "to": 107,
   "start": [
-   71.6,
-   27.8
+   19.3,
+   3.5
   ],
   "end": [
-   45.1,
-   42.3
+   36.9,
+   1.9
   ],
-  "subtype": "long",
-  "distance_m": 30.3,
-  "speed_kmh": 40,
-  "duration_s": 3.17,
+  "subtype": "short",
+  "distance_m": 17.7,
+  "speed_kmh": 52,
+  "duration_s": 1.41,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2576,33 +2550,49 @@
  {
   "id": "e0107",
   "match_id": "fake_a",
-  "t": 486.12,
+  "t": 541.03,
   "period": 2,
-  "type": "offside",
+  "type": "pass",
   "team": "away",
-  "from": 109,
-  "to": null,
+  "from": 107,
+  "to": 104,
   "start": [
-   74.5,
-   28.6
+   36.9,
+   2.0
   ],
-  "success": false,
+  "end": [
+   38.5,
+   24.7
+  ],
+  "subtype": "short",
+  "distance_m": 22.8,
+  "speed_kmh": 53,
+  "duration_s": 1.79,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0108",
   "match_id": "fake_a",
-  "t": 504.32,
+  "t": 543.82,
   "period": 2,
-  "type": "offside",
-  "team": "home",
-  "from": 7,
+  "type": "pass",
+  "team": "away",
+  "from": 104,
   "to": null,
   "start": [
-   39.8,
-   65.5
+   39.5,
+   25.1
   ],
+  "end": [
+   43.1,
+   9.5
+  ],
+  "subtype": "short",
+  "distance_m": 16.0,
+  "speed_kmh": 44,
+  "duration_s": 1.5,
   "success": false,
   "source": "sim",
   "confidence": 1.0
@@ -2610,55 +2600,74 @@
  {
   "id": "e0109",
   "match_id": "fake_a",
-  "t": 548.63,
+  "t": 546.19,
   "period": 2,
-  "type": "substitution",
+  "type": "pass",
   "team": "home",
-  "from": 14,
+  "from": 11,
   "to": 10,
   "start": [
-   52.5,
-   0.0
+   42.9,
+   8.9
   ],
+  "end": [
+   49.7,
+   19.4
+  ],
+  "subtype": "short",
+  "distance_m": 12.5,
+  "speed_kmh": 50,
+  "duration_s": 1.03,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0110",
   "match_id": "fake_a",
-  "t": 568.03,
+  "t": 547.55,
   "period": 2,
-  "type": "substitution",
-  "team": "away",
-  "from": 114,
-  "to": 108,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": 14,
   "start": [
-   52.5,
-   0.0
+   49.2,
+   18.6
   ],
+  "end": [
+   67.3,
+   31.6
+  ],
+  "subtype": "short",
+  "distance_m": 22.2,
+  "speed_kmh": 47,
+  "duration_s": 1.95,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0111",
   "match_id": "fake_a",
-  "t": 579.15,
+  "t": 550.2,
   "period": 2,
-  "type": "free_kick",
-  "team": "away",
-  "from": 111,
-  "to": 110,
+  "type": "pass",
+  "team": "home",
+  "from": 14,
+  "to": 8,
   "start": [
-   39.8,
-   65.5
+   66.0,
+   32.4
   ],
   "end": [
-   65.3,
-   43.4
+   61.8,
+   48.5
   ],
-  "distance_m": 33.7,
-  "speed_kmh": 66,
-  "duration_s": 2.1,
+  "subtype": "short",
+  "distance_m": 16.7,
+  "speed_kmh": 39,
+  "duration_s": 1.78,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2666,65 +2675,74 @@
  {
   "id": "e0112",
   "match_id": "fake_a",
-  "t": 581.57,
+  "t": 552.8,
   "period": 2,
   "type": "pass",
-  "team": "away",
-  "from": 110,
-  "to": null,
+  "team": "home",
+  "from": 8,
+  "to": 4,
   "start": [
-   66.3,
-   43.4
+   62.2,
+   47.8
   ],
   "end": [
-   80.6,
-   37.0
+   92.3,
+   47.8
   ],
-  "subtype": "cross",
-  "distance_m": 15.6,
-  "speed_kmh": 80,
-  "duration_s": 0.8,
-  "success": false,
+  "subtype": "long",
+  "distance_m": 30.1,
+  "speed_kmh": 45,
+  "duration_s": 2.79,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0113",
   "match_id": "fake_a",
-  "t": 582.38,
+  "t": 556.38,
   "period": 2,
-  "type": "clearance",
+  "type": "pass",
   "team": "home",
-  "from": 6,
-  "to": null,
+  "from": 4,
+  "to": 8,
   "start": [
-   80.6,
-   37.0
+   92.2,
+   48.1
   ],
   "end": [
-   46.7,
-   44.3
+   67.2,
+   49.2
   ],
-  "distance_m": 34.6,
-  "speed_kmh": 67,
+  "subtype": "long",
+  "distance_m": 25.0,
+  "speed_kmh": 49,
   "duration_s": 2.14,
-  "success": false,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0114",
   "match_id": "fake_a",
-  "t": 586.33,
+  "t": 558.89,
   "period": 2,
-  "type": "foul",
+  "type": "pass",
   "team": "home",
   "from": 8,
-  "to": 110,
+  "to": 7,
   "start": [
-   51.5,
+   66.9,
    48.5
   ],
+  "end": [
+   37.6,
+   65.9
+  ],
+  "subtype": "long",
+  "distance_m": 34.1,
+  "speed_kmh": 42,
+  "duration_s": 3.35,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2732,64 +2750,74 @@
  {
   "id": "e0115",
   "match_id": "fake_a",
-  "t": 591.71,
+  "t": 562.86,
   "period": 2,
-  "type": "red_card",
+  "type": "pass",
   "team": "home",
-  "from": 8,
-  "to": null,
+  "from": 7,
+  "to": 8,
   "start": [
-   51.5,
-   48.5
+   36.9,
+   66.9
   ],
-  "subtype": "straight_red",
+  "end": [
+   52.1,
+   50.7
+  ],
+  "subtype": "short",
+  "distance_m": 22.2,
+  "speed_kmh": 48,
+  "duration_s": 1.91,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0116",
   "match_id": "fake_a",
-  "t": 607.4,
+  "t": 567.34,
   "period": 2,
-  "type": "free_kick",
-  "team": "away",
-  "from": 110,
-  "to": null,
+  "type": "pass",
+  "team": "home",
+  "from": 8,
+  "to": 7,
   "start": [
-   51.5,
-   48.5
+   42.0,
+   45.1
   ],
   "end": [
-   45.0,
-   -0.5
+   31.1,
+   66.3
   ],
-  "distance_m": 49.4,
-  "speed_kmh": 46,
-  "duration_s": 4.47,
-  "success": false,
+  "subtype": "short",
+  "distance_m": 23.8,
+  "speed_kmh": 43,
+  "duration_s": 2.3,
+  "success": true,
   "source": "sim",
   "confidence": 1.0
  },
  {
   "id": "e0117",
   "match_id": "fake_a",
-  "t": 622.79,
+  "t": 570.32,
   "period": 2,
-  "type": "throw_in",
+  "type": "pass",
   "team": "home",
-  "from": 11,
-  "to": 14,
+  "from": 7,
+  "to": 8,
   "start": [
-   45.0,
-   0.0
+   30.5,
+   66.6
   ],
   "end": [
-   50.1,
-   16.7
+   50.2,
+   50.7
   ],
-  "distance_m": 17.5,
-  "speed_kmh": 34,
-  "duration_s": 2.1,
+  "subtype": "long",
+  "distance_m": 25.3,
+  "speed_kmh": 47,
+  "duration_s": 2.22,
   "success": true,
   "source": "sim",
   "confidence": 1.0
@@ -2797,7 +2825,232 @@
  {
   "id": "e0118",
   "match_id": "fake_a",
-  "t": 625.39,
+  "t": 573.43,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 8,
+  "to": 10,
+  "start": [
+   49.0,
+   49.9
+  ],
+  "end": [
+   51.5,
+   21.9
+  ],
+  "subtype": "long",
+  "distance_m": 28.1,
+  "speed_kmh": 47,
+  "duration_s": 2.5,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0119",
+  "match_id": "fake_a",
+  "t": 576.53,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 10,
+  "to": 11,
+  "start": [
+   51.8,
+   21.4
+  ],
+  "end": [
+   27.1,
+   1.1
+  ],
+  "subtype": "through",
+  "distance_m": 32.0,
+  "speed_kmh": 69,
+  "duration_s": 1.91,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0120",
+  "match_id": "fake_a",
+  "t": 578.82,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 11,
+  "to": 14,
+  "start": [
+   26.6,
+   1.1
+  ],
+  "end": [
+   50.8,
+   31.2
+  ],
+  "subtype": "through",
+  "distance_m": 38.6,
+  "speed_kmh": 69,
+  "duration_s": 2.32,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0121",
+  "match_id": "fake_a",
+  "t": 582.04,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 14,
+  "to": 8,
+  "start": [
+   51.0,
+   31.1
+  ],
+  "end": [
+   56.0,
+   49.2
+  ],
+  "subtype": "short",
+  "distance_m": 18.7,
+  "speed_kmh": 49,
+  "duration_s": 1.59,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0122",
+  "match_id": "fake_a",
+  "t": 584.25,
+  "period": 2,
+  "type": "pass",
+  "team": "home",
+  "from": 8,
+  "to": null,
+  "start": [
+   56.1,
+   48.3
+  ],
+  "end": [
+   37.6,
+   61.7
+  ],
+  "subtype": "through",
+  "distance_m": 22.9,
+  "speed_kmh": 48,
+  "duration_s": 1.96,
+  "success": false,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0123",
+  "match_id": "fake_a",
+  "t": 586.75,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 111,
+  "to": 103,
+  "start": [
+   38.9,
+   61.7
+  ],
+  "end": [
+   18.4,
+   66.7
+  ],
+  "subtype": "short",
+  "distance_m": 21.0,
+  "speed_kmh": 40,
+  "duration_s": 2.2,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0124",
+  "match_id": "fake_a",
+  "t": 590.02,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 103,
+  "to": 111,
+  "start": [
+   19.3,
+   67
+  ],
+  "end": [
+   39.1,
+   65.3
+  ],
+  "subtype": "short",
+  "distance_m": 19.9,
+  "speed_kmh": 40,
+  "duration_s": 2.07,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0125",
+  "match_id": "fake_a",
+  "t": 592.41,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 111,
+  "to": 108,
+  "start": [
+   40.4,
+   65.8
+  ],
+  "end": [
+   38.4,
+   44.5
+  ],
+  "subtype": "short",
+  "distance_m": 21.4,
+  "speed_kmh": 54,
+  "duration_s": 1.65,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0126",
+  "match_id": "fake_a",
+  "t": 594.97,
+  "period": 2,
+  "type": "pass",
+  "team": "away",
+  "from": 108,
+  "to": 109,
+  "start": [
+   39.5,
+   44.8
+  ],
+  "end": [
+   74.2,
+   29.3
+  ],
+  "subtype": "through",
+  "distance_m": 38.1,
+  "speed_kmh": 67,
+  "duration_s": 2.35,
+  "success": true,
+  "source": "sim",
+  "confidence": 1.0
+ },
+ {
+  "id": "e0127",
+  "match_id": "fake_a",
+  "t": 605.04,
   "period": 2,
   "type": "full_time",
   "team": "none",

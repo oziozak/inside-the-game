@@ -69,6 +69,9 @@ python scripts/validate.py                              # check data against sch
 python scripts/generate_fake_data.py                    # rebuild data/fake/ (deterministic, seeded)
 python scripts/generate_fake_data.py --full-tracking    # + full 25 fps tracking in data/generated/ (~150 MB)
 python scripts/generate_fake_data.py --report           # event counts vs. real-football norms
+python -m simulator --home bosphorus --away thames --seed 7 --out data/generated/m007   # one match (see simulator/README.md)
+python -m simulator.realism --matches 40                # realism report; exits 1 if a check fails
+pytest                                                  # tests
 ```
 
 ## Fake data (available now)

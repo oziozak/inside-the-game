@@ -127,6 +127,17 @@
             "4-4-2"
           ]
         },
+        "style": {
+          "type": "string",
+          "description": "Optional. The team's playing style as simulated, e.g. possession, counter, pressing, direct or balanced. Agents may use it to explain play.",
+          "examples": [
+            "possession",
+            "counter",
+            "pressing",
+            "direct",
+            "balanced"
+          ]
+        },
         "players": {
           "type": "array",
           "items": {

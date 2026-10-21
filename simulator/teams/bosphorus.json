@@ -1,0 +1,24 @@
+{
+ "name": "Bosphorus FC",
+ "short": "BOS",
+ "formation": "4-3-3",
+ "style": "possession",
+ "kit": {"shirt": "#c8102e", "shorts": "#ffffff", "goalkeeper": "#1d1d1d"},
+ "away_kit": {"shirt": "#f5f5f5", "shorts": "#c8102e", "goalkeeper": "#2e7d32"},
+ "players": [
+  {"number": 1, "name": "M. Yilmaz", "pos": "GK", "starter": true, "slot": [4, 34], "passing": 66, "shooting": 15, "pace": 55, "tackling": 34},
+  {"number": 2, "name": "C. Arslan", "pos": "RB", "starter": true, "slot": [30, 12], "passing": 76, "shooting": 53, "pace": 65, "tackling": 84},
+  {"number": 4, "name": "B. Kaya", "pos": "CB", "starter": true, "slot": [24, 26], "passing": 73, "shooting": 51, "pace": 76, "tackling": 78},
+  {"number": 5, "name": "O. Celik", "pos": "CB", "starter": true, "slot": [24, 42], "passing": 67, "shooting": 57, "pace": 72, "tackling": 72},
+  {"number": 3, "name": "T. Sahin", "pos": "LB", "starter": true, "slot": [30, 56], "passing": 79, "shooting": 53, "pace": 71, "tackling": 76},
+  {"number": 6, "name": "H. Koc", "pos": "DM", "starter": true, "slot": [38, 34], "passing": 73, "shooting": 62, "pace": 69, "tackling": 69},
+  {"number": 8, "name": "K. Aydin", "pos": "CM", "starter": true, "slot": [46, 24], "passing": 81, "shooting": 68, "pace": 74, "tackling": 65},
+  {"number": 10, "name": "E. Demir", "pos": "AM", "starter": true, "slot": [48, 44], "passing": 83, "shooting": 71, "pace": 73, "tackling": 71},
+  {"number": 7, "name": "S. Polat", "pos": "RW", "starter": true, "slot": [60, 10], "passing": 66, "shooting": 71, "pace": 72, "tackling": 51},
+  {"number": 9, "name": "A. Kurt", "pos": "ST", "starter": true, "slot": [62, 34], "passing": 77, "shooting": 79, "pace": 78, "tackling": 53},
+  {"number": 11, "name": "Y. Erdem", "pos": "LW", "starter": true, "slot": [60, 58], "passing": 74, "shooting": 70, "pace": 80, "tackling": 49},
+  {"number": 14, "name": "F. Ozturk", "pos": "CM", "starter": false, "passing": 85, "shooting": 61, "pace": 71, "tackling": 73},
+  {"number": 17, "name": "R. Aksoy", "pos": "RW", "starter": false, "passing": 74, "shooting": 78, "pace": 80, "tackling": 53},
+  {"number": 19, "name": "D. Tekin", "pos": "ST", "starter": false, "passing": 76, "shooting": 70, "pace": 77, "tackling": 58}
+ ]
+}
