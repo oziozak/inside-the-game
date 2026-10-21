@@ -15,4 +15,4 @@ Coordinates remain in meters, bottom-left pitch origin; ball height is its cente
 
 `ground_truth.events.json` follows the existing shared event schema: pass at 2 s, shot at 8 s, and goal at the analytically computed goal-line crossing. `source: sim` denotes synthetic ground truth, not video detections; these are generated fixture labels, not real simulator output. Numbers are computed from the trajectory. The renderer and export commands load **only** metadata and tracking, never this file. Give only the video to the vision model; use this truth separately for scoring.
 
-Run repository schema validation explicitly: `.venv/bin/python scripts/validate.py renderer/fixtures/calibration` from the repo root. The shared validator's default paths do not include renderer fixtures.
+Run repository schema validation explicitly: `python scripts/validate.py renderer/fixtures/calibration` from the repo root. The shared validator's default paths do not include renderer fixtures.

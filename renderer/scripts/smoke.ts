@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 const server = await createServer({ server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' });
@@ -13,6 +13,9 @@ try {
   await page.goto(server.resolvedUrls!.local[0]);
   await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>('#play')!.disabled);
   assert.match(await page.locator('#status').innerText(), /1500 tracking frames/);
+  const metadata = JSON.parse(await readFile('../data/fake/sample_a/match_info.json', 'utf8'));
+  assert.equal(await page.locator('#home-name').innerText(), metadata.home.name);
+  assert.equal(await page.locator('#away-name').innerText(), metadata.away.name);
   const a = await page.evaluate(() => window.broadcast.setTime(2.4));
   assert.equal(a.inputFrame, 60); assert.equal(a.playerIds.length, 22);
   const image1 = await page.locator('canvas').screenshot();
@@ -51,10 +54,17 @@ try {
   await page.evaluate(() => window.broadcast.setTime(12));
   await page.evaluate(() => window.broadcast.setTime(2.4));
   assert.deepEqual(await page.locator('canvas').screenshot(), broadcastImage);
+  const renamed = structuredClone(metadata);
+  renamed.home.name = 'Bosphorus Reserves'; renamed.away.name = 'Thames Reserves';
+  await page.locator('#metadata').setInputFiles({ name: 'match_info.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(renamed)) });
+  await page.locator('#tracking').setInputFiles('../data/fake/sample_a/tracking.jsonl');
+  await page.locator('#load').click();
+  await page.waitForFunction(() => document.querySelector('#home-name')?.textContent === 'Bosphorus Reserves');
+  assert.equal(await page.locator('#away-name').innerText(), renamed.away.name);
   await page.goto(`${server.resolvedUrls!.local[0]}?export=1`);
   await page.waitForFunction(() => !!window.broadcast);
   assert.equal(await page.locator('#clock').isVisible(), false);
   assert.equal(await page.locator('#controls').isVisible(), false);
   assert.deepEqual(errors, []); assert.ok(!requests.some(url => /events|overlays/.test(url)));
-  console.log('Browser passed: playback, both camera presets, geometry scaling without coordinate changes, reproducible pixels, clean export mode; no event requests.');
+  console.log('Browser passed: metadata team names on initial load and file reload, playback, both camera presets, geometry scaling without coordinate changes, reproducible pixels, clean export mode; no event requests.');
 } finally { await browser?.close(); await server.close(); }

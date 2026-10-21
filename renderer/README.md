@@ -161,7 +161,7 @@ npm run build
 npm test
 npm run test:browser
 cd ..
-.venv/bin/python scripts/validate.py
+python scripts/validate.py
 ```
 
 `npm test` verifies all 1,500 sample timestamps, nonzero interval boundaries, interpolation by ID, ball height, coordinate transforms, half-time cuts, gaps, invalid data, visibility settings and both camera presets. Full-pitch coverage is checked at 16:9, 4:3, square and portrait aspect ratios. The browser check exercises sample loading, motion, same-time pixel reproducibility, play/pause, seek, speed selection, clock hiding, rich mode, scaling without anchor movement, stable CV framing, deterministic broadcast seeking, clean export mode and absence of event/overlay requests. It saves `data/renders/renderer-preview.png`. Run `npm run build` before browser checks on a fresh checkout to prepare sample assets. Browser checks/export require permission to bind a localhost port and launch Chromium in restricted environments.

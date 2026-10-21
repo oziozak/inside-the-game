@@ -35,6 +35,8 @@ function load(metadata: unknown, tracking: string) {
   view.configure(config);
   view.setRich(rich.checked); seek.min = String(match.frames[0].t); seek.max = String(match.frames.at(-1)!.t);
   play.disabled = false; setTime(match.frames[0].t);
+  element('home-name').textContent = match.info.home.name;
+  element('away-name').textContent = match.info.away.name;
   status.textContent = `${match.info.match_id} · ${match.frames.length} tracking frames · ${seek.min}–${seek.max}s · no event feed loaded`;
 }
 function error(e: unknown) { status.textContent = e instanceof Error ? e.message : String(e); }

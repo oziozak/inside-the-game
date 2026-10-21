@@ -30,7 +30,9 @@ test('half-time cuts and missing samples are held, not blended', () => {
   assert.equal(sample({ info: metadata, frames: [a, b] }, 0.5), a);
   const info = { ...metadata, periods: [{ period: 2, start: 0.04, end: 300 }] };
   assert.equal(sample({ info, frames: match.frames.slice(0, 2) }, 0.02), a);
-  assert.equal(clock(304.17, metadata.periods), '45:00');
+  const second = metadata.periods?.find((p: { period: number }) => p.period === 2);
+  assert.ok(second, 'sample_a match metadata must include a second period for the clock check');
+  assert.equal(clock(second.start, metadata.periods), '45:00');
 });
 test('reject malformed data, cross-match IDs, duplicate identities and unordered frames', () => {
   assert.throws(() => parseMatch({}, tracking), /Match info/);
