@@ -11,7 +11,7 @@ from agents import verifier
 from agents.data_io import load_match
 from agents.director import direct
 from agents.explainer import explain_all
-from agents.llm import MockBackend, NoisyBackend, parse_json_reply
+from agents.llm import MockBackend, NoisyBackend, cache_key, parse_json_reply
 from agents.stats import attacks_positive_x, display_minute, pass_difficulty
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -64,6 +64,15 @@ class VerifierTest(unittest.TestCase):
         out = parse_json_reply('```json\n{"en": {"title": "a", "text": "b"}}\n```', ["en", "tr"])
         self.assertEqual(out["en"]["text"], "b")
         self.assertEqual(out["tr"]["text"], "")
+
+
+class LlmCacheTest(unittest.TestCase):
+    def test_key_changes_with_instructions_and_deployment(self):
+        base = cache_key("gpt-4o-mini", "{}", "rules v1")
+        self.assertEqual(base, cache_key("gpt-4o-mini", "{}", "rules v1"))
+        self.assertNotEqual(base, cache_key("gpt-4o-mini", "{}", "rules v2"))
+        self.assertNotEqual(base, cache_key("gpt-4o", "{}", "rules v1"))
+        self.assertNotEqual(base, cache_key("gpt-4o-mini", "{ }", "rules v1"))
 
 
 class DirectorTest(unittest.TestCase):

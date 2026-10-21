@@ -85,6 +85,7 @@ class FoundryBackend:
             kwargs["credential"] = DefaultAzureCredential()
         client = OpenAIChatCompletionClient(**{k: v for k, v in kwargs.items() if v is not None})
         self.agent = Agent(client, instructions=INSTRUCTIONS, name="explainer")
+        self.deployment = deployment
         self.cache_path = Path(cache_path)
         self.cache = json.loads(self.cache_path.read_text("utf-8")) if self.cache_path.exists() else {}
 
@@ -96,11 +97,16 @@ class FoundryBackend:
         prompt = json.dumps(req, ensure_ascii=False)
         if feedback:
             prompt += f"\n\nYour previous answer was rejected by the verifier: {feedback}\nFix it."
-        key = hashlib.sha256(prompt.encode()).hexdigest()
+        key = cache_key(self.deployment, prompt)
         if key not in self.cache:
             resp = await self.agent.run(prompt)
             self.cache[key] = resp.text
         return parse_json_reply(self.cache[key], req["langs"])
+
+
+def cache_key(deployment: str, prompt: str, instructions: str = INSTRUCTIONS) -> str:
+    """Changing the instructions or the model must not return answers cached from the old ones."""
+    return hashlib.sha256("\0".join((instructions, deployment, prompt)).encode()).hexdigest()
 
 
 def parse_json_reply(raw: str, langs: list[str]) -> dict:
