@@ -1,0 +1,12 @@
+**/.git
+**/.env
+**/.env.*
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+data/generated
+data/renders
+data/frames
+runs
+renderer/public/sample

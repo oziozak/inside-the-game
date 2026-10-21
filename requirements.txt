@@ -6,3 +6,4 @@ agent-framework-core>=1.22
 agent-framework-openai>=1.17
 azure-identity>=1.26
 python-dotenv>=1.0
+pytest>=8
