@@ -73,6 +73,24 @@ def test_rejects_detected_events_not_from_video(merge_events):
         merge_events.merge([ev("e0001", 1.0, "pass", "sim")], [])
 
 
+def test_on_equal_t_the_sim_event_comes_first(merge_events):
+    """A foul comes before what follows it at the same instant."""
+    merged = merge_events.merge([ev("e0001", 7.0, "pass", "cv")], [ev("e0001", 7.0, "foul", "sim")])
+    assert [e["type"] for e in merged] == ["foul", "pass"]
+
+
+def test_rejects_detected_events_of_the_sim_only_types(merge_events):
+    """They would appear twice: once detected, once from the truth."""
+    with pytest.raises(ValueError, match="foul"):
+        merge_events.merge([ev("e0001", 1.0, "foul", "cv")], [ev("e0001", 1.0, "foul", "sim")])
+
+
+def test_rejects_files_from_different_matches(merge_events):
+    with pytest.raises(ValueError, match="match_id"):
+        merge_events.merge([ev("e0001", 1.0, "pass", "cv")],
+                           [{**ev("e0001", 2.0, "foul", "sim"), "match_id": "other"}])
+
+
 def stand_in_detected(truth: list[dict]) -> list[dict]:
     """Until the vision AI exists: true events relabelled cv, minus the types video cannot see."""
     return [{**e, "source": "cv", "confidence": 0.9} for e in truth if e["type"] not in INVISIBLE]

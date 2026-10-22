@@ -23,16 +23,25 @@ INVISIBLE_TYPES = ("foul", "yellow_card", "red_card", "offside", "substitution")
 def merge(detected: list[dict], truth: list[dict]) -> list[dict]:
     """Detected events plus the invisible-type true events, sorted by t, ids renumbered e0001...
 
-    Detected events must all be source cv; added true events are labelled source sim with
-    confidence 1.0. Every other field is kept as it is. The inputs are not modified.
+    Detected events must all be source cv and none of the invisible types; both files must be
+    from the same match. Added true events are labelled source sim with confidence 1.0. On equal
+    t the sim event comes first (a foul comes before what follows it). Every other field is kept
+    as it is. The inputs are not modified. Raises ValueError if the inputs break these rules.
     """
     not_cv = [e["id"] for e in detected if e.get("source") != "cv"]
     if not_cv:
         raise ValueError(f"detected events must have source 'cv' (not: {', '.join(not_cv[:5])}); "
                          "are the detected and true files swapped?")
+    invisible = [f"{e['id']} ({e['type']})" for e in detected if e["type"] in INVISIBLE_TYPES]
+    if invisible:
+        raise ValueError(f"detected events must not include {', '.join(INVISIBLE_TYPES)}; "
+                         f"they come from the true events (found: {', '.join(invisible[:5])})")
+    match_ids = sorted({e["match_id"] for e in [*detected, *truth]})
+    if len(match_ids) > 1:
+        raise ValueError(f"the files are from different matches (match_id: {', '.join(match_ids)})")
     added = [{**e, "source": "sim", "confidence": 1.0} for e in truth if e["type"] in INVISIBLE_TYPES]
     events = [*detected, *added]
-    events.sort(key=lambda e: e["t"])
+    events.sort(key=lambda e: (e["t"], e["source"] == "cv"))
     return [{**e, "id": f"e{i:04d}"} for i, e in enumerate(events, start=1)]
 
 
