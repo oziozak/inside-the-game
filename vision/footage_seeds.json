@@ -1,0 +1,25 @@
+{
+ "rule": "Dev, test and training seeds are disjoint: no seed appears in more than one clip, so no seed has two roles. Checked by python -m vision.footage check (and pytest).",
+ "clips": [
+  {"name": "dev1", "role": "dev", "seed": 2003, "home": "bosphorus", "away": "thames", "minutes": 2,
+   "note": "red v blue; 1 shot, 5 possession changes"},
+  {"name": "dev2", "role": "dev", "seed": 2004, "home": "caldera", "away": "bosphorus", "minutes": 2,
+   "note": "orange v white (Bosphorus away kit); 1 shot, 1 goal"},
+  {"name": "dev3", "role": "dev", "seed": 2005, "home": "saltmarsh", "away": "caldera", "minutes": 2,
+   "note": "green v orange; 1 shot"},
+  {"name": "test1", "role": "test", "seed": 2110, "home": "bosphorus", "away": "thames", "minutes": 10,
+   "note": "held out: never used for dev or training; 3 shots, 1 goal"},
+  {"name": "train1", "role": "training", "seed": 2201, "home": "thames", "away": "caldera", "minutes": 2,
+   "note": "blue v white"},
+  {"name": "train2", "role": "training", "seed": 2202, "home": "saltmarsh", "away": "bosphorus", "minutes": 2,
+   "note": "green v red"},
+  {"name": "train3", "role": "training", "seed": 2203, "home": "thames", "away": "bosphorus", "minutes": 2,
+   "note": "blue v red"},
+  {"name": "train4", "role": "training", "seed": 2204, "home": "caldera", "away": "saltmarsh", "minutes": 2,
+   "note": "orange v green"},
+  {"name": "train5", "role": "training", "seed": 2205, "home": "bosphorus", "away": "caldera", "minutes": 2,
+   "note": "red v white"},
+  {"name": "train6", "role": "training", "seed": 2206, "home": "saltmarsh", "away": "thames", "minutes": 2,
+   "note": "green v white"}
+ ]
+}
