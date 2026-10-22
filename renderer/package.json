@@ -18,7 +18,11 @@
     "validate:export": "node --import tsx scripts/validate-export.ts",
     "generate:calibration": "node --import tsx scripts/generate-calibration.ts",
     "test:calibration": "node --import tsx scripts/check-calibration.ts",
-    "validate:calibration": "node --import tsx scripts/validate-calibration.ts"
+    "validate:calibration": "node --import tsx scripts/validate-calibration.ts",
+    "test:simulator": "node --import tsx scripts/check-simulator.ts",
+    "benchmark:input": "node --import tsx scripts/benchmark-input.ts",
+    "validate:simulator": "node --import tsx scripts/validate-simulator.ts",
+    "test:browser:repeat": "node --import tsx scripts/repeat-browser.ts"
   },
   "dependencies": {
     "ajv": "^8.17.1",

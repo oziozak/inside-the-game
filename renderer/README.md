@@ -47,21 +47,28 @@ npm run validate:export -- --video ../data/renders/cv-visibility.mp4
 
 Use `--camera broadcast` for the closer preset. Each export manifest records the selected camera and scales under `render`, so they can be reproduced. These settings never change metadata or tracking files. `--cv_visibility` enables the high-contrast ball treatment described below.
 
-For other simulator output:
+For genuine simulator output, use the current simulator CLI from the repository root:
 
 ```bash
+python -m simulator --home bosphorus --away thames --seed 7 --out data/generated/renderer-m007
+cd renderer
 npm run export -- \
-  --metadata ../data/fake/sample_a/match_info.json \
-  --tracking ../data/generated/sample_a/tracking.jsonl \
-  --start 12 --end 22 --width 1920 --height 1080 \
-  --out ../data/renders/interval-12-22.mp4
+  --metadata ../data/generated/renderer-m007/match_info.json \
+  --tracking ../data/generated/renderer-m007/tracking.jsonl \
+  --start 2503 --end 2513 --camera cv_full_pitch --cv_visibility --ball-scale 2 \
+  --out ../data/renders/simulator-full-pitch.mp4
+npm run export -- \
+  --metadata ../data/generated/renderer-m007/match_info.json \
+  --tracking ../data/generated/renderer-m007/tracking.jsonl \
+  --start 2503 --end 2513 --camera broadcast --cv_visibility --ball-scale 2 \
+  --out ../data/renders/simulator-broadcast.mp4
 ```
 
-Use the actual location of metadata (the full-tracking generator currently leaves metadata in `data/fake/sample_a/`). Paths resolve against the current directory, so run commands in `renderer/`. Output parents are created; existing video or manifest paths are refused. Generated videos, previews, and manifests belong under ignored `data/renders/`. `--rich` enables stadium/shadows; clean exports default to no stadium/shadows. Output contains the canvas only, with no clock, controls, event labels, or annotations.
+Paths resolve against the current directory, so run npm commands in `renderer/`. The simulator's `--out` is required and both inputs come from that directory. Output parents are created; existing video or manifest paths are refused. Videos, previews, metrics and manifests belong under ignored `data/renders/`. `--rich` enables stadium/shadows; clean exports default to no stadium/shadows. Output contains the canvas only, with no clock, controls, event labels, or annotations. The sample-data export commands above remain supported.
 
 Defaults: 1920×1080, 25 FPS, H.264, yuv420p, CRF 18. Width and height must be even. `--start` defaults to the first tracking timestamp; `--end` defaults to 10 seconds and must be supplied for later intervals. Intervals are half-open `[start,end)`: output frame `i` is rendered at `start + i / 25`. For an exact whole-frame interval, output duration equals `end-start`; otherwise it rounds up to the next frame. The final input sample covers one 40 ms output frame. Out-of-coverage requests fail instead of silently extending the match.
 
-Export starts a loopback-only Vite server and headless Chromium with software WebGL, explicitly applies each timestamp, captures the canvas PNG, then pipes images to FFmpeg with backpressure. It never uses real-time playback or MediaRecorder. A sibling `.mp4.manifest.json` lists output index, requested time and preceding input frame index. This is an export sidecar, not a change to the shared tracking schema. Sparse input uses the last sample until a new sample arrives; the manifest records that preceding sample. There are no temporary image sequences to clean up. An interrupted export can leave a partial video; use a new output path when retrying.
+Export streams a tracking window on Node (details below), then starts a loopback-only Vite server and headless Chromium with software WebGL, explicitly applies each timestamp, captures the canvas PNG, then pipes images to FFmpeg with backpressure. It never uses real-time playback or MediaRecorder. A sibling `.mp4.manifest.json` lists output index, requested time and preceding input frame index. This is an export sidecar, not a change to the shared tracking schema. Sparse input uses the last sample until a new sample arrives; the manifest records that preceding sample. There are no temporary image sequences to clean up. An interrupted export can leave a partial video; use a new output path when retrying.
 
 ```bash
 ffprobe -v error -count_frames -select_streams v:0 \
@@ -74,6 +81,109 @@ Timing and scene state are deterministic. The browser test also checks byte-iden
 
 `npm run validate:export -- --video PATH` uses FFprobe to decode/count actual video frames, verifies H.264/resolution/25 FPS, checks every frame's presentation timestamp against `i/25`, then checks the manifest's match ID, frame count, timestamps and source frame indices against tracking. For custom input, pass the same `--metadata` and `--tracking` paths used for export. A nonzero aligned interval, for example `--start 2.4 --end 3.4`, must have 25 frames mapping to input IDs 60–84 for `sample_a`. Arbitrary subframe starts retain the existing interpolation behavior; align to source sample times for exact one-to-one sample correspondence. Nanosecond-level roundoff at sample boundaries snaps to the exact source frame. Sparse inputs retain the documented hold behavior.
 
+
+
+### Streaming interval extraction and absolute time
+
+`scripts/lib/interval.ts` scans UTF-8 JSONL incrementally with a 64 KiB file stream and `readline`. It never reads the complete file into one string. Every nonblank line is schema-validated with the same `frameParser` used by browser playback, including match/roster IDs and global timestamp/frame ordering. The scan continues to EOF to establish actual coverage, input counts, and malformed data outside the requested interval. Disk/validation work is therefore O(total input frames); retained memory is O(selected frames).
+
+For `[start,end)`, retain `[start - 1 second, end + 1/25 second]`, plus the nearest sample before and the first sample after those boundaries, when available. The causal broadcast filter queries back 0.8 seconds, so one second gives margin. Outside neighbors are essential: a sparse gap may exceed either fixed margin and the existing sampler must still see its true predecessor/successor. The original metadata (including all half-time boundaries), JSONL sample contents, timestamps, frame numbers, player IDs, optional `period`, and goal-area coordinates are preserved. No re-timing, renumbering, clamping or simulator regeneration is performed.
+
+The browser parses only this retained window. At export time `t`, sampling/interpolation and camera filtering still use absolute `t`; the history margin ensures the trimmed window's first sample cannot affect requested camera queries. Existing sparse-gap and half-time hold behavior is unchanged. Requests are checked against actual file coverage `[first.t,last.t+0.04)`, not the metadata's nominal full-time value. The last sample is held for its one-frame interval, including fractional output times after its timestamp. Invalid or out-of-coverage requests fail with their requested/available interval before launching Chromium.
+
+The same loader is used by `validate:export`, so validation does not load the entire match either. It still checks the actual decoded MP4 count and presentation timestamps against the unchanged manifest's **original** input-frame references. An additional `.mp4.metrics.json` sidecar records input/retained frames and bytes, scan time, browser load time, capture-plus-encoding FPS and Node peak RSS. The metrics sidecar is renderer-specific and is not a shared schema change.
+
+This is **interval buffering**, not a bounded-memory full-match exporter. A whole-match selection still retains the whole match; Node keeps parsed frames and a window string, Playwright serializes that string, and Chromium parses another copy. Large windows can still exhaust memory. Prefer short sequential export intervals with fresh output paths. Interactive file-picker playback still loads the entire selected file; use interval export for large simulator feeds. Automatic chunk concatenation, seeking indexes and rolling browser windows are outside this change. The video validator also buffers FFprobe's decoded-frame metadata (currently capped at 64 MiB).
+
+### Full-match integration and measurements
+
+Seed 7 (`bosphorus` versus `thames`, default 45-minute halves) produced 135,303 samples and 144,283,869 bytes of tracking, covering `[0,5412.12)`. The selected `[2503,2513)` interval includes a shot at 2508.72 s. Event truth was inspected **offline only** to choose the interval; no rendering or export code loads events. The browser receives 279 frames (2501.96–2513.08) and 297,154 JSONL bytes. Both comparison videos are 1920×1080, H.264/yuv420p, 25 FPS and 250 decoded frames, with the same player scale 1, ball scale 2 and CV materials. Only their camera differs.
+
+All 250 frames in each camera were checked for 11 home players, 11 away players, exact transformed player/ball coordinates, metadata shirt/shorts colors and both goalkeeper kits. The ball reaches 1.55 m high in the selected interval. Direct seeking and wider-trimmed loading produced the same state and screenshots at the beginning, middle and end. Reversed player-array order preserved IDs and positions. Actors remain present even when cropped by the broadcast view; no label or event request is made. The exports were visually inspected.
+
+Fresh-process input-only comparisons on this machine (single measurements, cached local disk, Node RSS excludes Chromium/FFmpeg):
+
+| Measurement | Previous full-string read/parse | Streaming interval |
+| --- | --- | --- |
+| Input samples | 135,303 | 135,303 scanned |
+| Retained samples | 135,303 | 279 |
+| JSONL bytes for browser transfer | 144,283,869 (baseline size; not sent) | 297,154 |
+| Read/validate time | 803 ms | 705 ms |
+| Peak Node RSS during input benchmark | 678.1 MiB | 101.0 MiB |
+
+The old browser crash was not deliberately reproduced: the baseline measures the previous **Node input** path only. These measurements do not establish total application memory or an exact Chromium memory reduction. A complete optimized export also includes Vite/Playwright and image buffers: full-pitch Node peak RSS was 343.2 MiB and broadcast 338.2 MiB, still excluding child processes. Browser window loads took about 680 ms. Measured capture plus H.264 encoding was 11.41 FPS full-pitch and 11.47 FPS broadcast; performance depends on machine load and these are observations, not targets.
+
+Reproduce input measurements in separate processes (the output folder must exist):
+
+```bash
+npm run benchmark:input -- --mode interval --out ../data/renders/simulator-input-window.json
+npm run benchmark:input -- --mode whole --out ../data/renders/simulator-input-whole.json
+```
+
+Both default to the seed-7 paths/interval above; `--metadata`, `--tracking`, `--start`, and `--end` can select others. `whole` intentionally allocates the entire input in Node and is for controlled benchmarking only.
+
+### Integration validation commands
+
+```bash
+npm test
+npm run build
+npm run test:browser
+npm run test:calibration
+npm run test:simulator
+npm run validate:export -- --video ../data/renders/simulator-full-pitch.mp4 \
+  --metadata ../data/generated/renderer-m007/match_info.json \
+  --tracking ../data/generated/renderer-m007/tracking.jsonl
+npm run validate:export -- --video ../data/renders/simulator-broadcast.mp4 \
+  --metadata ../data/generated/renderer-m007/match_info.json \
+  --tracking ../data/generated/renderer-m007/tracking.jsonl
+```
+
+`test:simulator` requires genuine simulator output to exist; it never generates a replacement simulator. Optional metadata/tracking/start/end flags match the exporter defaults above. It uses two bounded context windows, writes `data/renders/simulator-integration.json` and previews, and saves a wider pre-trimmed reference under `data/generated/renderer-integration-trimmed/`. This is extracted from the **same** full tracking file. Do not use the simulator's `--start` flag to create an equivalence reference: its movement layer starts that window at formation positions, so it may be a different trajectory.
+
+For an actual encoded-video equivalence check, after `test:simulator` and both exports above:
+
+```bash
+npm run export -- \
+  --metadata ../data/generated/renderer-integration-trimmed/match_info.json \
+  --tracking ../data/generated/renderer-integration-trimmed/tracking.jsonl \
+  --start 2503 --end 2513 --camera broadcast --cv_visibility --ball-scale 2 \
+  --out ../data/renders/simulator-broadcast-trimmed.mp4
+npm run validate:simulator
+npm run validate:calibration
+cd ..
+python scripts/validate.py
+python scripts/validate.py renderer/fixtures/calibration
+```
+
+`validate:simulator` checks the seed-7 comparison and trimmed regression filenames above, confirms matching manifests and camera-only settings differences, and uses FFmpeg `framemd5` to compare every decoded broadcast frame. All 250 decoded frames matched exactly. The manifest's first output frame is input frame 62575 at 2503.0 s; the last is input frame 62824 at 2512.96 s. The result is in `data/renders/simulator-export-checks.json`. All 135,303 simulator tracking lines are also schema/identity/order validated by the streaming reader on every full-source export, while the repository's Python validator checks its default sample/example paths separately.
+
+The unit suite includes a streamed 135,000-frame input, fractional starts, retained history, full-versus-pre-trimmed sampling/camera equivalence, long sparse gaps, half-time cuts between sample timestamps, coverage failures, original frame IDs and calibration/goal-area preservation. Existing calibration validation still passes. The final reliability investigation, capture synchronization and concurrent-test limitations are documented below. Scene-state determinism is checked separately from screenshot and decoded-video equality.
+
+### Final reliability review
+
+The historical failure was the strict broadcast-repeat assertion in `scripts/smoke.ts` (originally line 56), after seeking `2.4 → 12 → 2.4` seconds. It was **not** reproduced in three isolated and six concurrent diagnostic runs or twelve additional unmodified concurrent smoke runs with calibration load. Diagnostics compared scene transforms, native canvas hashes, screenshot bytes, canvas bounds/scroll and actual server ports: they agreed, and HTTP ports were distinct. This is evidence against a demonstrated scene-state bug, not proof that the historical failure cannot recur.
+
+A separate concurrent export later lost `window.broadcast` mid-run, consistent with a page reload or development-server invalidation. A synthetic watcher-event probe did not reproduce navigation within the normal timeout, so the exact historical cause remains unproven. Resource contention can expose missing synchronization, and Vite automation previously shared live-reload/dependency-cache resources. The review addresses these mechanisms without claiming a definitive explanation for the original PNG mismatch:
+
+- `scripts/lib/capture.ts` calls WebGL `finish()` and waits across two animation-frame callbacks before capture. Screenshots still use Playwright and byte-for-byte assertions. There are no pixel tolerances, retries, fixed-delay sleeps or increased timeouts. Scene time never advances in export mode.
+- `scripts/lib/server.ts` disables file watching/HMR for automation and provides a private temporary Vite cache per invocation. Cleanup closes the server and removes its own cache even on failure. Normal `npm run dev` behavior is unchanged.
+- Sample preparation publishes each copied file with an atomic rename, avoiding partial reads when a build and browser test overlap. This does not make concurrent regeneration of an entire metadata/tracking pair atomic; inputs should remain immutable during a run.
+- Repeat tests use separate artifact directories. On a broadcast-repeat failure, the test saves both screenshots plus scene/layout JSON, then rethrows the original strict assertion.
+
+Repeat the strict test without automatic retries:
+
+```bash
+npm run test:browser:repeat -- --runs 5 --concurrency 1
+npm run test:browser:repeat -- --runs 12 --concurrency 3 --load
+```
+
+Final isolated-cache results: **5/5 isolated and 12/12 concurrent browser runs passed**, with **4/4 concurrent calibration-load runs passed**. The ordinary browser, simulator and calibration commands also passed while fresh exports and a build were running. Logs and summaries are under ignored `runs/browser-repeat-*/`. The final reports for this review are `runs/browser-repeat-4j9TPc/results.json` and `runs/browser-repeat-oepdGD/results.json`. Observed stability in this matrix does not guarantee bit-identical pixels on other OS/browser/graphics stacks.
+
+The code review also changed encoder writes to await their callbacks (reporting premature pipe closure), waits for FFmpeg to be reaped, guarantees server cleanup even if browser closure fails, releases rich-mode shadow targets on match replacement, preserves real access errors when checking output paths, and verifies complete comparison manifests rather than only their frame lists/settings. Corrupt schema records and player/match identities **outside** the retained interval are regression-tested. The unit suite now has **17 passing tests**.
+
+An injected FFmpeg executable exiting with code 7 produced exporter exit 1 promptly, with no success manifest; the browser/server and process closed. Fresh videos under `data/renders/final-review-isolated/` passed all count/PTS/input-reference checks. The optimized full-match export still retained 279 of 135,303 frames (297,154 bytes), and all 250 decoded full-source versus pre-trimmed broadcast frames remained identical.
+
+The earlier 11.4 FPS measurements above predate the explicit capture barrier. Final review exports under concurrent stress measured approximately **7.6–7.8 FPS** with browser window load around 0.8–0.9 s. Synchronization adds overhead; retain it for correctness rather than weakening the test for throughput. Node-only RSS and whole-window memory limitations above still apply. Docker/Azure and non-renderer source were not changed.
 
 ### Ball contrast and apparent size
 
@@ -151,7 +261,7 @@ window.broadcast.setTime(2.4); // synchronous render; returns t, inputFrame, inp
 window.broadcast.inspect(); // actual world anchors, geometry scales and camera state; never drawn
 ```
 
-Export mode never starts playback or automatically fetches the sample. Capture `canvas#pitch` after `setTime`. `src/data/` owns contracts, parsing and sampling; `src/playback/` owns export timing and clock formatting; `src/scene/` owns geometry, camera, lighting and actors; `src/main.ts` owns controls and the automation API. Inputs are currently loaded into memory; very long tracking feeds will need windowed loading if browser memory becomes a constraint.
+Export mode never starts playback or automatically fetches the sample. Capture `canvas#pitch` after `setTime`. `src/data/` owns contracts, parsing and sampling; `src/playback/` owns export timing and clock formatting; `src/scene/` owns geometry, camera, lighting and actors; `src/main.ts` owns controls and the automation API. Interactive input files are loaded into memory; the Node export and export validator use the bounded interval loader described above.
 
 ## Checks
 
