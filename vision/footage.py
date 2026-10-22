@@ -6,7 +6,9 @@
     python -m vision.footage render --role dev [--force]
     python -m vision.footage render --all
 
-Each clip goes to data/renders/footage/<name>/ (ignored by git): the video,
+A clip is the first `minutes` of a full 90-minute match (seeded, `full`
+profile): it starts at the kickoff, and substitutions (58'-82') never fall in
+it. Each clip goes to data/renders/footage/<name>/ (ignored by git): the video,
 its export manifest and metrics, the simulator's match_info.json, true events
 and tracking, and clip.json (seed record entry + render settings), written
 last once the export validated. Renders are never committed.
@@ -20,6 +22,7 @@ import shutil
 import subprocess
 import sys
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 
 from simulator import Match
@@ -29,12 +32,23 @@ from simulator.teams import load_team, resolve_kits
 ROOT = Path(__file__).resolve().parent.parent
 RECORD = Path(__file__).with_name("footage_seeds.json")
 OUT = ROOT / "data" / "renders" / "footage"          # ignored by git
+FIELDS = ("name", "role", "seed", "home", "away", "minutes")
 ROLES = ("dev", "test", "training")
 MIN_DEV_KIT_COMBINATIONS = 3
-FPS = 25
-# v1 footage settings (see #9): static full-pitch camera, yellow CV ball at 2x, real-size players.
+HALF = 45 * 60                                        # clips are cut from regulation matches
+# v1 footage settings (see #9): static full-pitch camera, yellow CV ball at 2x, real-size
+# players, 1080p at 25 fps. `render` checks the export manifest recorded exactly these.
 RENDER_SETTINGS = {"camera": "cv_full_pitch", "cvVisibility": True, "playerScale": 1, "ballScale": 2}
-RENDER = ["--camera", "cv_full_pitch", "--cv_visibility", "--ball-scale", "2", "--player-scale", "1"]
+VIDEO = {"width": 1920, "height": 1080, "fps": 25}
+
+
+@dataclass(frozen=True)
+class ClipPlan:
+    """A simulated clip, ready to export: its files and the renderer arguments."""
+    video: Path
+    metadata: Path
+    tracking: Path
+    export_args: list[str]
 
 
 def load_record(path: Path = RECORD) -> dict:
@@ -45,26 +59,32 @@ def load_record(path: Path = RECORD) -> dict:
 def check_record(record: dict) -> list[str]:
     """Problems with a seed record (empty list = valid)."""
     errors = []
-    playable = []
+    clips, playable = [], []
     for c in record["clips"]:
+        missing = [f for f in FIELDS if f not in c]
+        if missing:
+            errors.append(f"clip {c.get('name', '?')}: missing {', '.join(missing)}")
+        else:
+            clips.append(c)
+    for c in clips:
         clip_errors = _check_clip(c)
         errors += clip_errors
         if not clip_errors:
             playable.append(c)
     for role in ROLES:
-        if not any(c["role"] == role for c in record["clips"]):
+        if not any(c["role"] == role for c in clips):
             errors.append(f"no {role} clip")
     clips_by_seed: dict[int, list[dict]] = {}
-    for c in record["clips"]:
+    for c in clips:
         clips_by_seed.setdefault(c["seed"], []).append(c)
-    for seed, clips in sorted(clips_by_seed.items()):
-        roles = sorted({c["role"] for c in clips})
+    for seed, same in sorted(clips_by_seed.items()):
+        roles = sorted({c["role"] for c in same})
         if len(roles) > 1:
             errors.append(f"seed {seed} is used in several roles: {', '.join(roles)}")
-        elif len(clips) > 1:
+        elif len(same) > 1:
             errors.append(f"seed {seed} is used by several clips: "
-                          f"{', '.join(c['name'] for c in clips)}")
-    names = Counter(c["name"] for c in record["clips"])
+                          f"{', '.join(c['name'] for c in same)}")
+    names = Counter(c["name"] for c in clips)
     errors += [f"clip name {n} is used {k} times" for n, k in names.items() if k > 1]
     errors += _check_dev_kits([c for c in playable if c["role"] == "dev"])
     return errors
@@ -76,8 +96,8 @@ def _check_clip(c: dict) -> list[str]:
     errors = []
     if c["role"] not in ROLES:
         errors.append(f"{who}: role must be one of {', '.join(ROLES)}, not {c['role']!r}")
-    if not c["minutes"] > 0:
-        errors.append(f"{who}: minutes must be positive")
+    if not 0 < c["minutes"] <= HALF / 60:
+        errors.append(f"{who}: minutes must be more than 0 and at most {HALF // 60} (first half)")
     if c["home"] == c["away"]:
         errors.append(f"{who}: home and away must be different teams")
     try:
@@ -110,36 +130,27 @@ def _check_dev_kits(dev: list[dict]) -> list[str]:
     return errors
 
 
-def prepare_clip(clip: dict, root: Path) -> list[str]:
-    """Simulate a clip's match into root/<name>/ and return the renderer export
-    arguments that turn it into root/<name>/<name>.mp4.
+def prepare_clip(clip: dict, root: Path) -> ClipPlan:
+    """Simulate a clip's match into root/<name>/ and plan its export to
+    root/<name>/<name>.mp4: the first `minutes` of the match, from the kickoff.
 
-    A clip is a whole short match (two halves of minutes / 2), so its true
-    events and match_info periods cover exactly the rendered video."""
+    The simulator plays the whole match (events.json keeps every true event;
+    grade only those before the clip's end) but writes tracking for the clip
+    only."""
     folder = Path(root) / clip["name"]
-    m = Match(clip["seed"], clip["minutes"] * 30, "full", clip["name"],
+    m = Match(clip["seed"], HALF, "full", clip["name"],
               home=load_team(clip["home"]), away=load_team(clip["away"]))
     m.play()
-    files = write_match(folder, m)
-    start, end = _coverage(files["tracking.jsonl"])
-    return ["--metadata", str(files["match_info.json"]), "--tracking", str(files["tracking.jsonl"]),
-            "--start", _seconds(start), "--end", _seconds(end),
-            *RENDER, "--out", str(folder / f"{clip['name']}.mp4")]
-
-
-def _coverage(tracking: Path) -> tuple[float, float]:
-    """[first t, last t + one frame): the interval the renderer can export."""
-    first = last = None
-    with tracking.open(encoding="utf-8") as f:
-        for line in f:
-            last = line
-            first = first or line
-    return json.loads(first)["t"], json.loads(last)["t"] + 1 / FPS
-
-
-def _seconds(t: float) -> str:
-    """Seconds for the renderer CLI, to the 0.01 s precision of tracking times."""
-    return f"{t:.2f}".rstrip("0").rstrip(".")
+    end = clip["minutes"] * 60
+    files = write_match(folder, m, start=0, end=end)
+    video = folder / f"{clip['name']}.mp4"
+    args = ["--metadata", str(files["match_info.json"]), "--tracking", str(files["tracking.jsonl"]),
+            "--start", "0", "--end", f"{end:g}",
+            "--camera", RENDER_SETTINGS["camera"], "--cv_visibility",
+            "--ball-scale", f"{RENDER_SETTINGS['ballScale']:g}",
+            "--player-scale", f"{RENDER_SETTINGS['playerScale']:g}",
+            "--width", str(VIDEO["width"]), "--height", str(VIDEO["height"]), "--out", str(video)]
+    return ClipPlan(video, files["match_info.json"], files["tracking.jsonl"], args)
 
 
 def render_clip(clip: dict, root: Path = OUT, force: bool = False) -> Path:
@@ -151,19 +162,19 @@ def render_clip(clip: dict, root: Path = OUT, force: bool = False) -> Path:
         return folder
     if folder.exists():
         shutil.rmtree(folder)                   # partial or forced: the renderer refuses old outputs
-    args = prepare_clip(clip, root)
-    opts = dict(zip(args, args[1:]))
-    video = Path(opts["--out"])
-    _npm("export", *args)
-    _npm("validate:export", "--video", str(video), "--metadata", opts["--metadata"],
-         "--tracking", opts["--tracking"])
+    plan = prepare_clip(clip, root)
+    video = plan.video
+    _npm("export", *plan.export_args)
+    _npm("validate:export", "--video", str(video), "--metadata", str(plan.metadata),
+         "--tracking", str(plan.tracking))
     manifest = json.loads(Path(f"{video}.manifest.json").read_text(encoding="utf-8"))
-    if manifest["render"] != RENDER_SETTINGS:
-        raise RuntimeError(f"{video}: manifest render settings {manifest['render']} "
-                           f"are not {RENDER_SETTINGS}")
-    summary = {"clip": clip, "render": manifest["render"], "start": manifest["start"],
-               "end": manifest["end"], "frames": len(manifest["frames"]),
-               "width": manifest["width"], "height": manifest["height"], "fps": manifest["fps"]}
+    recorded = {k: manifest[k] for k in VIDEO}
+    if manifest["render"] != RENDER_SETTINGS or recorded != VIDEO:
+        raise RuntimeError(f"{video}: manifest records {manifest['render']} {recorded}, "
+                           f"expected {RENDER_SETTINGS} {VIDEO}")
+    summary = {"clip": clip, "render": manifest["render"], **recorded,
+               "start": manifest["start"], "end": manifest["end"],
+               "frames": len(manifest["frames"])}
     (folder / "clip.json").write_text(json.dumps(summary, indent=1) + "\n", encoding="utf-8")
     print(f"{clip['name']}: {video} ({summary['frames']} frames) validated")
     return folder

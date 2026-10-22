@@ -67,6 +67,7 @@ def test_dev_needs_a_white_away_kit():
     (lambda r: r["clips"].pop(4), "no training clip"),
     (lambda r: r["clips"][4].update(minutes=0), "minutes"),
     (lambda r: r["clips"][4].update(home="thames", away="thames"), "different teams"),
+    (lambda r: r["clips"][4].pop("seed"), "missing seed"),
 ])
 def test_broken_records_are_errors(breakage, message):
     record = copy.deepcopy(VALID)
@@ -84,32 +85,25 @@ def test_committed_seed_record_is_valid():
     assert "disjoint" in record["rule"]
 
 
-def options(args):
-    """Renderer CLI args as {flag: value}; bare flags map to True."""
-    out, i = {}, 0
-    while i < len(args):
-        if i + 1 < len(args) and not args[i + 1].startswith("--"):
-            out[args[i]] = args[i + 1]
-            i += 2
-        else:
-            out[args[i]] = True
-            i += 1
-    return out
-
-
 def test_prepare_clip_simulates_the_match_and_plans_a_cv_export(tmp_path):
-    seven = clip("seven", "dev", 7)                    # seed 7, 2 x 1 min: full time at 123.28 s
-    args = options(footage.prepare_clip(seven, tmp_path))
+    seven = clip("seven", "dev", 7)
+    plan = footage.prepare_clip(seven, tmp_path)
     folder = tmp_path / "seven"
-    assert {p.name for p in folder.iterdir()} >= {"match_info.json", "events.json", "tracking.jsonl"}
-    info = json.loads((folder / "match_info.json").read_text())
+    assert plan.video == folder / "seven.mp4"
+    assert plan.metadata == folder / "match_info.json" and plan.tracking == folder / "tracking.jsonl"
+    info = json.loads(plan.metadata.read_text())
     assert info["match_id"] == "seven"
-    assert args["--metadata"] == str(folder / "match_info.json")
-    assert args["--tracking"] == str(folder / "tracking.jsonl")
-    assert args["--out"] == str(folder / "seven.mp4")
-    assert (args["--start"], args["--end"]) == ("0", "123.28")    # the whole match
-    assert args["--camera"] == "cv_full_pitch" and args["--cv_visibility"] is True
-    assert (args["--ball-scale"], args["--player-scale"]) == ("2", "1")
+    assert info["periods"][0]["end"] > 45 * 60              # the first minutes of a full match
+    frames = plan.tracking.read_text().splitlines()
+    assert len(frames) == 2 * 60 * 25                       # tracking covers exactly 2 minutes
+    assert json.loads(frames[-1])["t"] == 119.96
+    args = plan.export_args
+    for flag, value in [("--metadata", str(plan.metadata)), ("--tracking", str(plan.tracking)),
+                        ("--out", str(plan.video)), ("--start", "0"), ("--end", "120"),
+                        ("--camera", "cv_full_pitch"), ("--ball-scale", "2"),
+                        ("--player-scale", "1"), ("--width", "1920"), ("--height", "1080")]:
+        assert args[args.index(flag) + 1] == value, flag
+    assert "--cv_visibility" in args
 
 
 def test_prepare_clip_is_deterministic(tmp_path):
