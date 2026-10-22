@@ -124,7 +124,11 @@ export class Broadcast {
         projectedDiameterPx: projectedDiameter(this.camera, this.ball.position, this.renderer.domElement.height, BALL_RADIUS_M * this.ball.scale.x),
         centerOccludedByPlayer: this.ballOccluded(),
       },
-      players: [...this.actors.entries()].filter(([, actor]) => actor.visible).map(([id, actor]) => ({ id, position: actor.position.toArray(), scale: actor.scale.toArray() })),
+      players: [...this.actors.entries()].filter(([, actor]) => actor.visible).map(([id, actor]) => ({
+        id, position: actor.position.toArray(), scale: actor.scale.toArray(), team: actor.userData.team as string,
+        shirtColor: `#${((actor.children[0] as T.Mesh).material as T.MeshStandardMaterial).color.getHexString()}`,
+        shortsColor: `#${((actor.children[1] as T.Mesh).material as T.MeshStandardMaterial).color.getHexString()}`,
+      })),
     };
   }
   private ballOccluded(): boolean {
@@ -147,6 +151,7 @@ export class Broadcast {
   }
   dispose(): void {
     this.scene.traverse(o => { if (o instanceof T.Mesh || o instanceof T.LineSegments) { o.geometry.dispose(); for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose(); } });
+    this.sun.shadow.dispose();
     this.physicalBallMaterial.dispose(); this.cvBallMaterial.dispose();
     this.renderer.dispose();
   }

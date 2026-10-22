@@ -3,7 +3,7 @@ import metadataSchema from '../../../schemas/match_info.schema.json';
 import trackingSchema from '../../../schemas/tracking.schema.json';
 
 export interface Player { id: number; team: 'home' | 'away' | 'referee'; pos: number[]; confidence?: number }
-export interface Frame { match_id: string; frame: number; t: number; ball: number[]; players: Player[] }
+export interface Frame { match_id: string; frame: number; t: number; period?: 1 | 2; ball: number[]; players: Player[] }
 export interface Team {
   name: string; short: string; kit: { shirt: string; shorts: string; goalkeeper?: string };
   players: { id: number; number: number; name: string; pos: string; starter: boolean }[];
@@ -17,8 +17,8 @@ const ajv = new Ajv2020({ strict: false, allErrors: true });
 const validateInfo = ajv.compile(metadataSchema);
 const validateFrame = ajv.compile(trackingSchema);
 
-/** Validate the shared schemas plus renderer-specific identity and ordering invariants. */
-export function parseMatch(metadata: unknown, jsonl: string): Match {
+/** Shared validator for browser parsing and streaming Node export; retains only the previous frame. */
+export function frameParser(metadata: unknown) {
   if (!validateInfo(metadata)) throw new Error(`Match info: ${ajv.errorsText(validateInfo.errors)}`);
   const info = metadata as unknown as MatchInfo;
   if (info.fps !== 25 || info.pitch[0] !== 105 || info.pitch[1] !== 68) {
@@ -29,13 +29,11 @@ export function parseMatch(metadata: unknown, jsonl: string): Match {
     if (roster.has(p.id)) throw new Error(`Duplicate roster ID ${p.id}`);
     roster.set(p.id, team);
   }
-  const frames: Frame[] = [];
-  for (const [line, text] of jsonl.split(/\r?\n/).entries()) {
-    if (!text.trim()) continue;
+  let prev: Frame | undefined;
+  return { info, parse(text: string, line: number): Frame {
     let frame: Frame;
     try { frame = JSON.parse(text); } catch { throw new Error(`Invalid JSON on tracking line ${line + 1}`); }
     if (!validateFrame(frame)) throw new Error(`Tracking line ${line + 1}: ${ajv.errorsText(validateFrame.errors)}`);
-    const prev = frames.at(-1);
     if (frame.match_id !== info.match_id) throw new Error(`Match ID mismatch on line ${line + 1}`);
     if (prev && (frame.t <= prev.t || frame.frame <= prev.frame)) throw new Error('Tracking must increase strictly in t and frame');
     const ids = new Set<number>();
@@ -44,10 +42,20 @@ export function parseMatch(metadata: unknown, jsonl: string): Match {
       ids.add(p.id);
       if (p.team !== 'referee' && roster.get(p.id) !== p.team) throw new Error(`Unknown player or team mismatch: ${p.id}`);
     }
-    frames.push(frame);
+    prev = frame;
+    return frame;
+  } };
+}
+
+/** Validate shared schemas plus renderer identity/order invariants for an in-memory window. */
+export function parseMatch(metadata: unknown, jsonl: string): Match {
+  const parser = frameParser(metadata);
+  const frames: Frame[] = [];
+  for (const [line, text] of jsonl.split(/\r?\n/).entries()) {
+    if (text.trim()) frames.push(parser.parse(text, line));
   }
   if (!frames.length) throw new Error('Tracking is empty');
-  return { info, frames };
+  return { info: parser.info, frames };
 }
 
 /** Shared pitch coordinates (x,y,height) -> Three.js (x,up,z); preserve handedness. */

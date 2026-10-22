@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
-import { parseMatch, sample } from '../src/data/match';
+import { loadInterval } from './lib/interval';
+import { sample } from '../src/data/match';
 import { exportTimes, FPS } from '../src/playback/timing';
 const { values } = parseArgs({ options: {
   video: { type: 'string' },
@@ -11,7 +12,7 @@ const { values } = parseArgs({ options: {
 } });
 if (!values.video) throw new Error('Usage: npm run validate:export -- --video path/to/export.mp4 [--metadata ... --tracking ...]');
 const manifest = JSON.parse(await readFile(`${values.video}.manifest.json`, 'utf8'));
-const match = parseMatch(JSON.parse(await readFile(values.metadata!, 'utf8')), await readFile(values.tracking!, 'utf8'));
+const { match } = await loadInterval(JSON.parse(await readFile(values.metadata!, 'utf8')), values.tracking!, { start: manifest.start, end: manifest.end });
 const times = exportTimes(manifest.start, manifest.end);
 // Decode/count frames and inspect actual presentation timestamps, not just container metadata.
 const probe = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-count_frames', '-show_frames', '-show_entries', 'stream=codec_name,width,height,r_frame_rate,nb_read_frames:frame=best_effort_timestamp_time', '-of', 'json', values.video], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));

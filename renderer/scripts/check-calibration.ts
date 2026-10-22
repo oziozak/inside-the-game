@@ -1,13 +1,15 @@
+import { captureCanvas } from './lib/capture';
 import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
-import { createServer } from 'vite';
+import { renderingServer } from './lib/server';
 import { parseMatch, world } from '../src/data/match';
 import type { CameraPreset } from '../src/scene/config';
 const metadata = JSON.parse(await readFile('fixtures/calibration/match_info.json', 'utf8'));
 const tracking = await readFile('fixtures/calibration/tracking.jsonl', 'utf8');
 const match = parseMatch(metadata, tracking);
-const server = await createServer({ server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' });
+const artifactDir = process.env.RENDERER_TEST_ARTIFACT_DIR ?? '../data/renders';
+const { server, closeServer } = await renderingServer();
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
   await server.listen(); browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -32,21 +34,21 @@ try {
     for (const i of [0, 50, 100, 150, 200, 225, 299]) {
       await page.evaluate(t => window.broadcast.setTime(t), i / 25);
       assert.deepEqual(await page.evaluate(() => window.broadcast.inspect()), sequential[i], `${camera}: direct seek equals sequential frame ${i}`);
-      const pixels = await page.locator('canvas').screenshot();
+      const pixels = await captureCanvas(page);
       await page.evaluate(() => window.broadcast.setTime(1));
       await page.evaluate(t => window.broadcast.setTime(t), i / 25);
-      assert.deepEqual(await page.locator('canvas').screenshot(), pixels);
+      assert.deepEqual(await captureCanvas(page), pixels);
       repeatPixels++;
     }
     if (camera === 'cv_full_pitch') assert.ok(sequential.every(s => JSON.stringify(s.camera) === JSON.stringify(sequential[0].camera)));
     assert.deepEqual(errors, []); assert.ok(!requests.some(r => /ground_truth|events|overlays/.test(r)));
     assert.equal(await page.locator('#clock').isVisible(), false);
-    await mkdir('../data/renders', { recursive: true });
+    await mkdir(artifactDir, { recursive: true });
     await page.evaluate(() => window.broadcast.setTime(3));
-    await page.locator('canvas').screenshot({ path: `../data/renders/calibration-${camera}-preview.png` });
+    await captureCanvas(page, { path: `${artifactDir}/calibration-${camera}-preview.png` });
     reports.push({ camera, frames: sequential.length, coordinateChecks: 'all frames match tracking', directSeekChecks: repeatPixels, repeatedPixelChecks: repeatPixels, minProjectedBallDiameterPx: Math.min(...sequential.map(s => s.ball.projectedDiameterPx)), maxProjectedBallDiameterPx: Math.max(...sequential.map(s => s.ball.projectedDiameterPx)), playerOccludedCenterFrames: sequential.filter(s => s.ball.centerOccludedByPlayer).length });
     await page.close();
   }
-  await writeFile('../data/renders/calibration-checks.json', JSON.stringify(reports, null, 2));
+  await writeFile(`${artifactDir}/calibration-checks.json`, JSON.stringify(reports, null, 2));
   console.log(JSON.stringify(reports, null, 2));
-} finally { await browser?.close(); await server.close(); }
+} finally { try { await browser?.close(); } finally { await closeServer(); } }
