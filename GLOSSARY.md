@@ -22,7 +22,7 @@ _Avoid_: Detection frame, observation row
 
 **Track**:
 An anonymous identity the vision AI keeps for one detected person across frames; it says nothing about who that person is.
-_Avoid_: Player (when the roster identity is not known), ID
+_Avoid_: Player id, ID (a track id is never a roster player id)
 
 **Player**:
 A person on a team's roster, identified by a player id from the team sheet.

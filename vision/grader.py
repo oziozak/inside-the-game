@@ -195,17 +195,23 @@ def main(argv: list[str] | None = None) -> int:
     manifest = json.loads(args.manifest.read_text(encoding="utf-8")) if args.manifest else None
     types = None if args.types == "all" else [t.strip() for t in args.types.split(",") if t.strip()]
 
+    clip = clip_info(manifest, render, args.seed, args.training_seeds)
+    if clip["seed"] is None:
+        print("warning: no clip seed (pass --seed); the report records null", file=sys.stderr)
     report = {
         "match_id": truth[0]["match_id"] if truth else None,
         "detected_file": str(args.detected),
         "truth_file": str(args.truth),
-        "clip": clip_info(manifest, render, args.seed, args.training_seeds),
+        "clip": clip,
         **grade(detected, truth, types),
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    def fmt(x):
+        """A score for the console summary."""
+        return "  -  " if x is None else f"{x:.3f}"
+
     for ty, s in report["per_type"].items():
-        fmt = lambda x: "  -  " if x is None else f"{x:.3f}"
         print(f"{ty:<18} P {fmt(s['precision'])}  R {fmt(s['recall'])}  F1 {fmt(s['f1'])}"
               f"  ({s['matched']}/{s['true']} true, {s['detected']} detected)")
     print(f"Wrote {args.out}")

@@ -15,6 +15,7 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from jsonschema import Draft202012Validator
 
@@ -32,10 +33,10 @@ class Ball:
 
 @dataclass(frozen=True)
 class PlayerObservation:
-    """One detected player: an anonymous track, not a roster player."""
+    """One detected player, known only by an anonymous track id (not a roster player id)."""
 
     track_id: int
-    team: str                       # "home" or "away"
+    team: Literal["home", "away"]
     goalkeeper: bool
     pos: tuple[float, float]        # foot point, meters
     confidence: float
