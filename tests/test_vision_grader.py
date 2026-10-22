@@ -191,3 +191,22 @@ def test_runtime_vision_code_never_imports_the_grader():
             elif isinstance(node, ast.ImportFrom):
                 names = [node.module or ""] + [a.name for a in node.names]
             assert not any("grader" in n for n in names), f"{path} imports the grader"
+
+
+def test_player_id_ignores_to_for_types_without_a_receiver():
+    """Shots and goals have no `to` (schemas/README.md), so only `from` is scored;
+    a stray `to` on the detection is not a wrong player."""
+    truth = [ev("e0001", "shot", 10.0, (90.0, 34.0), frm=10, to=None),
+             ev("e0002", "goal", 11.0, (105.0, 34.0), frm=10, to=None)]
+    det = [ev("e0001", "shot", 10.0, (90.0, 34.0), frm=10, to=8),
+           ev("e0002", "goal", 11.0, (105.0, 34.0), frm=10)]
+    del det[1]["to"]
+    assert grade(det, truth)["matched"]["player_id_accuracy"] == 1.0
+
+
+@pytest.mark.parametrize("etype", ["kickoff", "possession_change"])
+def test_player_id_scores_to_where_the_schema_defines_it(etype):
+    """Kickoff `to` is the receiver; possession_change `to` is the player who lost it."""
+    truth = [ev("e0001", etype, 10.0, (52.5, 34.0), frm=9, to=8)]
+    det = [ev("e0001", etype, 10.0, (52.5, 34.0), frm=9, to=7)]
+    assert grade(det, truth)["matched"]["player_id_accuracy"] == 0.0

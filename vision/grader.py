@@ -31,6 +31,11 @@ DIST_TOL_M = 5.0
 # Event types the v1 vision pipeline detects; the CLI grades these by default.
 DETECTED_TYPES = ["kickoff", "pass", "possession_change", "shot", "goal"]
 
+# Types whose `to` names a second player (schemas/README.md); for the rest
+# (shot, goal, clearance, offside, cards) only `from` identifies the player.
+TYPES_WITH_TO = {"pass", "throw_in", "goal_kick", "corner", "free_kick", "kickoff",
+                 "possession_change", "foul", "substitution"}
+
 
 def _gap(det: dict, true: dict) -> tuple[float, float]:
     """Time (s) and start-point distance (m) between two events."""
@@ -74,6 +79,14 @@ def _scores(n_det: int, n_true: int, n_matched: int) -> dict:
             "precision": precision, "recall": recall, "f1": f1}
 
 
+def _same_players(det: dict, true: dict) -> bool:
+    """Whether a matched detection names the right player(s): `from`, plus `to`
+    for types where `to` is a player."""
+    if det.get("from") != true.get("from"):
+        return False
+    return true["type"] not in TYPES_WITH_TO or det.get("to") == true.get("to")
+
+
 def _mean(values: list[float]) -> float | None:
     """Arithmetic mean, or None for an empty list."""
     return sum(values) / len(values) if values else None
@@ -82,7 +95,8 @@ def _mean(values: list[float]) -> float | None:
 def _matched_metrics(pairs: list[tuple[dict, dict]]) -> dict:
     """Accuracy and mean absolute errors over matched (detected, true) pairs.
 
-    A player id is correct when both `from` and `to` agree. Pass success is
+    A player id is correct when `from` agrees, and `to` too for types that
+    have one (see TYPES_WITH_TO). Pass success is
     scored over matched passes; distance and speed errors over pairs where
     both events carry the number.
     """
@@ -92,8 +106,7 @@ def _matched_metrics(pairs: list[tuple[dict, dict]]) -> dict:
     passes = [(d, t) for d, t in pairs if t["type"] == "pass" and "success" in t]
     return {
         "count": len(pairs),
-        "player_id_accuracy": _mean([float(d.get("from") == t.get("from") and d.get("to") == t.get("to"))
-                                     for d, t in pairs]),
+        "player_id_accuracy": _mean([float(_same_players(d, t)) for d, t in pairs]),
         "pass_success_accuracy": _mean([float(d.get("success") == t["success"]) for d, t in passes]),
         "mean_abs_time_error_s": _mean(abs_errors("t")),
         "mean_abs_distance_error_m": _mean(abs_errors("distance_m")),

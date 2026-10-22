@@ -45,7 +45,7 @@ python -m vision.grader --detected runs/m007/events.json --truth data/generated/
 
 - A detected event matches a true event of the same type within ±0.5 s and 5 m of its start point. Matching is one-to-one, closest first (pairs ranked by time gap / 0.5 s + distance / 5 m).
 - `per_type`: detected, true and matched counts, plus precision, recall and F1 (`null` when undefined, e.g. no detections).
-- `matched`: player-id accuracy (`from` and `to` both right), pass-success accuracy, and mean absolute timing, distance and speed error.
+- `matched`: player-id accuracy (`from` right, and `to` too for types where `to` is a player; shots and goals score `from` only), pass-success accuracy, and mean absolute timing, distance and speed error.
 - `unmatched_detections` and `missed`: id, type, `t` and start of each.
 - `clip`: render settings from the export manifest's `render` block (plus width, height, rich), the clip window, and the seeds. `--render KEY=VALUE`, `--seed` and `--training-seeds` add to or override them.
 - By default only the v1 detected types are graded (`kickoff, pass, possession_change, shot, goal`); `--types all` or a comma list changes that.
