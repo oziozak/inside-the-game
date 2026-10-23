@@ -72,6 +72,7 @@ python scripts/generate_fake_data.py --report           # event counts vs. real-
 python -m simulator --home bosphorus --away thames --seed 7 --out data/generated/m007   # one match (see simulator/README.md)
 python -m simulator.realism --matches 40                # realism report; exits 1 if a check fails
 python -m vision.footage render dev1                    # one footage clip from the seed record (see vision/README.md)
+python -m vision.rules OBS.jsonl --match-info MI --out EVENTS   # frame observations -> detected events (cv)
 python scripts/merge_events.py DETECTED TRUTH --out OUT  # detected (cv) + sim's foul/card/offside/sub -> events.json
 pytest                                                  # tests
 ```

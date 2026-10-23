@@ -8,7 +8,7 @@ Video in, events out. Never reads simulator data at runtime.
 2. Assign teams by shirt color
 3. Track identities across frames
 4. Map pixels to pitch meters (homography)
-5. Possession = nearest player to the ball
+5. Possession = nearest player to the ball ([event rules](#event-rules-visionrulespy))
 6. Rules turn possession changes into events (`source: cv`)
 
 Accuracy is measured afterward against the simulator's true events.
@@ -163,6 +163,49 @@ The contract between the video stage (pixels → observations) and the event sta
 - Player `pos` is the foot point in meters.
 
 Use `write_observations` / `read_observations` for files. To check one: `python -m vision.observation FILE.jsonl` (exit 1 on errors). Beyond the schema, it checks that a visible ball has a position, track ids are unique per frame, and frames and times strictly increase.
+
+## Event rules (`vision/rules.py`)
+
+The event stage: frame observations and the team sheet in, detected events out. It imports nothing but `vision.observation` (a test enforces this).
+
+```bash
+python -m vision.rules observations.jsonl --match-info match_info.json --out events.json
+```
+
+`EventRules.push(frame)` takes one frame at a time and returns the events it has decided, so a live wrapper can feed it later; `detect_events(frames, team_sheet)` runs a whole file, sorts by `t` and numbers the ids. Each kick is decided a short, fixed time after the ball lands: 0.16 s after a reception, 0.12 s after a touch, at most 1 s after it comes to rest with nobody taking it, 0.5 s after it reaches the goal line.
+
+- **Possession:** the track nearest a visible ball, within 1.5 m, with the ball moving with it, for 4 frames. Observations have no ball height, so "the ball moves with the track" stands in for "the ball is at ground level": a ball flying past is not possessed.
+- **Kick:** possession ends and the ball travels at least 3 m at 4 m/s or more to where it next stops: where it comes to rest, the next possession, a touch (the ball suddenly turns or speeds up, e.g. a header or a one-touch shot), the goal line, or out of play. Rules use the two ends of that path and when the ball arrived, never mid-flight positions, because an airborne ball's ground projection is wrong. `distance_m`, `duration_s` and `speed_kmh` (the average ground speed) come from those ends.
+- **Shot:** a kick within 45 m of a goal and not from a corner flag, whose line meets the goal line within 9.5 m of the goal's center, at 70 km/h or more (65 within 25 m of the goal, 50 for a ball redirected in flight, such as a header). Subtype: `off_target` when it goes out, `blocked` when an outfield opponent stops it short of the line, else from where its line meets the goal line.
+- **Pass:** any other kick in open play; `success` when the next track in possession is on the kicker's team; `short`/`long` at 25 m. Restarts are not passes, and v1 does not report them: the first kick after the ball went out or a goal, a kick from a ball still for 3 s (free kick), or from the center spot or a corner arc.
+- **Goal:** a shot reaches the goal line between the posts with no player within reach of the ball (that is a save), then comes to rest between the posts, on the line or behind it (not wide of the goal: from a sharp angle, an off-target ball's ground projection can cross the mouth). The shot gets `success: true`, and the goal carries the running `score`.
+- **Players:** `from` and `to` are `null` on every event. Tracks are anonymous until lineup assignment names them, and a track id in `from` would read as a roster player id.
+- **Confidence:** 0.9 (pass, goal) or 0.8 (shot) times the mean ball confidence over the kick.
+
+Not yet: kickoffs, possession changes and lineup assignment (#17, #18), noisy observations (#19).
+
+### Seam-2 harness (`vision/harness.py`, offline only)
+
+Builds clean frame observations from simulator tracking, so the rules can be built and graded in seconds without video. Roster ids become anonymous track ids, the goalkeeper flag comes from the team sheet, and the ball loses its height. It reads simulator data, so no other vision code may import it (a test enforces this).
+
+```bash
+python -m vision.harness data/generated/m007/tracking.jsonl data/generated/m007/match_info.json --out runs/m007/observations.jsonl
+```
+
+`tests/test_vision_rules.py` grades the rules on the calibration fixture (one successful pass at 2 s, a shot at 8 s, a goal at 8.9 s, nothing else) and on the first 15 minutes of seeds 401-404, four pairings. Its `THRESHOLDS` hold the minimum precision and recall per type.
+
+Grades on clean observations, first halves (45 min) of full matches, four pairings per row. The rules were tuned on 201-204; 401-404 and 501-504 were also looked at while tuning, so these are dev grades, not held-out ones:
+
+| Seeds | Pass P / R | Shot P / R | Goal P / R |
+| --- | --- | --- | --- |
+| 201-204 | 0.95 / 0.99 | 0.98 / 0.83 | 1.00 / 1.00 (5 goals) |
+| 401-404 | 0.96 / 0.98 | 0.91 / 0.91 | 0.91 / 0.77 (13 goals) |
+| 501-504 | 0.96 / 0.99 | 0.94 / 0.80 | 0.86 / 1.00 (6 goals) |
+
+What keeps clean grades below 1 is mostly the simulator, not the rules:
+- **False passes:** almost all are clearances, physically the same kick as a long pass. v1 reports them as passes.
+- **Missed shots:** many come from the simulator playing a shot (or a pass) from a player standing meters from the ball. Some shots blocked at close range never come to rest near a player, and a few headers measure under 50 km/h.
+- **Goals:** in a penalty, the keeper stands within reach as the ball goes in, so it reads as a save. A few clearances go into the clearing team's own goal.
 
 ## Grader (`vision/grader.py`, offline only)
 
