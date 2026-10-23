@@ -33,7 +33,7 @@ simulator ──> renderer ──> video ──> vision AI ──> events ──
 5. **Fictional only.** No real clubs, players, logos, kits, footage or Premier League marks. Our clubs: Bosphorus FC (home, red) and Thames United (away, blue).
 6. **Runtime AI runs on Microsoft's stack** (Microsoft Foundry, Agent Framework, Azure services). This is part of the judging. Coding tools are unrestricted.
 7. **No secrets in git.** Use `.env` (ignored). The repo becomes public at submission.
-8. **No large binaries in git.** Videos, frames, model weights and full-match tracking go in ignored folders (`data/generated/`, `data/renders/`, `runs/`). Regenerate them with scripts.
+8. **No large binaries in git.** Videos, frames, model weights and full-match tracking go in ignored folders (`data/generated/`, `data/renders/`, `runs/`). Regenerate them with scripts. **One deliberate exception:** the 12-second vision calibration clip `vision/fixtures/calibration/calibration.mp4` is committed through **Git LFS** (pattern in `.gitattributes`), so the vision end-to-end test always runs. Run `git lfs install` once per machine and `git lfs pull` if the file is a text pointer. No other video goes in git.
 9. **Keep it demo-able.** We have one week. Prefer the simplest thing that works end to end over a clever partial solution.
 
 ## Data conventions (see `schemas/README.md`)

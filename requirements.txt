@@ -1,6 +1,11 @@
 # Shared Python dependencies. Add per-stage ones (ultralytics, opencv, azure SDKs) as they are needed.
 jsonschema>=4.18
 
+# vision/ (video stage): YOLO player detector, ByteTrack (needs lap), OpenCV.
+ultralytics>=8.3
+opencv-python>=4.9
+lap>=0.5.12
+
 # agents/ (Microsoft Agent Framework on Microsoft Foundry). Not needed for --backend mock.
 agent-framework-core>=1.22
 agent-framework-openai>=1.17

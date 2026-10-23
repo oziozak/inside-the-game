@@ -79,6 +79,75 @@ python scripts/merge_events.py DETECTED_EVENTS TRUE_EVENTS --out data/generated/
 
 Only the rendered video and the team sheet (`match_info.json`), used as a broadcaster would use one. The runtime code never opens simulator `events.json` or `tracking.jsonl`.
 
+## Video stage (`vision/video.py`): video in, frame observations out
+
+```bash
+python -m vision.video vision/fixtures/calibration/calibration.mp4 --out runs/calibration/observations.jsonl
+python -m vision.video data/renders/footage/dev1/dev1.mp4 --out runs/dev1/observations.jsonl
+```
+
+Reads only the video and the team sheet (`match_info.json` next to the video, or `--match-info`).
+`--start` gives the match time of the first frame (default 0: footage clips start at the kickoff).
+
+| Part | How | Module |
+| --- | --- | --- |
+| Pixel -> meter | One homography per video from the pitch markings of the first frame: touchlines, goal lines and halfway line, refined by least squares, six intersections. Near touchline (image bottom) is y = 0, left goal line x = 0 | `pitch.py` |
+| Players | YOLO person class on the pitch region, upscaled (players are ~16 px tall at 1080p). Weights `data/models/<name>.pt` (ignored by git, downloaded on first use); `--weights` takes a fine-tuned model | `detect.py` |
+| Ball | Color threshold on the CV-visibility yellow (`#fff052`). Blobs larger than a ball at that spot (0.44 m at ball scale 2, sized through the homography) or in the body of a detected player are rejected, so a yellow keeper shirt is not the ball; a ball at a player's feet is kept. Ground point = bottom of the blob | `detect.py` |
+| Team, goalkeeper | Torso color matched to the team sheet's four kit colors (shirt and keeper per team), grass around the box left out; majority of the track's last 25 readings | `detect.py` |
+| Tracking | ByteTrack (Ultralytics) for players, and for the ball candidates to keep following the same ball | `video.py` |
+
+Each frame reports per-detection `confidence` and `ball_visible`; an unseen ball is `null`.
+
+### Calibration clip (Git LFS)
+
+`vision/fixtures/calibration/` holds the renderer's 12 s calibration fixture rendered with the v1 settings
+(`cv_full_pitch`, CV visibility, ball scale 2, 1920x1080, 25 fps), its export manifest and team sheet. The
+mp4 is the one video committed to git, through **Git LFS** (AGENTS.md rule 8 exception); run
+`git lfs install && git lfs pull` if it is a text pointer. `tests/test_vision_video.py` always runs the video
+stage on it and compares the observations with `renderer/fixtures/calibration/tracking.jsonl`. To re-render:
+
+```bash
+cd renderer && npm run export -- --metadata fixtures/calibration/match_info.json \
+  --tracking fixtures/calibration/tracking.jsonl --start 0 --end 12 --camera cv_full_pitch \
+  --cv_visibility --ball-scale 2 --player-scale 1 --out ../vision/fixtures/calibration/calibration.mp4
+```
+
+### Player detector recall (`vision/baseline.py`, offline only)
+
+```bash
+python -m vision.baseline VIDEO TRACKING [--weights PATH] [--upscale K] [--conf C] [--step N] [--native]
+```
+
+Projects each tracked player (1.88 m x 0.6 m upright box) through the renderer's `cv_full_pitch` camera and
+counts it found when a detection has IoU >= 0.5 with it. It reads simulator tracking, so it is grading code;
+the video stage never imports it (a test enforces this).
+
+Day-1 baseline, pretrained COCO weights, no fine-tuning (2026-10-23; calibration: all 300 frames,
+dev1: every 10th of 3000 frames):
+
+| Detector | Calibration clip (2 players) | dev1 (22 players) |
+| --- | --- | --- |
+| yolo11n, whole frame at its native 640 px, conf 0.25 | **0.0 %** | **0.0 %** |
+| yolo11n, pitch region x2, conf 0.03 | 83 % | 65 % |
+| yolo11n, pitch region x4, conf 0.03 | 95 % | 96 % |
+| **yolo11s, pitch region x2, conf 0.03 (the video stage's default)** | **98.5 %** | **98.6 %** |
+
+Pretrained YOLO only works here at low confidence and with the frame upscaled. On the calibration clip its
+two players score 0.05-0.2 (players in a full match about 0.7). Results swing with the scale (yolo11s at x3:
+45 % on the calibration clip), so re-measure after changing any setting.
+
+What the video stage observes (frame observations vs. tracking, ball "on the ground" = below 0.3 m):
+
+| Clip | Players observed within 1 m | Foot error mean / p95 | Team / keeper right | Ball visible | Ball ground error mean / p95 | Tracks |
+| --- | --- | --- | --- | --- | --- | --- |
+| calibration | 97.7 % / 98.3 % (A / B) | 0.20 m / 0.28 m | 100 % / 100 % | 100 % | 0.15 m / 0.21 m | 2 |
+| dev1 (red v blue, yellow away keeper) | 99.9 % | 0.27 m / 0.37 m | 99.8 % / 100 % | 92 % | 0.12 m / 0.24 m | 57 |
+
+On dev1 no ball on the ground is ever placed more than 2 m from the truth (the yellow keeper is never taken
+for it); the larger errors are balls in the air, whose ground projection is off by design. The video stage runs
+at about 6 frames/s on an M-series Mac (MPS).
+
 ## Frame observations (`vision/observation.py`)
 
 The contract between the video stage (pixels → observations) and the event stage (observations → detected events). One record per video frame, stored as JSON Lines and described by [`frame_observation.schema.json`](frame_observation.schema.json):
