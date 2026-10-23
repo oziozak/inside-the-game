@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "frame_observation.schema.json",
+  "title": "Frame observation",
+  "description": "What the vision video stage observed in one video frame, in pitch meters. Vision-internal contract between the video stage and the event stage; stored as JSON Lines, one frame per line.",
+  "type": "object",
+  "required": ["frame", "t", "period", "ball", "ball_visible", "players"],
+  "additionalProperties": false,
+  "properties": {
+    "frame": { "type": "integer", "minimum": 0, "description": "Video frame index." },
+    "t": { "type": "number", "minimum": 0, "description": "Seconds since kick-off." },
+    "period": { "enum": [1, 2] },
+    "ball": {
+      "description": "The ball's ground projection. Height is not recovered. May be a predicted position or null when ball_visible is false.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["pos", "confidence"],
+          "additionalProperties": false,
+          "properties": {
+            "pos": { "$ref": "#/$defs/point" },
+            "confidence": { "$ref": "#/$defs/confidence" }
+          }
+        }
+      ]
+    },
+    "ball_visible": { "type": "boolean", "description": "Whether the ball was detected in this frame." },
+    "players": {
+      "type": "array",
+      "description": "One entry per detected player.",
+      "items": {
+        "type": "object",
+        "required": ["track_id", "team", "goalkeeper", "pos", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "track_id": { "type": "integer", "minimum": 0, "description": "Anonymous track id, not a roster player id." },
+          "team": { "enum": ["home", "away"] },
+          "goalkeeper": { "type": "boolean" },
+          "pos": { "$ref": "#/$defs/point", "description": "Foot point, meters." },
+          "confidence": { "$ref": "#/$defs/confidence" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "point": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

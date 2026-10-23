@@ -57,7 +57,7 @@ Events the vision AI cannot see in v1 (`foul`, `yellow_card`, `red_card`, `offsi
 schemas/           shared formats (JSON Schema) + examples
 data/fake/         small committed sample data for development
 data/generated/    big generated files (ignored by git)
-scripts/           validate.py, generate_fake_data.py
+scripts/           validate.py, generate_fake_data.py, merge_events.py
 simulator/ renderer/ vision/ agents/ web/   one folder per stage, each with its own README
 ```
 
@@ -72,6 +72,7 @@ python scripts/generate_fake_data.py --report           # event counts vs. real-
 python -m simulator --home bosphorus --away thames --seed 7 --out data/generated/m007   # one match (see simulator/README.md)
 python -m simulator.realism --matches 40                # realism report; exits 1 if a check fails
 python -m vision.footage render dev1                    # one footage clip from the seed record (see vision/README.md)
+python scripts/merge_events.py DETECTED TRUTH --out OUT  # detected (cv) + sim's foul/card/offside/sub -> events.json
 pytest                                                  # tests
 ```
 
