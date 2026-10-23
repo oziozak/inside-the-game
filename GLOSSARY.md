@@ -37,5 +37,5 @@ The mapping from tracks to players, made from the team sheet's formation at each
 _Avoid_: Identity matching, re-identification, player mapping
 
 **Possession**:
-The player nearest the ball while the ball is at ground level and within reach.
+The player nearest the ball while the ball is at ground level and within reach, for a moment (not a ball flying past). From frame observations, which have no ball height, "at ground level" means the ball moves with the track.
 _Avoid_: Control, ball ownership
