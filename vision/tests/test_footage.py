@@ -90,7 +90,9 @@ def test_prepare_clip_simulates_the_match_and_plans_a_cv_export(tmp_path):
     plan = footage.prepare_clip(seven, tmp_path)
     folder = tmp_path / "seven"
     assert plan.video == folder / "seven.mp4"
-    assert plan.metadata == folder / "match_info.json" and plan.tracking == folder / "tracking.jsonl"
+    assert plan.metadata == folder / "match_info.json"
+    assert plan.tracking == folder / "truth" / "tracking.jsonl"
+    assert {p.name for p in folder.iterdir()} == {"match_info.json", "truth"}   # truth kept apart
     info = json.loads(plan.metadata.read_text())
     assert info["match_id"] == "seven"
     assert info["periods"][0]["end"] > 45 * 60              # the first minutes of a full match
@@ -106,16 +108,27 @@ def test_prepare_clip_simulates_the_match_and_plans_a_cv_export(tmp_path):
     assert "--cv_visibility" in args
 
 
+def test_prepare_clip_trims_true_events_to_the_clip(tmp_path):
+    folder = tmp_path / "seven"
+    footage.prepare_clip(clip("seven", "dev", 7), tmp_path)
+    events = json.loads((folder / "truth" / "events.json").read_text())
+    full = json.loads((folder / "truth" / "events.full.json").read_text())
+    assert events and all(e["t"] < 120 for e in events)
+    assert full[:len(events)] == events and full[len(events)]["t"] >= 120   # a prefix, ids kept
+    assert full[-1]["type"] == "full_time"
+
+
 def test_prepare_clip_is_deterministic(tmp_path):
     seven = clip("seven", "dev", 7)
     footage.prepare_clip(seven, tmp_path / "a")
     footage.prepare_clip(seven, tmp_path / "b")
-    for name in ("match_info.json", "events.json", "tracking.jsonl"):
+    for name in ("match_info.json", "truth/events.json", "truth/events.full.json",
+                 "truth/tracking.jsonl"):
         assert (tmp_path / "a/seven" / name).read_bytes() == (tmp_path / "b/seven" / name).read_bytes()
 
 
 def test_footage_goes_to_an_ignored_folder():
-    for name in ("dev1/dev1.mp4", "dev1/tracking.jsonl", "dev1/clip.json"):
+    for name in ("dev1/dev1.mp4", "dev1/truth/tracking.jsonl", "dev1/clip.json"):
         path = footage.OUT / name
         check = subprocess.run(["git", "check-ignore", "-q", str(path)], cwd=footage.ROOT)
         assert check.returncode == 0, f"{path} is not ignored by git"

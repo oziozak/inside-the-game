@@ -37,9 +37,9 @@ fewer than three kit combinations or no white away kit.
 
 Each clip is **the first `minutes` of a full 90-minute match** (seeded, `full`
 profile), from the kickoff, so `[0, minutes * 60)` seconds. The simulator plays
-the whole match but writes tracking only for the clip. `events.json` keeps all
-of the match's true events, so grade only those before the clip's `end` (in
-`clip.json` and the manifest). Clips stay inside the first half, which keeps
+the whole match but writes tracking only for the clip, and `truth/events.json`
+holds only the true events before the clip's end, so the grader needs no
+clip-end logic. Clips stay inside the first half, which keeps
 substitutions (58'-82') out of them. Short simulated halves are not used
 because the simulator squeezes its full substitution plan into them, which
 adds minutes of dead time.
@@ -48,16 +48,19 @@ Render settings are fixed for v1: `cv_full_pitch` camera, CV visibility on,
 ball scale 2, player scale 1, 1920x1080 at 25 fps. `render` checks that the
 export manifest recorded exactly these.
 
-Output, all ignored by git, in `data/renders/footage/<name>/`:
+Output, all ignored by git, in `data/renders/footage/<name>/`. The top level
+holds what the vision stage may read, plus render records. `truth/` holds the
+simulator's truth, which the vision stage never reads:
 
 | File | Use |
 | --- | --- |
 | `<name>.mp4` | the video: the vision stage's input |
-| `<name>.mp4.manifest.json`, `.metrics.json` | renderer export manifest (camera, scales, CV visibility, frame-to-tracking map) and timing |
 | `match_info.json` | team sheet: the only other file the vision stage may read |
-| `events.json` | true events of the whole match (`source: sim`): grading only, filter to `t < end` |
-| `tracking.jsonl` | simulator tracking for the clip: training-label projection and grading only |
+| `<name>.mp4.manifest.json`, `.metrics.json` | renderer export manifest (camera, scales, CV visibility, frame-to-tracking map) and timing |
 | `clip.json` | seed record entry + render settings; written last, after `validate:export` passed |
+| `truth/events.json` | true events (`source: sim`) with `t` before the clip's end, original ids: grading only |
+| `truth/events.full.json` | true events of the whole simulated match, for reference |
+| `truth/tracking.jsonl` | simulator tracking for the clip: training-label projection and grading only |
 
 Rendering needs the renderer's export setup (`cd renderer && npm ci && npx
 playwright install chromium`, plus `ffmpeg`/`ffprobe` with libx264 on PATH).

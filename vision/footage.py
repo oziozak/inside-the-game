@@ -9,9 +9,10 @@
 A clip is the first `minutes` of a full 90-minute match (seeded, `full`
 profile): it starts at the kickoff, and substitutions (58'-82') never fall in
 it. Each clip goes to data/renders/footage/<name>/ (ignored by git): the video,
-its export manifest and metrics, the simulator's match_info.json, true events
-and tracking, and clip.json (seed record entry + render settings), written
-last once the export validated. Renders are never committed.
+its export manifest and metrics, the simulator's match_info.json and clip.json
+(seed record entry + render settings, written last once the export
+validated). The simulator's true events and tracking go to truth/, which the
+vision stage never reads. Renders are never committed.
 """
 
 from __future__ import annotations
@@ -25,8 +26,8 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from simulator import Match
-from simulator.io import write_match
+from simulator import Match, iter_tracking
+from simulator.io import write_json, write_jsonl
 from simulator.teams import load_team, resolve_kits
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -134,23 +135,28 @@ def prepare_clip(clip: dict, root: Path) -> ClipPlan:
     """Simulate a clip's match into root/<name>/ and plan its export to
     root/<name>/<name>.mp4: the first `minutes` of the match, from the kickoff.
 
-    The simulator plays the whole match (events.json keeps every true event;
-    grade only those before the clip's end) but writes tracking for the clip
-    only."""
+    match_info.json (the team sheet) goes next to the video. The truth goes to
+    truth/: events.json (true events before the clip's end, ids unchanged),
+    events.full.json (the whole match) and tracking.jsonl (the clip only)."""
     folder = Path(root) / clip["name"]
+    truth = folder / "truth"
     m = Match(clip["seed"], HALF, "full", clip["name"],
               home=load_team(clip["home"]), away=load_team(clip["away"]))
     m.play()
     end = clip["minutes"] * 60
-    files = write_match(folder, m, start=0, end=end)
+    metadata, tracking = folder / "match_info.json", truth / "tracking.jsonl"
+    write_json(metadata, m.match_info())
+    write_json(truth / "events.full.json", m.events)
+    write_json(truth / "events.json", [e for e in m.events if e["t"] < end])
+    write_jsonl(tracking, iter_tracking(m, 0, min(end, m.t)))
     video = folder / f"{clip['name']}.mp4"
-    args = ["--metadata", str(files["match_info.json"]), "--tracking", str(files["tracking.jsonl"]),
+    args = ["--metadata", str(metadata), "--tracking", str(tracking),
             "--start", "0", "--end", f"{end:g}",
             "--camera", RENDER_SETTINGS["camera"], "--cv_visibility",
             "--ball-scale", f"{RENDER_SETTINGS['ballScale']:g}",
             "--player-scale", f"{RENDER_SETTINGS['playerScale']:g}",
             "--width", str(VIDEO["width"]), "--height", str(VIDEO["height"]), "--out", str(video)]
-    return ClipPlan(video, files["match_info.json"], files["tracking.jsonl"], args)
+    return ClipPlan(video, metadata, tracking, args)
 
 
 def render_clip(clip: dict, root: Path = OUT, force: bool = False) -> Path:
