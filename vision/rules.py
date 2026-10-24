@@ -110,6 +110,11 @@ class _Possession:
     last_pos: tuple[float, float]
     frames: int = 1
 
+    @classmethod
+    def starting(cls, p: PlayerObservation, t: float, pos: tuple[float, float]) -> _Possession:
+        """Track `p` with the ball at `pos` from time `t`."""
+        return cls(p.track_id, p.team, p.goalkeeper, t, pos, t, pos)
+
 
 @dataclass
 class _Flight:
@@ -134,6 +139,14 @@ class _OnSpot:
     taker: PlayerObservation | None
     half_start: bool                    # on the spot since the period's first frame
     lined_up: bool = False              # each team in its own half at `last_t`
+
+
+@dataclass
+class _PendingChange:
+    """A possession change won by `winner`, reported once it stands."""
+
+    event: dict
+    winner: _Possession
 
 
 @dataclass
@@ -173,6 +186,7 @@ class EventRules:
     def __init__(self, team_sheet: dict):
         self.match_id = team_sheet["match_id"]
         self.length, self.width = team_sheet.get("pitch", [105, 68])
+        self.center_spot = (self.length / 2, self.width / 2)
         direction = team_sheet.get("kickoff_direction", {}).get("home", "left_to_right")
         self.home_right_first = direction == "left_to_right"
         self.score = {"home": 0, "away": 0}
@@ -187,7 +201,7 @@ class EventRules:
         self.flight: _Flight | None = None
         self.pending_goal: _GoalWatch | None = None
         self.on_spot: _OnSpot | None = None
-        self.won: tuple[dict, _Possession] | None = None    # a possession change, until it stands
+        self.won: _PendingChange | None = None
         self.frames_in_period = 0
         self.since_held = 0                 # frames since the holder last had the ball
         self.balls: deque = deque(maxlen=int((STILL_S + 1) * 25))  # (t, pos, conf), visible ball
@@ -228,7 +242,8 @@ class EventRules:
         elif ball is not None and self._out_of_play(ball):
             if self.flight is not None:
                 out += self._resolve(frame.t, ball, receiver=None, went_out=True)
-            self.holder = self.candidate = None
+            # Play stopped: a possession change that has not stood yet is dropped.
+            self.holder = self.candidate = self.won = None
             self.dead = True
         if self.flight is not None and not self.pending_goal:
             out += self._touch()
@@ -238,12 +253,13 @@ class EventRules:
 
         possessor = self._possessor(frame, ball) if ball is not None else None
         self._update_possession(frame, ball, possessor, out)
-        if self.won and self.holder is self.won[1] and self.holder.last_t - self.holder.first_t >= WON_S:
+        if self.won and self.holder is self.won.winner and self.holder.last_t - self.holder.first_t >= WON_S:
             out += self._stand_won()
         return out
 
     def finish(self) -> list[dict]:
-        """End of input: a goal nobody took back stands; an unfinished kick is dropped."""
+        """End of input: a goal nobody took back stands; an unfinished kick and a
+        possession change that has not stood yet are dropped."""
         return self._confirm_goal() if self.pending_goal else []
 
     # ---- possession ------------------------------------------------------
@@ -293,8 +309,7 @@ class EventRules:
             self.candidate.last_t, self.candidate.last_pos = frame.t, ball
             self.candidate.frames += 1
         else:
-            self.candidate = _Possession(possessor.track_id, possessor.team, possessor.goalkeeper,
-                                         frame.t, ball, frame.t, ball)
+            self.candidate = _Possession.starting(possessor, frame.t, ball)
         if self.holder is not None:
             self.since_held += 1
             if self.since_held >= LOSE_FRAMES:
@@ -320,14 +335,14 @@ class EventRules:
         if s is not None and math.dist(ball, s.anchor) > STILL_M:
             v = self._ball_velocity()
             if v is not None and math.hypot(*v) >= MIN_KICK_V and s.lined_up and s.taker:
-                k = _Possession(s.taker.track_id, s.taker.team, s.taker.goalkeeper,
-                                s.last_t, s.anchor, s.last_t, s.anchor)
-                self.holder = self.candidate = self.on_spot = None
+                k = _Possession.starting(s.taker, s.last_t, s.anchor)
+                # Whatever was in play before the kickoff is over.
+                self.holder = self.candidate = self.on_spot = self.won = None
                 self.flight = _Flight(k, self.period, restart=True, kickoff=True,
                                       balls=[b for b in self.balls if b[0] > s.last_t])
                 return
             s = self.on_spot = None                     # it rolled on: look again
-        if math.dist(ball, (self.length / 2, self.width / 2)) > CENTER_SPOT_M:
+        if math.dist(ball, self.center_spot) > CENTER_SPOT_M:
             return
         if s is None:
             s = self.on_spot = _OnSpot(ball, frame.t, None, half_start=self.frames_in_period == 0)
@@ -337,7 +352,7 @@ class EventRules:
 
     def _lined_up(self, players) -> bool:
         """Whether every track stands in its own team's half (within KICKOFF_HALF_M)."""
-        home_right = self.home_right_first == (self.period == 1)    # home attacks toward x = 105
+        home_right = self._home_attacks_right(self.period)
         half = self.length / 2
         for p in players:
             own_left = (p.team == "home") == home_right
@@ -359,7 +374,7 @@ class EventRules:
         recent = [p for bt, p, _ in self.balls if t - STILL_S <= bt <= t]
         still = (self.balls[0][0] <= t - STILL_S + 1e-6
                  and max(math.dist(p, pos) for p in recent) < STILL_M)
-        center = math.dist(pos, (self.length / 2, self.width / 2)) <= CENTER_SPOT_M
+        center = math.dist(pos, self.center_spot) <= CENTER_SPOT_M
         corner = any(math.dist(pos, c) <= CORNER_M for c in self._corners())
         return self.dead or still or center or corner
 
@@ -390,7 +405,7 @@ class EventRules:
             return []
         players = next((ps for t, ps in self.recent_players if t == tm), [])
         p = self._nearest(players, m)
-        toucher = (_Possession(p.track_id, p.team, p.goalkeeper, tm, m, tm, m) if p is not None
+        toucher = (_Possession.starting(p, tm, m) if p is not None
                    else _Possession(None, None, False, tm, m, tm, m))
         after = [s for s in f.balls if s[0] > tm]
         events = self._resolve(tm, m, receiver=toucher if p is not None else None)
@@ -426,19 +441,9 @@ class EventRules:
         if receiver is not None and receiver.track_id == k.track_id:
             return []                                   # the kicker kept it: a dribble
         if d < MIN_KICK_M or dur <= 0 or d / dur < MIN_KICK_V:
-            # Not a kick: lost, tackled, drifting. Taken by the other team in
-            # play, without a pass: a possession change, unless the ball was
-            # only just won (then the swing back is flicker, not two changes).
-            if self.won and self.won[1] is k:
-                self.won = None
-            elif (not self.dead and self._turnover(k, receiver)
-                  and receiver.first_t - k.last_t <= TACKLE_S):
-                self._win(receiver, "interception" if receiver.goalkeeper else "tackle", conf)
-            return []
+            return self._lost(k, receiver, conf)        # not a kick: lost, tackled, drifting
         was_dead, self.dead = self.dead, False
-        stood = self._stand_won() if self.won and self.won[1] is k else []
-        if self._turnover(k, receiver) and not f.restart and receiver.first_t - k.last_t <= INTERCEPT_S:
-            self._win(receiver, "interception", conf)   # cut out soon after it was played
+        stood = self._stand_won() if self._just_won(k) else []   # the winner played it on
         aim = self._aim(k.last_pos, pos)
         if aim is not None and speed_kmh >= self._shot_min_kmh(k.last_pos, f.redirect):
             if went_out:
@@ -452,11 +457,31 @@ class EventRules:
                 self._win(receiver, "interception", conf)
             return stood + [{**base, "team": team, "type": "shot", "subtype": sub, "success": False,
                              "confidence": _confidence("shot", conf)}]
+        if self._turnover(k, receiver) and not f.restart and receiver.first_t - k.last_t <= INTERCEPT_S:
+            self._win(receiver, "interception", conf)   # cut out soon after it was played
         if f.restart or was_dead or k.team is None:
             return stood
         success = receiver is not None and receiver.team == k.team
         return stood + [{**base, "type": "pass", "subtype": "long" if d >= LONG_PASS_M else "short",
                          "success": success, "confidence": _confidence("pass", conf)}]
+
+    def _lost(self, k: _Possession, receiver: _Possession | None, conf: float) -> list[dict]:
+        """The ball left `k` without a kick. Taken by the other team in play,
+        within TACKLE_S of k's last touch: a possession change. If k had only
+        just won the ball, k's change stands unless the other team takes it
+        straight back: that swing is flicker, and neither change is reported."""
+        if self._just_won(k):
+            if self._turnover(k, receiver):
+                self.won = None
+                return []
+            return self._stand_won()
+        if not self.dead and self._turnover(k, receiver) and receiver.first_t - k.last_t <= TACKLE_S:
+            self._win(receiver, "interception" if receiver.goalkeeper else "tackle", conf)
+        return []
+
+    def _just_won(self, k: _Possession) -> bool:
+        """Whether `k` won the ball in a possession change that has not stood yet."""
+        return self.won is not None and self.won.winner is k
 
     @staticmethod
     def _turnover(kicker: _Possession, receiver: _Possession | None) -> bool:
@@ -468,16 +493,16 @@ class EventRules:
         """The other team won the ball: a possession change where and when
         `winner` first had it. It stands once the winner keeps the ball for
         WON_S or plays it on (see push and _resolve)."""
-        self.won = {"match_id": self.match_id, "t": round(winner.first_t, 2), "period": self.period,
+        self.won = _PendingChange({"match_id": self.match_id, "t": round(winner.first_t, 2), "period": self.period,
                 "type": "possession_change", "subtype": subtype, "team": winner.team,
                 "from": None, "to": None,
                 "start": [round(winner.first_pos[0], 2), round(winner.first_pos[1], 2)],
                 "success": True, "source": "cv",
-                "confidence": _confidence("possession_change", conf)}, winner
+                "confidence": _confidence("possession_change", conf)}, winner)
 
     def _stand_won(self) -> list[dict]:
         """The pending possession change stands."""
-        event, self.won = self.won[0], None
+        event, self.won = self.won.event, None
         return [event]
 
     def _shot_min_kmh(self, start, redirect: bool) -> float:
@@ -493,8 +518,11 @@ class EventRules:
 
     def _attacker(self, goal_x: float, period: int) -> str:
         """The team attacking the goal at `goal_x` in a period (from the team sheet)."""
-        home_right = self.home_right_first == (period == 1)
-        return "home" if (goal_x > 0) == home_right else "away"
+        return "home" if (goal_x > 0) == self._home_attacks_right(period) else "away"
+
+    def _home_attacks_right(self, period: int) -> bool:
+        """Whether home attacks toward x = length in a period (from the team sheet)."""
+        return self.home_right_first == (period == 1)
 
     def _aim(self, start, end) -> float | None:
         """Where a kick from `start` through `end` meets the nearer goal line (y),

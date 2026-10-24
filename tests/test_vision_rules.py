@@ -76,6 +76,13 @@ def sim_clips():
     return out
 
 
+@pytest.fixture(scope="module")
+def sim_detections(sim_clips):
+    """The detected events of each clip in sim_clips, from clean observations."""
+    return [detect_events(observations_from_tracking(tracking, team_sheet), team_sheet)
+            for tracking, team_sheet, _ in sim_clips]
+
+
 def test_harness_builds_valid_observations_from_the_calibration_fixture(tmp_path):
     tracking, team_sheet, _ = calibration()
     frames = observations_from_tracking(tracking, team_sheet)
@@ -133,13 +140,12 @@ def test_calibration_fixture_gives_one_pass_one_shot_and_a_goal(validate, tmp_pa
     assert events[2]["score"] == {"home": 1, "away": 0}
 
 
-def test_clean_simulator_clips_score_near_perfectly(validate, tmp_path, sim_clips):
+def test_clean_simulator_clips_score_near_perfectly(validate, tmp_path, sim_clips, sim_detections):
     """Precision and recall per type, and shot and possession-change subtypes,
     pooled over seeds and pairings."""
     counts = {ty: {"detected": 0, "true": 0, "matched": 0} for ty in THRESHOLDS}
     subtypes = {ty: [] for ty in SUBTYPE_THRESHOLDS}            # (detected, true) subtype pairs
-    for i, (tracking, team_sheet, truth) in enumerate(sim_clips):
-        events = detect_events(observations_from_tracking(tracking, team_sheet), team_sheet)
+    for i, ((_, _, truth), events) in enumerate(zip(sim_clips, sim_detections)):
         assert_valid_events(validate, events, tmp_path)
         report = grade(events, truth, types=list(THRESHOLDS))
         assert report["matched"]["pass_success_accuracy"] >= 0.9, i
@@ -160,11 +166,10 @@ def test_clean_simulator_clips_score_near_perfectly(validate, tmp_path, sim_clip
         assert recall >= THRESHOLDS[ty]["recall"], (ty, c)
 
 
-def test_kickoffs_are_found_at_both_half_starts_and_after_every_goal(sim_clips):
+def test_kickoffs_are_found_at_both_half_starts_and_after_every_goal(sim_clips, sim_detections):
     """Exactly one detected kickoff per half start and per goal, on the center
     spot, by the right team."""
-    for i, (tracking, team_sheet, truth) in enumerate(sim_clips):
-        events = detect_events(observations_from_tracking(tracking, team_sheet), team_sheet)
+    for i, ((_, team_sheet, truth), events) in enumerate(zip(sim_clips, sim_detections)):
         true_kickoffs = [e for e in truth if e["type"] == "kickoff"]
         goals = [e for e in truth if e["type"] == "goal"]
         after_goal = [next(k for k in true_kickoffs if k["t"] > g["t"]) for g in goals

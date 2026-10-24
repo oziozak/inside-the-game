@@ -31,6 +31,10 @@ DIST_TOL_M = 5.0
 # Event types the v1 vision pipeline detects; the CLI grades these by default.
 DETECTED_TYPES = ["kickoff", "pass", "possession_change", "shot", "goal"]
 
+# Detected types that carry a subtype (detected goals and kickoffs have none);
+# matched.subtype_accuracy grades these.
+SUBTYPE_TYPES = ["pass", "possession_change", "shot"]
+
 # Types whose `to` names a second player (schemas/README.md); for the rest
 # (shot, goal, clearance, offside, cards) only `from` identifies the player.
 TYPES_WITH_TO = {"pass", "throw_in", "goal_kick", "corner", "free_kick", "kickoff",
@@ -97,15 +101,15 @@ def _matched_metrics(pairs: list[tuple[dict, dict]]) -> dict:
 
     A player id is correct when `from` agrees, and `to` too for types that
     have one (see TYPES_WITH_TO). Pass success is
-    scored over matched passes; subtype accuracy, per type, over pairs whose
-    true event has a subtype; distance and speed errors over pairs where
+    scored over matched passes; subtype accuracy, per type in SUBTYPE_TYPES,
+    over pairs whose true event has a subtype; distance and speed errors over pairs where
     both events carry the number.
     """
     def abs_errors(key):
         return [abs(d[key] - t[key]) for d, t in pairs if key in d and key in t]
 
     passes = [(d, t) for d, t in pairs if t["type"] == "pass" and "success" in t]
-    with_subtype = [(d, t) for d, t in pairs if "subtype" in t]
+    with_subtype = [(d, t) for d, t in pairs if "subtype" in t and t["type"] in SUBTYPE_TYPES]
     subtype_types = list(dict.fromkeys(t["type"] for _, t in with_subtype))
     return {
         "count": len(pairs),

@@ -183,7 +183,7 @@ python -m vision.rules observations.jsonl --match-info match_info.json --out eve
   - off the holder, within 0.5 s of the holder's last touch and without a kick: `tackle` (`interception` when the winner is a goalkeeper);
   - by cutting out a pass in open play within 1 s of it being played (not a restart such as a corner), or by taking a blocked shot: `interception`. The pass is still reported, unsuccessful.
 
-  The change stands once the winner keeps the ball for 0.5 s or plays it on. When the ball is taken straight back, that is flicker (a player running past the ball), and neither change is reported. `team` is the winner's; `t` and `start` are where the winner first had the ball.
+  The change stands once the winner keeps the ball for 0.5 s or plays it on (a short nudge to a teammate counts). When the other team takes the ball straight back, that is flicker (a player running past the ball), and neither change is reported; one still pending when play stops (out of play, end of input) is dropped too. A goalkeeper holding a shot is a save, not a possession change. `team` is the winner's; `t` and `start` are where the winner first had the ball.
 - **Goal:** a shot reaches the goal line between the posts with no player within reach of the ball (that is a save), then comes to rest between the posts, on the line or behind it (not wide of the goal: from a sharp angle, an off-target ball's ground projection can cross the mouth). The shot gets `success: true`, and the goal carries the running `score`.
 - **Players:** `from` and `to` are `null` on every event. Tracks are anonymous until lineup assignment names them, and a track id in `from` would read as a roster player id.
 - **Confidence:** 0.9 (pass, goal, kickoff), 0.8 (shot) or 0.7 (possession change) times the mean ball confidence over the kick.
@@ -204,15 +204,15 @@ Grades on clean observations, whole 90-minute matches (both halves), four pairin
 
 | Seeds | Kickoff P / R | Pass P / R | Possession change P / R | Shot P / R | Shot subtype right | Goal P / R |
 | --- | --- | --- | --- | --- | --- | --- |
-| 201-204 | 1.00 / 1.00 (17) | 0.95 / 0.99 | 0.58 / 0.60 | 0.96 / 0.85 | 98 / 99 | 0.89 / 0.89 (9 goals) |
-| 401-404 | 1.00 / 1.00 (27) | 0.95 / 0.99 | 0.53 / 0.62 | 0.91 / 0.90 | 89 / 92 | 0.93 / 0.74 (19 goals) |
-| 501-504 | 1.00 / 1.00 (24) | 0.95 / 0.99 | 0.52 / 0.68 | 0.96 / 0.80 | 80 / 82 | 0.93 / 0.81 (16 goals) |
+| 201-204 | 1.00 / 1.00 (17) | 0.95 / 0.99 | 0.60 / 0.60 | 0.96 / 0.85 | 98 / 99 | 0.89 / 0.89 (9 goals) |
+| 401-404 | 1.00 / 1.00 (27) | 0.95 / 0.99 | 0.55 / 0.63 | 0.91 / 0.90 | 89 / 92 | 0.93 / 0.74 (19 goals) |
+| 501-504 | 1.00 / 1.00 (24) | 0.95 / 0.99 | 0.52 / 0.69 | 0.96 / 0.80 | 80 / 82 | 0.93 / 0.81 (16 goals) |
 
 What keeps clean grades below 1 is mostly the simulator, not the rules:
 - **False passes:** almost all are clearances, physically the same kick as a long pass. v1 reports them as passes.
 - **Missed shots:** many come from the simulator playing a shot (or a pass) from a player standing meters from the ball. Some shots blocked at close range never come to rest near a player, and a few headers measure under 50 km/h.
 - **Goals:** in a penalty, the keeper stands within reach as the ball goes in, so it reads as a save. A few clearances go into the clearing team's own goal.
-- **Possession changes** are capped by how the simulator labels them. It labels an interception only when a pass is cut out in the first 30 % of its path to the intended target, which video cannot see, so a pass cut out within 1 s is a guess either way. It labels no change when a cleared or loose ball is won by the other team, or when a restart follows a foul or offside (invisible to video) and the ball was never seen going out. A tackler who passes on at once (under 0.2 s) never has possession, so the tackle is missed. 470 of 487 matched changes (96 %) carry the true subtype.
+- **Possession changes** are capped by how the simulator labels them. It labels an interception only when a pass is cut out in the first 30 % of its path to the intended target, which video cannot see, so a pass cut out within 1 s is a guess either way. It labels no change when a cleared or loose ball is won by the other team, or when a restart follows a foul or offside (invisible to video) and the ball was never seen going out. A tackler who passes on at once (under 0.2 s) never has possession, so the tackle is missed. 473 of 491 matched changes (96 %) carry the true subtype.
 - **Shot subtypes:** the few misses are blocked shots that then go out, which read as `off_target`.
 
 ## Grader (`vision/grader.py`, offline only)
@@ -227,7 +227,7 @@ python -m vision.grader --detected runs/m007/events.json --truth data/generated/
 
 - A detected event matches a true event of the same type within ±0.5 s and 5 m of its start point. Matching is one-to-one, closest first (pairs ranked by time gap / 0.5 s + distance / 5 m).
 - `per_type`: detected, true and matched counts, plus precision, recall and F1 (`null` when undefined, e.g. no detections).
-- `matched`: player-id accuracy (`from` right, and `to` too for types where `to` is a player; shots and goals score `from` only), pass-success accuracy, `subtype_accuracy` per type (over matched pairs whose true event has a subtype; a missing detected subtype counts as wrong), and mean absolute timing, distance and speed error.
+- `matched`: player-id accuracy (`from` right, and `to` too for types where `to` is a player; shots and goals score `from` only), pass-success accuracy, `subtype_accuracy` for pass, possession change and shot (over matched pairs whose true event has a subtype; a missing detected subtype counts as wrong; detected goals and kickoffs carry none), and mean absolute timing, distance and speed error.
 - `unmatched_detections` and `missed`: id, type, `t` and start of each.
 - `clip`: render settings from the export manifest's `render` block (plus width, height, rich), the clip window, and the seeds. `--render KEY=VALUE`, `--seed` and `--training-seeds` add to or override them.
 - By default only the v1 detected types are graded (`kickoff, pass, possession_change, shot, goal`); `--types all` or a comma list changes that.
