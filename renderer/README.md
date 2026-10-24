@@ -24,7 +24,7 @@ Open Vite's printed URL. The first 60 seconds of `sample_a` load automatically. 
 | Player / ball scale | Uniform geometry scales from 0.25 to 5, default 1. Anchors and ball center/height never move. |
 | CV visibility | Unlit yellow ball with dark patches; best-effort 5 px diameter, automatic enlargement capped at 2×. Explicit ball scale remains a lower bound. |
 | Shirt numbers | Off by default; metadata-derived decals on shirt backs, independent of CV visibility. CLI `--jersey-numbers`. |
-| Player motion | On by default; causal tracked-motion facing and subtle timestamp-driven limb swings. CLI `--no-animation` disables both. |
+| Player motion | Off by default for clean CV compatibility. Enable with the Player motion checkbox or CLI `--rich --animate-players`; `--no-animation` remains supported. |
 | Rich presentation | Off by default; CLI `--rich` adds four-sided stands, instanced crowd/seating, floodlight structures, generic boards, matte mowing colors, stylized players and soft contact shadows. |
 
 Broadcast filtering uses 0.8 seconds of causal history and resets at period boundaries. Pose and camera state depend on absolute simulation time, with no accumulated playback state or randomness. Player roots stay at tracked foot anchors; only limb geometry rotates. Stationary/missing/gapped/relocated motion samples use neutral poses. The ball's physical radius is 0.11 m; players are about 1.88 m tall. Scaling changes apparent dimensions and must be recorded for CV comparisons. Enlarged low balls can intersect grass because their centers remain exact.

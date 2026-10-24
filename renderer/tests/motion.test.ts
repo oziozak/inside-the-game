@@ -38,6 +38,8 @@ test('motion holds neutral across period starts, sparse gaps, missing IDs and re
 });
 
 test('shirt numbers and motion are independently configurable from CV materials', () => {
+  assert.equal(renderConfig().animatePlayers, false, 'clean CV must default to static players');
+  assert.equal(renderConfig({ animatePlayers: true }).animatePlayers, true, 'broadcast motion is explicit opt-in');
   assert.equal(renderConfig({ jerseyNumbers: true, cvVisibility: false }).jerseyNumbers, true);
   assert.equal(renderConfig({ animatePlayers: false, cvVisibility: true }).animatePlayers, false);
   assert.throws(() => renderConfig({ jerseyNumbers: 1 as never }));

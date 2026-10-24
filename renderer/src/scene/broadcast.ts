@@ -104,7 +104,6 @@ export class Broadcast {
     for (const side of [-1, 1]) {
       const leg = new T.Group(); leg.name = `leg${side}`; leg.position.set(side * 0.16, 0.545, 0);
       this.box(0.16, 0.53, 0.18, '#e3d6b8', [0, -0.265, 0], leg).castShadow = true;
-      this.box(0.17, 0.08, 0.24, '#242b31', [0, -0.505, 0.025], leg).castShadow = true;
       const arm = new T.Group(); arm.name = `arm${side}`; arm.position.set(side * 0.38, 1.395, 0);
       this.box(0.16, 0.55, 0.18, shirt ?? '#ffe45e', [0, -0.275, 0], arm).castShadow = true;
       group.add(leg, arm);

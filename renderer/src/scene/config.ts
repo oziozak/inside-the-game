@@ -1,7 +1,7 @@
 export type CameraPreset = 'cv_full_pitch' | 'broadcast';
 export interface Visibility { playerScale: number; ballScale: number }
 export interface RenderConfig extends Visibility { camera: CameraPreset; cvVisibility: boolean; jerseyNumbers: boolean; animatePlayers: boolean }
-export const DEFAULT_CONFIG: Readonly<RenderConfig> = Object.freeze({ camera: 'cv_full_pitch', playerScale: 1, ballScale: 1, cvVisibility: false, jerseyNumbers: false, animatePlayers: true });
+export const DEFAULT_CONFIG: Readonly<RenderConfig> = Object.freeze({ camera: 'cv_full_pitch', playerScale: 1, ballScale: 1, cvVisibility: false, jerseyNumbers: false, animatePlayers: false });
 export const BALL_RADIUS_M = 0.11;
 /** Renderer-only presentation settings; never change tracking data. */
 export function renderConfig(input: Partial<RenderConfig> = {}): RenderConfig {

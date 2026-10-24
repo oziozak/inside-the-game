@@ -22,7 +22,7 @@ try {
   await page.goto(`${server.resolvedUrls!.local[0]}?export=1`); await page.waitForFunction(() => !!window.broadcast);
   await page.evaluate(({ metadata, tracking, rich, clean }) => {
     window.broadcast.load(metadata, tracking); window.broadcast.resize(1920, 1080);
-    window.broadcast.configure({ camera: clean ? 'cv_full_pitch' : 'broadcast', cvVisibility: true, ballScale: 2 });
+    window.broadcast.configure({ camera: clean ? 'cv_full_pitch' : 'broadcast', cvVisibility: true, ballScale: 2, animatePlayers: rich });
     window.broadcast.setRich(rich);
   }, { metadata, tracking: interval.tracking, rich: values.rich!, clean: values['clean-reference']! });
   const states = [];
@@ -32,6 +32,8 @@ try {
     await captureCanvas(page, { path: `${artifacts}/broadcast-${t}.png` });
   }
   assert.ok(states.every(state => state.players.length === 22));
+  if (values.rich && !values.baseline) assert.ok(states.some(state => state.players.some(p => Math.abs(p.stride) > 1e-6)), 'explicit rich animation must move limbs');
+  if (!values.rich) assert.ok(states.every(state => state.players.every(p => p.heading === 0 && p.stride === 0)), 'clean CV players must remain static by default');
   const projections = states.map(state => {
     const camera = new PerspectiveCamera(state.camera.fov, 16 / 9, 0.1, 400);
     camera.position.fromArray(state.camera.position); camera.quaternion.fromArray(state.camera.quaternion);
@@ -67,7 +69,7 @@ try {
     }
     const pixels = await captureCanvas(page);
     await page.evaluate(t => { window.broadcast.setTime(t); window.broadcast.configure({ animatePlayers: false, cvVisibility: false }); }, start);
-    await page.evaluate(t => { window.broadcast.configure({ animatePlayers: true, cvVisibility: true }); window.broadcast.setTime(t); }, t);
+    await page.evaluate(({ t, animatePlayers }) => { window.broadcast.configure({ animatePlayers, cvVisibility: true }); window.broadcast.setTime(t); }, { t, animatePlayers: numbered.config.animatePlayers });
     assert.deepEqual(await page.evaluate(() => window.broadcast.inspect()), numbered);
     assert.deepEqual(await captureCanvas(page), pixels);
     await page.evaluate(() => window.broadcast.setRich(true));

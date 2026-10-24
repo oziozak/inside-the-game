@@ -19,11 +19,12 @@ const { values } = parseArgs({ options: {
   rich: { type: 'boolean', default: false },
   cv_visibility: { type: 'boolean', default: false },
   'jersey-numbers': { type: 'boolean', default: false },
+  'animate-players': { type: 'boolean', default: false },
   'no-animation': { type: 'boolean', default: false },
   camera: { type: 'string', default: 'cv_full_pitch' },
   'player-scale': { type: 'string', default: '1' }, 'ball-scale': { type: 'string', default: '1' },
 } });
-const config = renderConfig({ jerseyNumbers: values['jersey-numbers']!, animatePlayers: !values['no-animation'], cvVisibility: values.cv_visibility!, camera: values.camera as CameraPreset, playerScale: Number(values['player-scale']), ballScale: Number(values['ball-scale']) });
+const config = renderConfig({ jerseyNumbers: values['jersey-numbers']!, animatePlayers: values['animate-players']! && !values['no-animation'], cvVisibility: values.cv_visibility!, camera: values.camera as CameraPreset, playerScale: Number(values['player-scale']), ballScale: Number(values['ball-scale']) });
 const metadata = JSON.parse(await readFile(resolve(values.metadata!), 'utf8'));
 const interval = await loadInterval(metadata, resolve(values.tracking!), { start: values.start === undefined ? undefined : Number(values.start), end: Number(values.end) });
 const { match, tracking, start, end } = interval;
