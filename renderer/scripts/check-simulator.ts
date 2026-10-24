@@ -1,23 +1,24 @@
-import { captureCanvas } from './lib/capture';
 import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright';
-import { renderingServer } from './lib/server';
-import { loadInterval } from './lib/interval';
 import { sample, world } from '../src/data/match';
 import { exportTimes } from '../src/playback/timing';
 import type { CameraPreset } from '../src/scene/config';
+import { captureCanvas } from './lib/capture';
+import { loadInterval } from './lib/interval';
+import { simulatorOptions, artifactDirectory, SIMULATOR_TRIMMED } from './lib/paths';
+import { renderingServer } from './lib/server';
 const { values } = parseArgs({ options: {
-  metadata: { type: 'string', default: '../data/generated/renderer-m007/match_info.json' },
-  tracking: { type: 'string', default: '../data/generated/renderer-m007/tracking.jsonl' },
-  start: { type: 'string', default: '2503' }, end: { type: 'string', default: '2513' },
+  ...simulatorOptions,
+  rich: { type: 'boolean', default: false },
 } });
 const metadata = JSON.parse(await readFile(values.metadata!, 'utf8'));
 const start = Number(values.start), end = Number(values.end), times = exportTimes(start, end);
 const interval = await loadInterval(metadata, values.tracking!, { start, end });
 const reference = await loadInterval(metadata, values.tracking!, { start: Math.max(interval.stats.coverageStart, start - 1), end: Math.min(interval.stats.coverageEnd, end + 0.04) });
-const trimmedFolder = '../data/generated/renderer-integration-trimmed/';
+const trimmedFolder = SIMULATOR_TRIMMED;
+const artifactDir = await artifactDirectory();
 await mkdir(trimmedFolder, { recursive: true });
 await writeFile(trimmedFolder + 'tracking.jsonl', reference.tracking);
 await writeFile(trimmedFolder + 'match_info.json', JSON.stringify(metadata, null, 2));
@@ -31,10 +32,11 @@ try {
   await page.goto(`${server.resolvedUrls!.local[0]}?export=1`); await page.waitForFunction(() => !!window.broadcast);
   const results = [];
   for (const camera of ['cv_full_pitch', 'broadcast'] as CameraPreset[]) {
-    await page.evaluate(({ metadata, tracking, camera }) => {
+    await page.evaluate(({ metadata, tracking, camera, rich }) => {
       window.broadcast.load(metadata, tracking); window.broadcast.resize(1920, 1080);
-      window.broadcast.configure({ camera, cvVisibility: true, ballScale: 2, playerScale: 1 });
-    }, { metadata, tracking: interval.tracking, camera });
+      window.broadcast.setRich(rich);
+      window.broadcast.configure({ camera, cvVisibility: true, ballScale: 2, playerScale: 1, jerseyNumbers: true });
+    }, { metadata, tracking: interval.tracking, camera, rich: values.rich! });
     const states = await page.evaluate(times => times.map(t => { window.broadcast.setTime(t); return window.broadcast.inspect(); }), times);
     for (const [i, state] of states.entries()) {
       const source = sample(interval.match, times[i]);
@@ -49,6 +51,9 @@ try {
         const roster = team.players.find(r => r.id === p.id)!;
         assert.equal(p.shirtColor, roster.pos === 'GK' ? team.kit.goalkeeper ?? team.kit.shirt : team.kit.shirt);
         assert.equal(p.shortsColor, team.kit.shorts);
+        assert.equal(p.jerseyNumber, roster.number);
+        assert.equal(p.numberVisible, true);
+        assert.ok(Number.isFinite(p.heading) && Math.abs(p.stride) <= (values.rich ? 0.58 : 0.32));
       }
     }
     const compareIndices = [0, Math.floor(states.length / 2), states.length - 1];
@@ -71,13 +76,12 @@ try {
     const reversed = await page.evaluate(() => window.broadcast.inspect());
     assert.deepEqual(reversed.players.sort((a, b) => a.id - b.id), [...states[0].players].sort((a, b) => a.id - b.id));
     assert.deepEqual(reversed.ball, states[0].ball);
-    await mkdir('../data/renders', { recursive: true });
-    await captureCanvas(page, { path: `../data/renders/simulator-${camera}-preview.png` });
+    await captureCanvas(page, { path: `${artifactDir}/simulator-${camera}-preview.png` });
     results.push({ camera, framesChecked: states.length, playersPerFrame: 22, goalkeepersChecked: 2, directSeekAndTrimmedPixelChecks: compareIndices.length, reorderedIdentities: true });
   }
   assert.deepEqual(errors, []); assert.ok(!requests.some(r => /events|overlays/.test(r)));
-  const report = { start, end, input: interval.stats, maxBallHeight: Math.max(...times.map(t => sample(interval.match, t).ball[2])), results };
+  const report = { start, end, rich: values.rich, input: interval.stats, maxBallHeight: Math.max(...times.map(t => sample(interval.match, t).ball[2])), results };
   assert.ok(report.maxBallHeight > 0.11, 'selected interval must contain aerial ball motion');
-  await writeFile('../data/renders/simulator-integration.json', JSON.stringify(report, null, 2));
+  await writeFile(`${artifactDir}/simulator-integration.json`, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally { try { await browser?.close(); } finally { await closeServer(); } }

@@ -1,9 +1,10 @@
-import { captureCanvas } from './lib/capture';
 import assert from 'node:assert/strict';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { captureCanvas } from './lib/capture';
+import { artifactDirectory } from './lib/paths';
 import { renderingServer } from './lib/server';
-const artifactDir = process.env.RENDERER_TEST_ARTIFACT_DIR ?? '../data/renders';
+const artifactDir = await artifactDirectory();
 const { server, closeServer } = await renderingServer();
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
@@ -32,7 +33,6 @@ try {
   assert.equal(await page.locator('#seek').inputValue(), '4');
   await page.locator('#debug').uncheck(); assert.equal(await page.locator('#clock').isVisible(), false);
   await page.locator('#rich').check();
-  await mkdir(artifactDir, { recursive: true });
   await page.screenshot({ path: `${artifactDir}/renderer-preview.png` });
   await page.locator('#rich').uncheck();
   await page.evaluate(() => window.broadcast.setTime(2.4));
