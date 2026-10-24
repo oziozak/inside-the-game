@@ -2,13 +2,16 @@
 
 The harness turns simulator tracking into frame observations (anonymous
 tracks, no ball height); the rules turn those into detected events, which the
-grader scores against the true events.
+grader scores against the true events. Lineup assignment names the tracks, so
+the events' players are graded too.
 """
 
 from __future__ import annotations
 
 import ast
+import dataclasses
 import json
+import random
 from pathlib import Path
 
 import pytest
@@ -17,7 +20,7 @@ from simulator import Match, build_tracking, load_team
 from vision.grader import grade, match_events
 from vision.harness import observations_from_tracking
 from vision.observation import validate_observations, write_observations
-from vision.rules import detect_events
+from vision.rules import EventRules, detect_events
 
 ROOT = Path(__file__).resolve().parent.parent
 CALIBRATION = ROOT / "renderer" / "fixtures" / "calibration"
@@ -59,6 +62,12 @@ THRESHOLDS = {"kickoff": {"precision": 1.0, "recall": 1.0},
               "goal": {"precision": 1.0, "recall": 1.0}}
 # Matched events whose true event has a subtype: minimum share with the same subtype.
 SUBTYPE_THRESHOLDS = {"shot": 0.9, "possession_change": 0.9}
+# Matched events (all types above) naming the right players: `from`, and `to`
+# where it is a player. Below 1: the first kickoff of a clip is named from one
+# frame, where the taker, a striker and an attacking midfielder stand together
+# on the halfway line; and the simulator now and then plays a pass or a shot
+# from a player meters from the ball while another stands at it.
+PLAYER_ID_THRESHOLD = 0.93
 
 
 @pytest.fixture(scope="module")
@@ -187,13 +196,127 @@ def test_kickoffs_are_found_at_both_half_starts_and_after_every_goal(sim_clips, 
             assert abs(d["start"][0] - 52.5) <= 1 and abs(d["start"][1] - 34) <= 1, (i, d)
 
 
-def test_rules_see_only_frame_observations_and_the_team_sheet():
-    """The rules module imports nothing that could read simulator data."""
-    tree = ast.parse((ROOT / "vision" / "rules.py").read_text())
+def roster_of_tracks(tracking, frames) -> dict[int, int]:
+    """Track id -> the roster id it stands for, from the positions the
+    harness copied from the tracking."""
+    out = {}
+    for fr, ob in zip(tracking, frames):
+        at = {tuple(p["pos"]): p["id"] for p in fr["players"]}
+        for p in ob.players:
+            out.setdefault(p.track_id, at[p.pos])
+    return out
+
+
+def test_events_name_the_right_players(sim_clips, sim_detections):
+    """Player-id accuracy over matched events, pooled over seeds and pairings."""
+    right = total = 0
+    for i, ((_, _, truth), events) in enumerate(zip(sim_clips, sim_detections)):
+        m = grade(events, truth, types=list(THRESHOLDS))["matched"]
+        right += m["player_id_accuracy"] * m["count"]
+        total += m["count"]
+    assert total > 1000
+    assert right / total >= PLAYER_ID_THRESHOLD, right / total
+
+
+def test_every_player_is_a_roster_id_or_null_where_the_schema_allows(sim_clips, sim_detections):
+    """`from`/`to` are roster ids from the team sheet; `to` is null for shots,
+    goals and failed passes and kickoffs. Every event after the first kickoff
+    names its player."""
+    for i, ((_, team_sheet, _), events) in enumerate(zip(sim_clips, sim_detections)):
+        roster = {p["id"]: side for side in ("home", "away") for p in team_sheet[side]["players"]}
+        for e in events:
+            assert e["from"] is None or e["from"] in roster, (i, e)
+            assert e["to"] is None or e["to"] in roster, (i, e)
+            if e["type"] in ("shot", "goal") or (e["type"] in ("pass", "kickoff") and not e["success"]):
+                assert e["to"] is None, (i, e)
+            if e["from"] is not None and e["type"] != "possession_change":
+                assert roster[e["from"]] == e["team"], (i, e)
+            if e["type"] == "possession_change" and e["to"] is not None:
+                assert roster[e["from"]] == e["team"] != roster[e["to"]], (i, e)
+        first = next(e["t"] for e in events if e["type"] == "kickoff")
+        named = [e["from"] is not None for e in events if e["t"] >= first]
+        assert sum(named) / len(named) >= 0.97, (i, sum(named), len(named))
+
+
+def break_tracks(frames, seed=0, every_s=20.0, lost_frames=10, per_break=3):
+    """Frames where, every `every_s` from the third minute, `per_break` tracks
+    (at times of the same team) vanish for `lost_frames` and come back under
+    new track ids, as a video tracker loses players. Returns the frames and
+    each new track id's original."""
+    rng = random.Random(seed)
+    alias = {}                          # original track -> current track id
+    origin = {}                         # new track id -> original track
+    gone = {}                           # original track -> frames left unseen
+    back = set()                        # original tracks due back under a new id
+    next_id = 1000
+    next_break = frames[0].t + 180.0
+    out = []
+    for f in frames:
+        if f.t >= next_break:
+            next_break = f.t + every_s
+            ready = sorted(p.track_id for p in f.players
+                           if gone.get(p.track_id, 0) == 0 and p.track_id not in back)
+            for tid in rng.sample(ready, per_break):
+                gone[tid] = lost_frames
+        players = []
+        for p in f.players:
+            tid = p.track_id
+            if gone.get(tid, 0) > 0:
+                gone[tid] -= 1
+                if gone[tid] == 0:
+                    back.add(tid)
+                continue
+            if tid in back:                         # its first frame back
+                back.discard(tid)
+                alias[tid], origin[next_id] = next_id, tid
+                next_id += 1
+            players.append(dataclasses.replace(p, track_id=alias.get(tid, tid)))
+        out.append(dataclasses.replace(f, players=players))
+    return out, origin
+
+
+def test_broken_and_restarted_tracks_get_their_players_back(sim_clips):
+    """Tracks lost mid-play come back under new ids: re-matching to the
+    nearest last-known position names them right, before any kickoff could."""
+    tracking, team_sheet, truth = sim_clips[0]
+    clean = observations_from_tracking(tracking, team_sheet)
+    roster = roster_of_tracks(tracking, clean)
+    frames, origin = break_tracks(clean)
+    assert len(origin) > 100
+    rules = EventRules(team_sheet)
+    checked = right = 0
+    seen = {}                                       # new track -> frames seen
+    events = []
+    for f in frames:
+        events += rules.push(f)
+        for p in f.players:
+            if p.track_id in origin:
+                seen[p.track_id] = seen.get(p.track_id, 0) + 1
+                if seen[p.track_id] == 1:           # its first frame back
+                    checked += 1
+                    right += rules.lineup.player(p.track_id) == roster[origin[p.track_id]]
+    events += rules.finish()
+    assert checked == len(origin)
+    assert right / checked >= 0.95, (right, checked)
+    # The events of the broken clip name players as well as the clean clip's.
+    events.sort(key=lambda e: e["t"])
+    events = [{"id": f"e{i:04d}", **e} for i, e in enumerate(events, start=1)]
+    m = grade(events, truth, types=list(THRESHOLDS))["matched"]
+    assert m["player_id_accuracy"] >= PLAYER_ID_THRESHOLD, m
+
+
+def project_imports(path: Path) -> set[str]:
+    """The project modules (vision, simulator, scripts, agents) a file imports."""
+    tree = ast.parse(path.read_text())
     modules = {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
     modules |= {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
-    project = {m for m in modules if m.split(".")[0] in {"vision", "simulator", "scripts", "agents"}}
-    assert project == {"vision.observation"}
+    return {m for m in modules if m.split(".")[0] in {"vision", "simulator", "scripts", "agents"}}
+
+
+def test_rules_see_only_frame_observations_and_the_team_sheet():
+    """The rules and lineup modules import nothing that could read simulator data."""
+    assert project_imports(ROOT / "vision" / "rules.py") == {"vision.observation", "vision.lineup"}
+    assert project_imports(ROOT / "vision" / "lineup.py") == {"vision.observation"}
 
 
 def test_no_vision_code_imports_the_harness():
