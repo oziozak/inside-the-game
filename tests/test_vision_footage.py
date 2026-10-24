@@ -48,6 +48,11 @@ THRESHOLDS: dict[str, dict[str, dict[str, float]]] = {
              "pass": {"precision": 0.86, "recall": 0.76},
              "possession_change": {"precision": 0.33, "recall": 0.5},
              "shot": {"precision": 0.66, "recall": 1.0}},
+    # Held out; graded once, on CUDA (RTX 5070), the dev clips on MPS. Same weights and settings.
+    "test1": {"kickoff": {"precision": 1.0, "recall": 1.0},
+              "pass": {"precision": 0.96, "recall": 0.97},
+              "possession_change": {"precision": 0.28, "recall": 0.5},
+              "shot": {"precision": 0.66, "recall": 1.0}},
 }
 
 

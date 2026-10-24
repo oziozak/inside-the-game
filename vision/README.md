@@ -274,3 +274,6 @@ First grades (2026-10-24, pretrained yolo11s, v1 render settings), precision / r
 | dev2 (orange v white) | 1.00 / 1.00 (1/1, 1) | 0.88 / 0.82 (14/17, 16) | 0.00 / 0.00 (0/2, 2) | 1.00 / 0.50 (1/2, 1) | none |
 | dev3 (green v orange) | 1.00 / 1.00 (1/1, 1) | 0.86 / 0.76 (19/25, 22) | 0.33 / 0.50 (1/2, 3) | 0.67 / 1.00 (2/2, 3) | none |
 | **dev, all three** | 1.00 / 1.00 (3/3, 3) | **0.91 / 0.84** (64/76, 70) | 0.50 / 0.57 (4/7, 8) | 0.75 / 0.60 (3/5, 4) | none |
+| **test1 (held out, 10 min, red v blue)** | 1.00 / 1.00 (1/1, 1) | **0.96 / 0.97** (131/135, 136) | 0.29 / 0.50 (2/4, 7) | 0.67 / 1.00 (2/2, 3) | none |
+
+Matched events in test1: pass success right 92 %, pass subtype 85 %, shot and possession-change subtype 100 %, mean timing error 0.03 s, distance error 0.8 m, speed error 7 km/h. Player-id accuracy is 0 (no lineup assignment yet). The dev clips were graded on an M-series Mac (MPS), test1 on an RTX 5070 (CUDA); a second dev run on the Mac gave byte-identical events.
