@@ -10,6 +10,7 @@ Video in, events out. Never reads simulator data at runtime.
 4. Map pixels to pitch meters (homography)
 5. Possession = nearest player to the ball ([event rules](#event-rules-visionrulespy))
 6. Rules turn possession changes into events (`source: cv`)
+7. Lineup assignment names the tracks with roster ids from the team sheet ([lineup](#lineup-assignment-visionlineuppy))
 
 Accuracy is measured afterward against the simulator's true events.
 
@@ -181,7 +182,7 @@ Use `write_observations` / `read_observations` for files. To check one: `python 
 
 ## Event rules (`vision/rules.py`)
 
-The event stage: frame observations and the team sheet in, detected events out. It imports nothing but `vision.observation` (a test enforces this).
+The event stage: frame observations and the team sheet in, detected events out. It imports nothing but `vision.observation` and `vision.lineup` (a test enforces this).
 
 ```bash
 python -m vision.rules observations.jsonl --match-info match_info.json --out events.json
@@ -193,17 +194,28 @@ python -m vision.rules observations.jsonl --match-info match_info.json --out eve
 - **Kick:** possession ends and the ball travels at least 3 m at 4 m/s or more to where it next stops: where it comes to rest, the next possession, a touch (the ball suddenly turns or speeds up, e.g. a header or a one-touch shot), the goal line, or out of play. Rules use the two ends of that path and when the ball arrived, never mid-flight positions, because an airborne ball's ground projection is wrong. `distance_m`, `duration_s` and `speed_kmh` (the average ground speed) come from those ends.
 - **Shot:** a kick within 45 m of a goal and not from a corner flag, whose line meets the goal line within 9.5 m of the goal's center, at 70 km/h or more (65 within 25 m of the goal, 50 for a ball redirected in flight, such as a header). Subtype: `off_target` when it goes out, `blocked` when an outfield opponent stops it short of the line, else from where its line meets the goal line.
 - **Pass:** any other kick in open play; `success` when the next track in possession is on the kicker's team; `short`/`long` at 25 m. Restarts are not passes, and v1 does not report them (except kickoffs): the first kick after the ball went out or a goal, a kick from a ball still for 3 s (free kick), or from the center spot or a corner arc.
-- **Kickoff:** the ball rests on the center spot (within 1 m) with every track in its own team's half (1 m of slack), then leaves it at 4 m/s or more. At a half start the broadcast cuts straight to the kickoff, so the ball on the spot in the period's first frame is enough. That also covers a simulator quirk: at the second-half kickoff its players are not always lined up yet. The team is the track nearest the ball, `t` and `start` are where the ball last rested, `end`, `distance_m`, `speed_kmh` and `duration_s` come from the kick, and `success` is decided as for a pass.
+- **Kickoff:** the ball rests on the center spot (within 1 m) with every track in its own team's half (1 m of slack), then leaves it at 4 m/s or more. At a half start the broadcast cuts straight to the kickoff, so the ball on the spot in the period's first frame is enough. That also covers a simulator quirk: at the second-half kickoff its players are not always lined up yet. The kicker is, of the team of the track nearest the ball, the track within 1.5 m of the spot furthest behind the ball as it is played (a teammate can stand nearer, beside it); the team is the kicker's. `t` and `start` are where the ball last rested, `end`, `distance_m`, `speed_kmh` and `duration_s` come from the kick, and `success` is decided as for a pass.
 - **Possession change:** the other team takes the ball in play, without a pass from the team that lost it:
   - off the holder, within 0.5 s of the holder's last touch and without a kick: `tackle` (`interception` when the winner is a goalkeeper);
   - by cutting out a pass in open play within 1 s of it being played (not a restart such as a corner), or by taking a blocked shot: `interception`. The pass is still reported, unsuccessful.
 
   The change stands once the winner keeps the ball for 0.5 s or plays it on (a short nudge to a teammate counts). When the other team takes the ball straight back, that is flicker (a player running past the ball), and neither change is reported; one still pending when play stops (out of play, end of input) is dropped too. A goalkeeper holding a shot is a save, not a possession change. `team` is the winner's; `t` and `start` are where the winner first had the ball.
 - **Goal:** a shot reaches the goal line between the posts with no player within reach of the ball (that is a save), then comes to rest between the posts, on the line or behind it (not wide of the goal: from a sharp angle, an off-target ball's ground projection can cross the mouth). The shot gets `success: true`, and the goal carries the running `score`.
-- **Players:** `from` and `to` are `null` on every event. Tracks are anonymous until lineup assignment names them, and a track id in `from` would read as a roster player id.
+- **Players:** `from` and `to` are roster ids from [lineup assignment](#lineup-assignment-visionlineuppy), taken when the track got the ball, per `schemas/README.md`: passer and receiver (pass, kickoff; `to` is `null` when it failed), winner and loser (possession change), the shooter (shot; the goal names the shot's). A shot redirected with no track within reach (a header: an airborne ball's ground projection lands meters from the player) names the shooting team's track nearest where it was struck, within 3.5 m. A track not named yet (before the first kickoff, or nobody missing to take over from) gives `null`; a track id never appears.
 - **Confidence:** 0.9 (pass, goal, kickoff), 0.8 (shot) or 0.7 (possession change) times the mean ball confidence over the kick.
 
-Not yet: lineup assignment (#18), noisy observations (#19).
+Not yet: noisy observations (#19).
+
+### Lineup assignment (`vision/lineup.py`)
+
+Names anonymous tracks with roster ids, from the team sheet only. Part of the event stage: `EventRules` calls it every frame and at each detected kickoff, and it imports nothing but `vision.observation`.
+
+- **At each kickoff**, on the frame just before the ball is played (on a period's first frame players may not be lined up yet, #31), each team's tracks are matched to its starters at least total squared distance (Hungarian). The goalkeeper is the track in the keeper's kit. Outfield players are matched to where their position stands (`SLOT`: back line, then midfield, then attack, R positions on the right, L on the left; starters sharing a slot, like two center backs, spread right to left in team-sheet order), held in their own half. Both shapes are centered on their outfield centroid, so a team standing higher or deeper still matches. The kickoff taker is not in their slot: they get the starter left over.
+- **In play**, each track's place in its team's shape (position relative to the outfield centroid, in its team's frame) is averaged over about 60 s. Every 2 s, and at each kickoff, named tracks with at least 10 s of shape swap names among themselves to fit the in-play slots best. One kickoff frame cannot tell apart players standing together: the taker, a striker and an attacking midfielder all wait on the halfway line. Their shapes in play can.
+- **When a track is lost** (swapped, merged) and a new one appears, the new track takes the name of a missing player of its team (whose track is not in the frame), the one whose last-known position is nearest. A keeper's track only takes the keeper's name. A starter missing from a kickoff's frame is last known at their slot there.
+- **Substitutes** are never named: who comes on is invisible to video in v1. A substitute's track takes the name of the player who went off (see the grades below).
+
+`tests/test_vision_rules.py` grades the players of matched events on the seam-2 clips (`PLAYER_ID_THRESHOLD`), checks every `from`/`to` is a roster id of the right team or `null` where the schema allows it, and breaks tracks mid-play (3 tracks every 20 s vanish for 10 frames and come back under new ids): the new tracks are named right on their first frame back, and the events name players as well as on clean tracks. `tests/test_vision_lineup.py` covers the matching on hand-built frames.
 
 ### Seam-2 harness (`vision/harness.py`, offline only)
 
@@ -217,11 +229,11 @@ python -m vision.harness data/generated/m007/tracking.jsonl data/generated/m007/
 
 Grades on clean observations, whole 90-minute matches (both halves), four pairings per row. The rules were tuned on 201-204; 401-404 and 501-504 were also looked at while tuning, so these are dev grades, not held-out ones:
 
-| Seeds | Kickoff P / R | Pass P / R | Possession change P / R | Shot P / R | Shot subtype right | Goal P / R |
-| --- | --- | --- | --- | --- | --- | --- |
-| 201-204 | 1.00 / 1.00 (17) | 0.95 / 0.99 | 0.60 / 0.60 | 0.96 / 0.85 | 98 / 99 | 0.89 / 0.89 (9 goals) |
-| 401-404 | 1.00 / 1.00 (27) | 0.95 / 0.99 | 0.55 / 0.63 | 0.91 / 0.90 | 89 / 92 | 0.93 / 0.74 (19 goals) |
-| 501-504 | 1.00 / 1.00 (24) | 0.95 / 0.99 | 0.52 / 0.69 | 0.96 / 0.80 | 80 / 82 | 0.93 / 0.81 (16 goals) |
+| Seeds | Kickoff P / R | Pass P / R | Possession change P / R | Shot P / R | Shot subtype right | Goal P / R | Players right: before 1st sub / whole match |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 201-204 | 1.00 / 1.00 (17) | 0.95 / 0.99 | 0.60 / 0.60 | 0.96 / 0.85 | 98 / 99 | 0.89 / 0.89 (9 goals) | 0.95 / 0.82 |
+| 401-404 | 1.00 / 1.00 (27) | 0.95 / 0.99 | 0.55 / 0.63 | 0.91 / 0.90 | 89 / 92 | 0.93 / 0.74 (19 goals) | 0.97 / 0.84 |
+| 501-504 | 1.00 / 1.00 (24) | 0.95 / 0.99 | 0.52 / 0.69 | 0.96 / 0.80 | 80 / 82 | 0.93 / 0.81 (16 goals) | 0.96 / 0.83 |
 
 What keeps clean grades below 1 is mostly the simulator, not the rules:
 - **False passes:** almost all are clearances, physically the same kick as a long pass. v1 reports them as passes.
@@ -229,6 +241,7 @@ What keeps clean grades below 1 is mostly the simulator, not the rules:
 - **Goals:** in a penalty, the keeper stands within reach as the ball goes in, so it reads as a save. A few clearances go into the clearing team's own goal.
 - **Possession changes** are capped by how the simulator labels them. It labels an interception only when a pass is cut out in the first 30 % of its path to the intended target, which video cannot see, so a pass cut out within 1 s is a guess either way. It labels no change when a cleared or loose ball is won by the other team, or when a restart follows a foul or offside (invisible to video) and the ball was never seen going out. A tackler who passes on at once (under 0.2 s) never has possession, so the tackle is missed. 473 of 491 matched changes (96 %) carry the true subtype.
 - **Shot subtypes:** the few misses are blocked shots that then go out, which read as `off_target`.
+- **Players** (matched events naming `from`, and `to` where it is a player, right) drop after the first substitution (58'-82') to about 0.5: a substitute's new track takes the name of the player who went off, and later kickoffs name it as that starter. Footage clips end before any substitution. Before it, the misses are the first kickoff of each half's clip (named from one frame) and the simulator playing a ball from a player meters from it.
 
 ## Grader (`vision/grader.py`, offline only)
 
