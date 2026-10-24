@@ -7,7 +7,10 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from agents import verifier
+from collections import deque
+
+from agents import templates, verifier
+from agents.context import goal_effect, lead_in, scoring_side
 from agents.data_io import load_match
 from agents.director import direct
 from agents.explainer import explain_all
@@ -103,11 +106,42 @@ class DirectorTest(unittest.TestCase):
             self.assertGreaterEqual(c.start, shot["t"])
 
 
+class ContextTest(unittest.TestCase):
+    def test_goal_effect(self):
+        cases = [({"home": 0, "away": 0}, {"home": 1, "away": 0}, "opener"),
+                 ({"home": 0, "away": 1}, {"home": 1, "away": 1}, "equaliser"),
+                 ({"home": 1, "away": 1}, {"home": 2, "away": 1}, "go_ahead"),
+                 ({"home": 1, "away": 0}, {"home": 2, "away": 0}, "extends_lead"),
+                 ({"home": 0, "away": 2}, {"home": 1, "away": 2}, "pulls_one_back")]
+        for before, after, want in cases:
+            self.assertEqual(goal_effect(before, after, "home"), want)
+
+    def test_own_goal_credits_the_team_whose_score_went_up(self):
+        self.assertEqual(scoring_side({"home": 0, "away": 0}, {"home": 0, "away": 1}), "away")
+
+    def test_lead_in(self):
+        shot = {"t": 100.0, "type": "shot", "team": "home"}
+        won = {"t": 92.0, "type": "possession_change", "team": "home"}
+        self.assertEqual(lead_in(shot, "home", deque([won])), "counter_attack")
+        passes = deque({"t": 70.0 + i, "type": "pass", "team": "home", "success": True} for i in range(6))
+        self.assertEqual(lead_in(shot, "home", passes), "patient_build_up")
+        passes.popleft()
+        self.assertIsNone(lead_in(shot, "home", passes))
+
+    def test_recap_cites_every_goal(self):
+        match = load_match(SAMPLE_B)
+        goals = [e["id"] for e in match.events if e["type"] == "goal"]
+        candidates, _ = direct(match)
+        ft = next(c for c in candidates if c.event["type"] == "full_time")
+        self.assertEqual(ft.event_ids, goals + [ft.event["id"]])
+        self.assertIn("shots_home", ft.values)
+
+
 class PipelineTest(unittest.TestCase):
     def run_pipeline(self, backend):
         match = load_match(SAMPLE_A)
         candidates, _ = direct(match)
-        return asyncio.run(explain_all(candidates, match, backend, ["en", "tr"]))
+        return asyncio.run(explain_all(candidates, match, backend, list(templates.LANGS)))
 
     def test_overlays_match_schema_and_cite_events(self):
         overlays, report = self.run_pipeline(MockBackend())
@@ -117,6 +151,11 @@ class PipelineTest(unittest.TestCase):
         for o in overlays:
             self.assertEqual(list(OVERLAY_SCHEMA.iter_errors(o)), [], o)
             self.assertTrue(set(o["event_ids"]) <= event_ids)
+
+    def test_templates_pass_the_verifier_in_every_language(self):
+        overlays, report = self.run_pipeline(MockBackend())
+        self.assertEqual(report["rejected"], [])
+        self.assertEqual({o["lang"] for o in overlays}, set(templates.LANGS))
 
     def test_every_goal_and_red_card_is_shown(self):
         overlays, _ = self.run_pipeline(MockBackend())

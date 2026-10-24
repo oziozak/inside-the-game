@@ -18,11 +18,12 @@ events.json ──► stats.py ──► director.py ──► explainer.py ─�
 | File | Role | LLM? |
 | --- | --- | --- |
 | `stats.py` | Running match state (score, shots, pass accuracy, momentum, per-player counts) and per-event facts (distance, progress, difficulty 1-10, key pass, into the box) | No |
+| `context.py` | Why a moment matters, as labels with no numbers: goal effect (equaliser, go-ahead...), score situation, how the attack came about (counter, set piece, build-up), momentum, phase | No |
 | `director.py` | Rule table picks moments and graphics; schedules them per mode with slot collisions, a minimum gap and a screen-time budget. Logs every decision with a reason | No |
 | `explainer.py` | Builds the request (facts + `values`), calls the backend, runs the verify / retry / fallback loop | Yes |
 | `verifier.py` | Rejects numbers not in `values` (or minute/score) and player names not in the cited event | No |
 | `llm.py` | Backends: `mock` (offline templates), `noisy` (invents stats to demo the verifier), `foundry` (Microsoft Agent Framework on a Foundry / Azure OpenAI deployment, disk-cached) | Yes |
-| `templates.py` | Code-written text per graphic, mode and language. Mock backend + fallback | No |
+| `templates.py` | Code-written text per graphic, mode and language (en, tr, es). Mock backend + fallback | No |
 | `run.py` | CLI | |
 
 Why the split: timing and budgets must be predictable live, and numbers on a broadcast must be right,
@@ -37,7 +38,7 @@ so code owns both. The LLM only writes words, and the verifier checks those word
 | `player_focus` | 0.4 | 40% per player | adds the player's running pass count |
 
 `player_focus` overlays carry `player`; the web player shows only the ones for the viewer's chosen player.
-Every overlay is written once per language (`--langs en,tr`), so switching mode or language in the
+Every overlay is written once per language (`--langs`, default `en,tr,es`), so switching mode or language in the
 player is instant: no LLM call at playback time.
 
 ## Run
@@ -65,8 +66,8 @@ Output goes to `data/generated/<match>/` (git-ignored): `overlays.json` and `age
 ## Next steps (P3 backlog)
 
 - [ ] Run `--backend foundry` on sample_a, tune `INSTRUCTIONS` in `llm.py` until the verifier rarely rejects.
-- [ ] Richer "why it matters": feed the explainer context (previous 30 s of events, score situation, momentum change).
+- [x] Richer "why it matters": `context.py` labels (goal effect, score situation, lead-in, momentum, phase).
 - [ ] Turn the pipeline into an Agent Framework workflow (director → explainer → verifier as executors) for the multi-agent category; keep the same functions inside.
 - [ ] Live mode: consume events one by one (Event Hubs) and emit overlays with a measured latency.
-- [ ] Match recap agent at `full_time` (key moments, cited by `event_ids`).
-- [ ] Add `es` (or another language) to show multi-language reach.
+- [x] Half-time / full-time recap: shots, on target, pass accuracy, scorers; cites every goal and red card.
+- [x] Add `es` to show multi-language reach.

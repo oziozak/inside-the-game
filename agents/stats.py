@@ -148,6 +148,12 @@ def event_facts(e: dict, state: MatchState) -> dict:
         "score_away": state.score["away"],
     }
     if side not in ("home", "away"):
+        if typ in ("half_time", "full_time"):
+            for s in ("home", "away"):
+                team = state.teams[s]
+                f[f"shots_{s}"] = team.shots
+                f[f"on_target_{s}"] = team.shots_on_target
+                f[f"pass_accuracy_{s}"] = team.pass_accuracy
         return f
 
     sx, sy = e["start"]
