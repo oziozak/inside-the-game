@@ -110,3 +110,51 @@ def test_a_new_track_takes_the_missing_player_last_seen_nearest():
     rest = [p for p in rest if p.track_id != keeper]
     lineup.observe(0.12, rest + [new, PlayerObservation(998, "away", False, (5.0, 34.0), 1.0)], True)
     assert lineup.player(998) is None
+
+
+def test_tracks_swapped_onto_players_of_the_other_team_swap_names_back():
+    """A tracker swap between a home and an away player: each track now wears
+    the other kit, so it gives up its name and takes the one that fits."""
+    players, truth = kickoff_frame()
+    lineup = Lineup(team_sheet())
+    lineup.assign(players, home_attacks_right=True)
+    lineup.observe(0.0, players, True)
+    h = next(p for p in players if truth[p.track_id] == 9)          # home striker
+    a = next(p for p in players if truth[p.track_id] == 104)        # an away center back
+    swapped = [PlayerObservation(h.track_id, "away", False, a.pos, 1.0),
+               PlayerObservation(a.track_id, "home", False, h.pos, 1.0)]
+    rest = [p for p in players if p.track_id not in (h.track_id, a.track_id)]
+    lineup.observe(0.04, rest + swapped, True)
+    assert lineup.player(h.track_id) == 104 and lineup.player(a.track_id) == 9
+    assert all(lineup.player(p.track_id) == truth[p.track_id] for p in rest)
+
+
+def test_a_new_track_out_of_reach_of_every_missing_player_stays_unnamed():
+    players, truth = kickoff_frame()
+    lineup = Lineup(team_sheet())
+    lineup.assign(players, home_attacks_right=True)
+    lineup.observe(0.0, players, True)
+    gone = next(p for p in players if truth[p.track_id] == 5)
+    rest = [p for p in players if p is not gone]
+    lineup.observe(0.04, rest, True)
+    far = PlayerObservation(999, "home", False, (gone.pos[0] + 30.0, gone.pos[1]), 1.0)
+    lineup.observe(0.08, rest + [far], True)
+    assert lineup.player(999) is None
+    # Given time to run there, it is the missing player.
+    lineup.observe(4.0, rest + [far], True)
+    assert lineup.player(999) == 5
+
+
+def test_a_second_box_on_a_named_player_answers_to_that_name():
+    """The detector boxes one player twice: the unnamed duplicate is its twin,
+    and stays so while unseen, so a kick it made names the player."""
+    players, truth = kickoff_frame()
+    lineup = Lineup(team_sheet())
+    lineup.assign(players, home_attacks_right=True)
+    lineup.observe(0.0, players, True)
+    p = next(p for p in players if truth[p.track_id] == 8)
+    twin = PlayerObservation(999, "home", False, (p.pos[0] + 0.4, p.pos[1]), 1.0)
+    lineup.observe(0.04, players + [twin], True)
+    assert lineup.player(999) == 8 and lineup.player(p.track_id) == 8
+    lineup.observe(0.08, players, True)
+    assert lineup.player(999) == 8

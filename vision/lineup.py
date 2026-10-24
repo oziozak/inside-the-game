@@ -19,7 +19,13 @@ Part of the event stage: it sees only frame observations and the team sheet.
   midfielder both held on the halfway line); their shapes in play can.
 - **Between kickoffs**, a track nobody is named for (a track lost, swapped or
   merged comes back under a new id) takes the roster id of a player of its
-  team whose track is missing from the frame, the one last seen nearest.
+  team whose track is missing from the frame, the one last seen nearest, if
+  that player could have run there since (REMATCH_M plus RUN_V per second
+  missing). A named track whose kit stops fitting its name (the tracker
+  swapped it onto a player of the other team, or a keeper) gives the name up
+  and is matched again, so the two tracks of a swap trade names. An unnamed
+  track standing on a named one of the same kit is a second box on that
+  player (its twin) and answers to that name.
 
 Substitutes are never named: who comes on is invisible to video in v1, so a
 substitute's track takes the name of the player who went off.
@@ -41,8 +47,11 @@ KICKOFF_X = 51.0            # at a kickoff everyone waits in their own half
 SPREAD_M = 12.0             # players sharing a slot stand this far apart, right to left in roster order
 KIT_COST = 1e6              # matching a keeper's track to an outfield player, or the reverse
 SHAPE_S = 60.0              # a track's place in the shape is averaged over about this long
-SHAPE_MIN_S = 10.0          # ... and used once it has been seen this long
+SHAPE_MIN_S = 4.0           # ... and used once it has been seen this long
 REFINE_S = 2.0              # named tracks swap names to fit the shape this often
+REMATCH_M = 3.0             # a new track takes a missing player's name only this near where they were last seen ...
+RUN_V = 8.0                 # ... plus this many meters per second they have been missing
+TWIN_M = 1.0                # an unnamed track this near a named one of the same kit is a second box on that player
 FPS = 25
 
 
@@ -134,12 +143,16 @@ class Lineup:
         self.player_of: dict[int, int] = {}                  # track -> roster id
         self.track_of: dict[int, int] = {}                   # roster id -> track
         self.last_pos: dict[int, tuple[float, float]] = {}   # roster id -> last seen position
+        self.last_seen: dict[int, float] = {}                # roster id -> when (none: a slot guess)
+        self.t = 0.0                                         # the latest frame's time
         self.shape: dict[int, list[float]] = {}              # track -> [frames, x, y] relative to its team
+        self.twin: dict[int, int] = {}                       # unnamed track -> the named track it doubles, when last seen
         self.last_refine = -math.inf
 
     def player(self, track_id: int | None) -> int | None:
-        """The roster id a track is named for, or None."""
-        return self.player_of.get(track_id)
+        """The roster id a track is named for (or, for an unnamed track, the
+        one its twin is named for), or None."""
+        return self.player_of.get(track_id, self.player_of.get(self.twin.get(track_id)))
 
     # ---- at a kickoff ----------------------------------------------------
     def assign(self, players: list[PlayerObservation], home_attacks_right: bool,
@@ -164,6 +177,7 @@ class Lineup:
             for pid, (x, y) in self.kickoff_slots[side].items():
                 if pid not in self.track_of:
                     self.last_pos[pid] = self._team_frame((center[0] + x, center[1] + y), right)
+                    self.last_seen.pop(pid, None)
         self._refine(players)
 
     # ---- every frame -----------------------------------------------------
@@ -171,6 +185,7 @@ class Lineup:
         """One frame: name new tracks after missing players, follow each track's
         place in its team's shape, and every REFINE_S let named tracks swap
         names to fit the formation."""
+        self.t = t
         self._rematch(players)
         for side, (rel, _) in self._team_shapes(players, home_attacks_right).items():
             for tid, (x, y) in rel.items():
@@ -185,29 +200,40 @@ class Lineup:
 
     def _rematch(self, players: list[PlayerObservation]) -> None:
         """Name tracks nobody is named for after players of their team whose
-        track is missing from the frame, nearest last-known position first."""
+        track is missing from the frame, nearest last-known position first. A
+        track still unnamed standing on a named one of the same kit is its twin
+        (the detector boxed one player twice), as last seen."""
         live = {p.track_id for p in players}
         new = []
         for p in players:
             pid = self.player_of.get(p.track_id)
+            if pid is not None and not self._fits(p, pid):
+                self._unname(p.track_id)            # swapped with a player of another kit
+                pid = None
             if pid is None:
                 new.append(p)
             else:
-                self.last_pos[pid] = p.pos
-        if not new:
-            return
+                self.last_pos[pid], self.last_seen[pid] = p.pos, self.t
         # Missing: players seen before whose track is not in the frame (or who
         # were missing from the last kickoff's frame, so have no track).
         missing = [pid for pid in self.last_pos if self.track_of.get(pid) not in live]
         pairs = sorted((math.dist(p.pos, self.last_pos[pid]), i, pid)
                        for i, p in enumerate(new) for pid in missing
-                       if self.team_of[pid] == p.team and (pid in self.keepers) == p.goalkeeper)
+                       if self._fits(p, pid) and self._reachable(p, pid))
         done = set()
         for _, i, pid in pairs:
             if i not in done and self.track_of.get(pid) not in live:
                 done.add(i)
                 self._name(new[i], pid)
                 live.add(new[i].track_id)
+        named = [p for p in players if p.track_id in self.player_of]
+        for p in new:
+            self.twin.pop(p.track_id, None)
+            if p.track_id not in self.player_of:
+                q = min((q for q in named if (q.team, q.goalkeeper) == (p.team, p.goalkeeper)),
+                        key=lambda q: math.dist(p.pos, q.pos), default=None)
+                if q is not None and math.dist(p.pos, q.pos) <= TWIN_M:
+                    self.twin[p.track_id] = q.track_id
 
     def _refine(self, players: list[PlayerObservation]) -> None:
         """Named tracks in the frame with a shape of at least SHAPE_MIN_S swap
@@ -251,6 +277,27 @@ class Lineup:
         cx, cy = _centroid(outfield.values())
         return {k: (x - cx, y - cy) for k, (x, y) in points.items()}
 
+    def _fits(self, p: PlayerObservation, pid: int) -> bool:
+        """Whether track `p`'s kit (team, keeper or not) is roster player `pid`'s."""
+        return self.team_of[pid] == p.team and (pid in self.keepers) == p.goalkeeper
+
+    def _reachable(self, p: PlayerObservation, pid: int) -> bool:
+        """Whether roster player `pid` could have run to track `p` since last
+        seen (always, for a slot guess). A track far from every missing player
+        (a duplicate of a tracked one, or a false detection) stays unnamed."""
+        if pid not in self.last_seen:
+            return True
+        reach = REMATCH_M + RUN_V * (self.t - self.last_seen[pid])
+        return math.dist(p.pos, self.last_pos[pid]) <= reach
+
+    def _unname(self, track_id: int) -> None:
+        """Track `track_id` is nobody from now on: its player is missing, last
+        seen where the track last was under their name, and its shape restarts."""
+        pid = self.player_of.pop(track_id)
+        if self.track_of.get(pid) == track_id:
+            del self.track_of[pid]
+        self.shape.pop(track_id, None)
+
     def _name(self, p: PlayerObservation, pid: int) -> None:
         """Track `p` is roster player `pid` from now on."""
         old = self.track_of.get(pid)
@@ -258,7 +305,7 @@ class Lineup:
             self.player_of.pop(old, None)
         self.player_of[p.track_id] = pid
         self.track_of[pid] = p.track_id
-        self.last_pos[pid] = p.pos
+        self.last_pos[pid], self.last_seen[pid] = p.pos, self.t
 
     def _team_frame(self, pos, attacks_right: bool) -> tuple[float, float]:
         """A position in its team's frame (attacking toward x = length)."""
