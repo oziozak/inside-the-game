@@ -246,3 +246,31 @@ python -m vision.grader --detected runs/m007/events.json --truth data/generated/
 - `unmatched_detections` and `missed`: id, type, `t` and start of each.
 - `clip`: render settings from the export manifest's `render` block (plus width, height, rich), the clip window, and the seeds. `--render KEY=VALUE`, `--seed` and `--training-seeds` add to or override them.
 - By default only the v1 detected types are graded (`kickoff, pass, possession_change, shot, goal`); `--types all` or a comma list changes that.
+
+## Footage grades (`vision/grade_footage.py`, offline only)
+
+The tracer on the 22-player footage clips, graded. For each clip in the seed record it runs `python -m vision` as a child process on the clip's video (so the run reads only the video and team sheet), grades the detected events against `truth/events.json` and writes `vision_report.json`. The report's `clip` block records the render settings (export manifest), the clip's name, role, seed and pairing (seed record), the detector weights and the seeds they were trained on (none: pretrained yolo11s, #21).
+
+```bash
+python -m vision.grade_footage --role dev              # or dev1 test1, or --all (dev + test)
+python -m vision.grade_footage --role dev --reuse      # re-grade saved detections, no tracer run
+```
+
+Clips are read from `--footage`, else `$VISION_FOOTAGE`, else `data/renders/footage`. Output in `runs/footage/<name>/` (ignored by git): `events.json`, `observations.jsonl`, `vision_report.json`. The tracer runs at about 6 frames/s on an M-series Mac: 8 minutes per dev clip, about 40 for the test clip (`caffeinate -i` keeps the Mac awake).
+
+`tests/test_vision_footage.py` runs the same on every dev and test clip when `$VISION_FOOTAGE` points at the rendered clips, and skips otherwise. Its `THRESHOLDS` hold each clip's minimum precision and recall per type: the first measured grades, only ever raised. Player-id accuracy is reported (0 until lineup assignment, #18, names players) but not asserted.
+
+```bash
+VISION_FOOTAGE=data/renders/footage pytest tests/test_vision_footage.py -k dev    # or -k test1
+```
+
+**Dev clips are for tuning; `test1` is the held-out grade and is never used to tune the rules or the detector.**
+
+First grades (2026-10-24, pretrained yolo11s, v1 render settings), precision / recall (matched / true, detected):
+
+| Clip | Kickoff | Pass | Possession change | Shot | Goal |
+| --- | --- | --- | --- | --- | --- |
+| dev1 (red v blue) | 1.00 / 1.00 (1/1, 1) | 0.97 / 0.91 (31/34, 32) | 1.00 / 1.00 (3/3, 3) | - / 0.00 (0/1, 0) | none |
+| dev2 (orange v white) | 1.00 / 1.00 (1/1, 1) | 0.88 / 0.82 (14/17, 16) | 0.00 / 0.00 (0/2, 2) | 1.00 / 0.50 (1/2, 1) | none |
+| dev3 (green v orange) | 1.00 / 1.00 (1/1, 1) | 0.86 / 0.76 (19/25, 22) | 0.33 / 0.50 (1/2, 3) | 0.67 / 1.00 (2/2, 3) | none |
+| **dev, all three** | 1.00 / 1.00 (3/3, 3) | **0.91 / 0.84** (64/76, 70) | 0.50 / 0.57 (4/7, 8) | 0.75 / 0.60 (3/5, 4) | none |

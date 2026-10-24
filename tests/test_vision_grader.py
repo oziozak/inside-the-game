@@ -198,9 +198,11 @@ def test_render_settings_can_be_passed_without_a_manifest(tmp_path):
 
 
 def test_runtime_vision_code_never_imports_the_grader():
-    """The grader reads true events, so it must stay off the runtime path."""
+    """The grader reads true events, so it must stay off the runtime path. Only
+    the footage grading command, itself offline, may import it."""
+    offline = {ROOT / "vision" / "grader.py", ROOT / "vision" / "grade_footage.py"}
     for path in (ROOT / "vision").rglob("*.py"):
-        if path == ROOT / "vision" / "grader.py":
+        if path in offline:
             continue
         for node in ast.walk(ast.parse(path.read_text())):
             names = []

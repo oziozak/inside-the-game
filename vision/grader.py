@@ -186,6 +186,35 @@ def clip_info(manifest: dict | None, render: dict, seed: int | None,
     }
 
 
+def build_report(detected: list[dict], truth: list[dict], clip: dict, types: list[str] | None,
+                 detected_file: Path | str, truth_file: Path | str) -> dict:
+    """The whole vision_report.json: files graded, clip settings and seeds, then the grade."""
+    return {
+        "match_id": truth[0]["match_id"] if truth else None,
+        "detected_file": str(detected_file),
+        "truth_file": str(truth_file),
+        "clip": clip,
+        **grade(detected, truth, types),
+    }
+
+
+def write_report(path: Path, report: dict) -> None:
+    """Write a report as indented JSON, creating its folder."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+
+def summary(report: dict) -> str:
+    """One console line per graded type: precision, recall, F1 and counts."""
+    def fmt(x):
+        """A score for the console summary."""
+        return "  -  " if x is None else f"{x:.3f}"
+
+    return "\n".join(f"{ty:<18} P {fmt(s['precision'])}  R {fmt(s['recall'])}  F1 {fmt(s['f1'])}"
+                     f"  ({s['matched']}/{s['true']} true, {s['detected']} detected)"
+                     for ty, s in report["per_type"].items())
+
+
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     """Parse the command-line arguments."""
     ap = argparse.ArgumentParser(prog="python -m vision.grader", description=__doc__,
@@ -221,22 +250,9 @@ def main(argv: list[str] | None = None) -> int:
     clip = clip_info(manifest, render, args.seed, args.training_seeds)
     if clip["seed"] is None:
         print("warning: no clip seed (pass --seed); the report records null", file=sys.stderr)
-    report = {
-        "match_id": truth[0]["match_id"] if truth else None,
-        "detected_file": str(args.detected),
-        "truth_file": str(args.truth),
-        "clip": clip,
-        **grade(detected, truth, types),
-    }
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    def fmt(x):
-        """A score for the console summary."""
-        return "  -  " if x is None else f"{x:.3f}"
-
-    for ty, s in report["per_type"].items():
-        print(f"{ty:<18} P {fmt(s['precision'])}  R {fmt(s['recall'])}  F1 {fmt(s['f1'])}"
-              f"  ({s['matched']}/{s['true']} true, {s['detected']} detected)")
+    report = build_report(detected, truth, clip, types, args.detected, args.truth)
+    write_report(args.out, report)
+    print(summary(report))
     print(f"Wrote {args.out}")
     return 0
 
