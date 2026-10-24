@@ -25,7 +25,7 @@ import pytest
 
 from vision.footage import RENDER_SETTINGS, load_record
 from vision.grade_footage import FOOTAGE_ENV, footage_root, grade_clip
-from vision.grader import DETECTED_TYPES
+from vision.grader import DETECTED_TYPES, match_events
 
 ROOT = Path(__file__).resolve().parent.parent
 CALIBRATION = ROOT / "vision" / "fixtures" / "calibration"
@@ -40,8 +40,9 @@ CLIPS = {c["name"]: c for c in load_record()["clips"] if c["role"] in ("dev", "t
 #   - types with fewer than 5 true events: one match fewer, so recall
 #     (matched - 1) / true and precision (matched - 1) / detected.
 # A floor that comes out at 0 is left out, since it asserts nothing; so is
-# an undefined score (no true events, or none detected). So kickoffs (1 per
-# clip) are not asserted here; the calibration and seam-2 tests cover them.
+# an undefined score (no true events, or none detected). Kickoffs (1 per
+# clip) get no floor; test_every_kickoff_is_found_for_the_right_team
+# asserts each one instead.
 # No goal falls in any of these clips. Floors are only ever raised, from a
 # better measured grade by the same rule, never lowered.
 # Comments: first grade as matched / true, detected.
@@ -96,11 +97,24 @@ def test_footage_grade(graded, validate, name):
                                                           CLIPS[name]["seed"])
     assert {k: clip["render"][k] for k in RENDER_SETTINGS} == RENDER_SETTINGS
     assert clip["training_seeds"] == []
-    assert "player_id_accuracy" in report["matched"]   # reported; asserted once lineup assignment lands
+    assert "player_id_accuracy" in report["matched"]   # reported; asserted once graded after #18
     for ty, mins in THRESHOLDS[name].items():
         scores = report["per_type"][ty]
         for metric, floor in mins.items():
             assert scores[metric] is not None and scores[metric] >= floor, (name, ty, metric, scores)
+
+
+@pytest.mark.parametrize("name", sorted(CLIPS))
+def test_every_kickoff_is_found_for_the_right_team(graded, name):
+    """No margin here: kickoffs anchor lineup assignment, so a lost or
+    misattributed one would silently break player names."""
+    report, events_file = graded(name)
+    kickoffs = [e for e in json.loads(events_file.read_text()) if e["type"] == "kickoff"]
+    true = [e for e in json.loads(Path(report["truth_file"]).read_text()) if e["type"] == "kickoff"]
+    assert true, f"{name} has no true kickoff"
+    pairs = match_events(kickoffs, true)
+    assert len(pairs) == len(true), (name, kickoffs, true)
+    assert [d["team"] for d, _ in pairs] == [t["team"] for _, t in pairs]
 
 
 def test_grade_clip_records_settings_and_seeds(tmp_path):

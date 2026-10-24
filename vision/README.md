@@ -271,7 +271,7 @@ python -m vision.grade_footage --role dev --reuse      # re-grade saved detectio
 
 Clips are read from `--footage`, else `$VISION_FOOTAGE`, else `data/renders/footage`. Output in `runs/footage/<name>/` (ignored by git): `events.json`, `observations.jsonl`, `vision_report.json`. The tracer runs at about 6 frames/s on an M-series Mac: 8 minutes per dev clip, about 40 for the test clip (`caffeinate -i` keeps the Mac awake).
 
-`tests/test_vision_footage.py` runs the same on every dev and test clip when `$VISION_FOOTAGE` points at the rendered clips, and skips otherwise. Its `THRESHOLDS` hold each clip's minimum precision and recall per type: the first measured grade minus a cross-hardware margin (the dev clips were graded on MPS, test1 on CUDA): 0.03 for passes, one match fewer for types with fewer than 5 true events. Floors are only ever raised. Player-id accuracy is reported (0 until lineup assignment, #18, names players) but not asserted.
+`tests/test_vision_footage.py` runs the same on every dev and test clip when `$VISION_FOOTAGE` points at the rendered clips, and skips otherwise. Its `THRESHOLDS` hold each clip's minimum precision and recall per type: the first measured grade minus a cross-hardware margin (the dev clips were graded on MPS, test1 on CUDA): 0.03 for passes, one match fewer for types with fewer than 5 true events. Floors are only ever raised. Kickoffs get no margin: every clip's kickoff must be found, for the right team, because kickoffs anchor lineup assignment. Player-id accuracy is reported but not asserted yet.
 
 ```bash
 VISION_FOOTAGE=data/renders/footage pytest tests/test_vision_footage.py -k dev    # or -k test1
@@ -289,4 +289,6 @@ First grades (2026-10-24, pretrained yolo11s, v1 render settings), precision / r
 | **dev, all three** | 1.00 / 1.00 (3/3, 3) | **0.91 / 0.84** (64/76, 70) | 0.50 / 0.57 (4/7, 8) | 0.75 / 0.60 (3/5, 4) | none |
 | **test1 (held out, 10 min, red v blue)** | 1.00 / 1.00 (1/1, 1) | **0.96 / 0.97** (131/135, 136) | 0.29 / 0.50 (2/4, 7) | 0.67 / 1.00 (2/2, 3) | none |
 
-Matched events in test1: pass success right 92 %, pass subtype 85 %, shot and possession-change subtype 100 %, mean timing error 0.03 s, distance error 0.8 m, speed error 7 km/h. Player-id accuracy is 0 (no lineup assignment yet). The dev clips were graded on an M-series Mac (MPS), test1 on an RTX 5070 (CUDA); a second dev run on the Mac gave byte-identical events.
+Matched events in test1: pass success right 92 %, pass subtype 85 %, shot and possession-change subtype 100 %, mean timing error 0.03 s, distance error 0.8 m, speed error 7 km/h. The dev clips were graded on an M-series Mac (MPS), test1 on an RTX 5070 (CUDA); a second dev run on the Mac gave byte-identical events.
+
+These grades were measured before lineup assignment (#18), so `from`/`to` were `null` and player-id accuracy 0. Re-running the merged event rules on the dev clips' saved observations (the video stage is unchanged) gives the same detections and grades as above, and player-id accuracy 0.69 / 0.38 / 0.44 (dev1 / dev2 / dev3), against about 0.96 on clean seam-2 observations. test1 is still to be re-graded.
