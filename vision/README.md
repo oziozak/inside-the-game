@@ -14,6 +14,149 @@ Video in, events out. Never reads simulator data at runtime.
 
 Accuracy is measured afterward against the simulator's true events.
 
+The first five sections are what you need to use the stage and quote its numbers. The rest, from
+[Footage](#footage), is reference for changing it.
+
+## Quick start: fresh checkout to `events.json` and a grade
+
+**1. Setup** (once per machine):
+
+```bash
+pip install -r requirements.txt
+git lfs install && git lfs pull       # the calibration clip; `file vision/fixtures/calibration/calibration.mp4` must say MP4
+```
+
+The YOLO weights (`data/models/yolo11s.pt`, 18 MB, ignored by git) download on the first run.
+
+**2. Calibration clip** (committed, 12 s, about a minute on a laptop):
+
+```bash
+# video in, events out (the tracer)
+python -m vision vision/fixtures/calibration/calibration.mp4 --out runs/calibration/events.json
+
+# grade against the true events -> vision_report.json
+python -m vision.grader --detected runs/calibration/events.json \
+    --truth renderer/fixtures/calibration/ground_truth.events.json \
+    --manifest vision/fixtures/calibration/calibration.mp4.manifest.json \
+    --out runs/calibration/vision_report.json
+
+# add the five types video cannot see -> the one events.json the agents read
+python scripts/merge_events.py runs/calibration/events.json \
+    renderer/fixtures/calibration/ground_truth.events.json --out runs/calibration/merged/events.json
+
+python scripts/validate.py runs/calibration runs/calibration/merged
+```
+
+Expected: 3 events (1 pass, 1 shot, 1 goal), each graded P 1.000 / R 1.000; the merge adds nothing
+(the clip has no fouls, cards, offsides or substitutions).
+
+**3. A 22-player footage clip** (needs the renderer's export setup, see [Footage](#footage)):
+
+```bash
+python -m vision.footage render dev1                 # ~7 min: data/renders/footage/dev1/
+python -m vision.grade_footage dev1                  # ~8 min: runs/footage/dev1/{events,vision_report}.json
+python scripts/merge_events.py runs/footage/dev1/events.json \
+    data/renders/footage/dev1/truth/events.json --out data/generated/dev1/events.json
+```
+
+`grade_footage` runs the tracer on the clip as a child process, then grades it. To run the tracer on its
+own: `python -m vision data/renders/footage/dev1/dev1.mp4 --out runs/dev1/events.json`. Use `test1`
+for the held-out grade (35 min to render, about 40 to grade on an M-series Mac).
+
+## What it reads: the video and the team sheet, nothing else
+
+At runtime the stage reads **only** the rendered video and its team sheet (`match_info.json`: clubs, kit
+colors, rosters with shirt numbers and positions, periods, kickoff direction), used the way a
+broadcaster uses a team sheet. Plus the detector weights. It never opens the simulator's `events.json`
+or `tracking.jsonl`, and imports no simulator, grader, harness, baseline or footage code.
+
+**Evidence: the guard test** (`tests/test_vision_pipeline.py`, runs in every `pytest`, needs the LFS
+clip). `test_tracer_opens_only_the_video_and_team_sheet` copies the calibration clip into a folder laid
+out like a footage clip, with the true events and tracking in `truth/` and beside the video, and runs
+`python -m vision` in a child process that records every file opened or listed from Python (an audit
+hook). It fails if the run opened anything in the clip folder other than the video and team sheet,
+anything under a `truth/` folder, any events or tracking file, or anything from `simulator/`,
+`scripts/`, `renderer/fixtures/`, `data/generated/`, `data/renders/` or `data/fake/`, or if it loaded
+simulator, grader, harness, baseline or footage code. `test_guard_catches_a_read_of_simulator_data`
+checks that the guard does catch a run that reads those files. OpenCV reads the video in native code,
+which the hook does not see.
+
+Simulator truth is read only offline, by the grading code (`grader.py`, `grade_footage.py`,
+`baseline.py`, `harness.py`), and by `scripts/merge_events.py`, which lives outside `vision/`.
+
+## What it guarantees
+
+- **Schema-valid events:** `--out` is a JSON array matching `schemas/event.schema.json`, sorted by `t`,
+  ids `e0001...`. Every event is **`source: cv`**. The tests validate the tracer's output.
+- **`confidence` below 1:** each event's confidence is the rule's own certainty (0.9 pass, kickoff and
+  goal; 0.8 shot; 0.7 possession change) times the mean ball-detection confidence, clamped to
+  [0.01, 0.99]. 1.0 stays reserved for `source: sim`.
+- **v1 event scope:** `kickoff`, `pass`, `possession_change`, `shot`, `goal`, with the fields
+  `schemas/README.md` gives each type. `from`/`to` are roster ids of the right team from the team
+  sheet, or `null` where a player could not be named; a track id never appears.
+- **The five invisible types arrive via the merge:** `foul`, `yellow_card`, `red_card`, `offside` and
+  `substitution` are never detected. `scripts/merge_events.py DETECTED TRUTH --out OUT` adds them from
+  the simulator's events (`source: sim`, `confidence` 1.0), sorts by `t` and renumbers ids. It refuses
+  detected files that are not all `source: cv`, that contain an invisible type, or that are from a
+  different match.
+
+## Accuracy: the demo numbers
+
+All on v1 render settings: `cv_full_pitch` camera, CV visibility on, ball scale 2, player scale 1,
+1920x1080, 25 fps, not rich (recorded in each `vision_report.json`'s `clip` block). Detector:
+**pretrained yolo11s, no fine-tuning** (#21 closed: training seeds none). Clips are the first minutes of
+seeded full matches (`footage_seeds.json`): dev1 seed 2007, dev2 2006, dev3 2005, **test1 seed 2101**
+(Bosphorus FC v Thames United, red v blue, 10 min, `[0, 600)` s, held out: never used for tuning).
+
+**Player detector recall** (`baseline.py`, IoU >= 0.5 with each projected player):
+
+| Calibration | dev1 | dev2 | dev3 |
+| --- | --- | --- | --- |
+| 98.5 % | 98.6 % | 98.5 % | 96.0 % |
+
+**Held-out test1** (`runs/footage/test1/vision_report.json`), precision / recall (matched / true, detected):
+
+| Type | Grade |
+| --- | --- |
+| Kickoff | 1/1 found, right team |
+| Pass | **P 0.963 / R 0.970** (131/135, 136) |
+| Shot | 2/2 found, P 0.67 (3 detected) |
+| Possession change | P 0.29 / R 0.50 (2/4, 7): a known label limit, see below |
+| Goal | none in the clip |
+
+Matched passes: success right 92 %, mean timing error 0.03 s.
+
+**Player-id accuracy** (matched events naming the right `from`, and `to` where it is a player), before /
+after the noise hardening (#19):
+
+| Clip | Before #19 | After #19 |
+| --- | --- | --- |
+| dev1 | 0.69 | 0.94 |
+| dev2 | 0.38 | 0.72 |
+| dev3 | 0.43 | 0.75 |
+| test1 | 0.46 | **TODO: test1 re-grade after #19** |
+
+Dev-clip and seam-2 grades in detail: [Footage grades](#footage-grades-visiongrade_footagepy-offline-only),
+[Seam-2 harness](#seam-2-harness-visionharnesspy-offline-only).
+
+## Known limits
+
+- **Camera:** `cv_full_pitch` only, one fixed full-pitch camera. The homography comes from the first
+  frame's pitch markings; a moving or broadcast camera is not supported.
+- **No ball height:** observations carry the ball's ground projection only. Rules use where a kick
+  starts and stops, never mid-flight positions; a header's player is guessed from the nearest track.
+- **Restarts and clearances:** no throw-ins, corners, goal kicks, clearances or free kicks from video.
+  Restarts are not reported (kickoffs are); clearances come out as passes, the main source of false
+  passes.
+- **Possession-change labels** (#17, #31): grades are capped by how the simulator labels changes
+  (interceptions only early in a pass's path, no change for won loose balls or after unseen fouls), so
+  precision and recall sit around 0.5-0.6 even on clean observations ([details](#seam-2-harness-visionharnesspy-offline-only)).
+- **Substitutions:** never named. A substitute's track takes the name of the player who went off, so
+  player-id drops to about 0.5 after the first substitution (58'-82'). Footage clips end before any.
+- **test1 has no goals:** goal detection is graded on the calibration clip and the seam-2 matches only.
+  A second held-out clip with goals and the half-time kickoff is planned (test2, #35).
+- **Second-half kickoff** is tested only on simulator observations (seam-2), not on rendered footage.
+
 ## Footage
 
 All footage the vision work uses comes from one script and the seed record
@@ -30,7 +173,7 @@ python -m vision.footage render --role dev     # or --all; --force rebuilds
 | --- | --- | --- |
 | dev | `dev1`-`dev3`, 2 min each | develop the pipeline; red v blue, orange v white (away kit), green v orange |
 | test | `test1`, 10 min | held-out grade; its seed is never used for dev or training |
-| training | `train1`-`train6`, 2 min each | fine-tune the player detector; the other six pairings |
+| training | `train1`-`train6`, 2 min each | reserved for fine-tuning the player detector; the other six pairings. Unused: pretrained recall sufficed (#21) |
 
 Dev, test and training seeds are disjoint. `check` (and `pytest`) fails if a
 seed is used by two clips, if a role has no clip, or if the dev clips show
@@ -69,16 +212,6 @@ Export runs at roughly 7-8 frames/s: about 7 minutes per 2-minute clip, 35
 minutes for the test clip. The simulator output is byte-identical for the
 same seed; video pixels are reproducible on the same browser/OS/graphics stack
 (see `renderer/README.md`).
-The vision AI never sees fouls, cards, offsides or substitutions. `scripts/merge_events.py` (outside
-this folder) adds those from the simulator (`source: sim`) to the detected events, sorts by `t` and
-renumbers ids, giving the one `events.json` the agents read:
-
-```bash
-python scripts/merge_events.py DETECTED_EVENTS TRUE_EVENTS --out data/generated/<match>/events.json
-```
-## Inputs (runtime)
-
-Only the rendered video and the team sheet (`match_info.json`), used as a broadcaster would use one. The runtime code never opens simulator `events.json` or `tracking.jsonl`.
 
 ## Tracer (`vision/pipeline.py`): video in, events out
 
@@ -93,7 +226,7 @@ python -m vision data/renders/footage/dev1/dev1.mp4 --out runs/dev1/events.json 
 - **Writes:** `--out`, the detected events (`source: cv`, event schema, ids `e0001...`), and with `--observations` the frame observations in between.
 - `--start` and `--frames` as in the video stage. No state is kept between runs and nothing is interactive, so it can run as a batch job (e.g. an Azure job) unchanged. `--help` lists all of this.
 
-`tests/test_vision_pipeline.py` always runs it on the calibration clip and grades the output: one successful pass at 2 s, a shot at 8 s, a goal at 8.9 s, nothing else. The same run is the **guard**: the clip is copied into a folder laid out like a footage clip, with the true events and tracking in `truth/` and beside the video, and the command runs in a child process that records every file opened or listed from Python (an audit hook). The test fails if it opened anything in the clip folder other than the video and team sheet, anything under a `truth/` folder, any events or tracking file, or anything from `simulator/`, `scripts/`, `renderer/fixtures/`, `data/generated/`, `data/renders/` or `data/fake/`, or if it loaded simulator, grader, harness, baseline or footage code. OpenCV reads the video in native code, which the hook does not see. A second test checks that the guard catches a run that does read those files.
+`tests/test_vision_pipeline.py` always runs it on the calibration clip and grades the output: one successful pass at 2 s, a shot at 8 s, a goal at 8.9 s, nothing else. The same run is the [guard](#what-it-reads-the-video-and-the-team-sheet-nothing-else).
 
 ## Video stage (`vision/video.py`): video in, frame observations out
 
@@ -148,6 +281,9 @@ dev1: every 10th of 3000 frames):
 | yolo11n, pitch region x2, conf 0.03 | 83 % | 65 % |
 | yolo11n, pitch region x4, conf 0.03 | 95 % | 96 % |
 | **yolo11s, pitch region x2, conf 0.03 (the video stage's default)** | **98.5 %** | **98.6 %** |
+
+With the video stage's default, dev2 is 98.5 % and dev3 96.0 % (same sampling as dev1). #21 (fine-tuning)
+was closed on these numbers: the pretrained detector stays.
 
 Pretrained YOLO only works here at low confidence and with the frame upscaled. On the calibration clip its
 two players score 0.05-0.2 (players in a full match about 0.7). Results swing with the scale (yolo11s at x3:
@@ -338,4 +474,4 @@ First grades (2026-10-24, pretrained yolo11s, v1 render settings), precision / r
 
 Matched events in test1: pass success right 92 %, pass subtype 85 %, shot and possession-change subtype 100 %, mean timing error 0.03 s, distance error 0.8 m, speed error 7 km/h. The dev clips were graded on an M-series Mac (MPS), test1 on an RTX 5070 (CUDA); a second dev run on the Mac gave byte-identical events.
 
-These grades were measured before lineup assignment (#18), so `from`/`to` were `null` and player-id accuracy 0. Re-running the merged event rules on the dev clips' saved observations (the video stage is unchanged) gives the same detections and grades as above, and player-id accuracy 0.69 / 0.38 / 0.43 (dev1 / dev2 / dev3), against about 0.96 on clean seam-2 observations. With the noise hardening (#19), the same saved observations give player-id accuracy 0.94 / 0.72 / 0.75 ([where names went wrong](#lineup-assignment-visionlineuppy)) and slightly more detections: dev2 passes 16/17 (18 detected), possession changes 0/2 (1); dev3 passes 20/25 (23); dev1 unchanged. Every floor in `THRESHOLDS`, and the kickoff check, still holds on these re-run detections; the floors are still the first grades. test1 is still to be re-graded.
+These grades were measured before lineup assignment (#18), so `from`/`to` were `null` and player-id accuracy 0. Re-running the merged event rules on the dev clips' saved observations (the video stage is unchanged) gives the same detections and grades as above, and player-id accuracy 0.69 / 0.38 / 0.43 (dev1 / dev2 / dev3), against about 0.96 on clean seam-2 observations. With the noise hardening (#19), the same saved observations give player-id accuracy 0.94 / 0.72 / 0.75 ([where names went wrong](#lineup-assignment-visionlineuppy)) and slightly more detections: dev2 passes 16/17 (18 detected), possession changes 0/2 (1); dev3 passes 20/25 (23); dev1 unchanged. Every floor in `THRESHOLDS`, and the kickoff check, still holds on these re-run detections; the floors are still the first grades. test1 went from player-id 0.46 before #19 to **TODO: test1 re-grade after #19**.
