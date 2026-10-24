@@ -39,7 +39,8 @@ MIN_DEV_KIT_COMBINATIONS = 3
 HALF = 45 * 60                                        # clips are cut from regulation matches
 # v1 footage settings (see #9): static full-pitch camera, yellow CV ball at 2x, real-size
 # players, 1080p at 25 fps. `render` checks the export manifest recorded exactly these.
-RENDER_SETTINGS = {"camera": "cv_full_pitch", "cvVisibility": True, "playerScale": 1, "ballScale": 2}
+RENDER_SETTINGS = {"camera": "cv_full_pitch", "cvVisibility": True, "playerScale": 1, "ballScale": 2,
+                   "jerseyNumbers": False, "animatePlayers": False}
 VIDEO = {"width": 1920, "height": 1080, "fps": 25}
 
 
