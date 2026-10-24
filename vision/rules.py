@@ -32,6 +32,12 @@ The event stage. It sees only frame observations and the team sheet
   winner keeps the ball WON_S or plays it on; a ball taken straight back is
   flicker, and neither change is reported.
 
+A ball hidden behind a player (`ball_visible` false) is bridged, not
+guessed at: possession stays as it was until the ball is seen again. A ball
+that comes back already flying was kicked when its first speed seen puts it
+back where it was last seen, and a tackle's time counts from when the ball is
+seen again.
+
 Each kick is decided a fixed, short time after the ball lands: MIN_HOLD_FRAMES
 after a reception, TOUCH_FRAMES after a touch, at most DECIDE_S after it
 comes to rest, GOAL_CONFIRM_S after it reaches the goal line. A possession
@@ -64,6 +70,7 @@ WITH_BALL_V = 3.0           # ... moving with it: at most this many m/s faster o
 MIN_HOLD_FRAMES = 4         # frames with the ball before it counts as possession
 LOSE_FRAMES = 3             # frames without it before the ball has left the holder
 VEL_FRAMES = 2              # velocities are differences over this many frames
+GAP_S = 0.06                # visible ball samples further apart than this straddle a gap (the ball was hidden)
 TOUCH_FRAMES = 3            # a touch compares the ball's velocity over this many frames each side
 TOUCH_DEG = 30.0            # ... a turn of at least this many degrees
 TOUCH_SPEEDUP = 1.5         # ... or a speed-up to more than this times the speed before, plus
@@ -89,8 +96,8 @@ SHOT_MOUTH_M = 9.5          # the kick's line meets the goal line this close to 
 SHOT_MIN_ANGLE_DEG = 3.0    # the goal mouth as seen from the kick (not from a corner flag)
 GOAL_HALF_M = 3.66          # half the goal width
 BALL_RADIUS_M = 0.11
-GOAL_LINE_M = 0.1           # the ball center within this of the goal line has reached it
-GOAL_REST_M = 0.3           # ... and rests in the goal this close to the line or behind it
+GOAL_LINE_M = 0.5           # the ball center within this of the goal line has reached it
+GOAL_REST_M = 0.8           # ... and rests in the goal this close to the line or behind it
 OUT_M = 0.2                 # the ball center this far over a line is out of play
 GOAL_CONFIRM_S = 0.5        # a ball at the goal line is decided this long after
 SAVE_FRAMES = 3             # a track within reach this soon after the ball reaches the line: a save
@@ -136,6 +143,7 @@ class _Flight:
     restart: bool                       # a set piece: not reported as a pass
     redirect: bool = False              # started by a touch in flight
     kickoff: bool = False               # played from the center spot at a kickoff
+    watched: bool = False               # checked for reaching a goal line in an earlier frame
     stop: tuple[float, tuple[float, float]] | None = None   # (t, pos) where it came to rest
     balls: list[tuple[float, tuple[float, float], float]] = field(default_factory=list)  # (t, pos, conf)
 
@@ -247,7 +255,10 @@ class EventRules:
             if frame.t - self.pending_goal.t > GOAL_CONFIRM_S:
                 out += self._confirm_goal()
         elif ball is not None and self.flight is not None and not self.dead:
-            crossing = self._goal_line_crossing(prev_ball, (frame.t, ball))
+            # On the flight's first frame, where the ball was before does not count:
+            # a shot from right in front of goal may already be near the line then.
+            crossing = self._goal_line_crossing(prev_ball if self.flight.watched else None, (frame.t, ball))
+            self.flight.watched = True
             if crossing is not None:            # decided by where it rests and who is there
                 self.pending_goal = _GoalWatch(*crossing, frame.period, frame.ball.confidence)
                 self._watch_goal(frame, ball)
@@ -266,8 +277,8 @@ class EventRules:
         if f is not None and f.stop is not None and frame.t - f.stop[0] > DECIDE_S:
             out += self._resolve(frame.t, f.stop[1], receiver=None)    # nobody took it
 
-        possessor = self._possessor(frame, ball) if ball is not None else None
-        self._update_possession(frame, ball, possessor, out)
+        if ball is not None:                    # a hidden ball (behind a player) stays where it was
+            self._update_possession(frame, ball, self._possessor(frame, ball), out)
         if self.won and self.holder is self.won.winner and self.holder.last_t - self.holder.first_t >= WON_S:
             out += self._stand_won()
         return out
@@ -288,9 +299,13 @@ class EventRules:
             return None
         return (b[0] - a[0]) / (t1 - t0), (b[1] - a[1]) / (t1 - t0)
 
-    def _ball_velocity(self) -> tuple[float, float] | None:
-        """The visible ball's current velocity (m/s), or None."""
-        return self._velocity(list(self.balls)[-(VEL_FRAMES + 1):])
+    def _ball_velocity(self, across_gaps: bool = False) -> tuple[float, float] | None:
+        """The visible ball's current velocity (m/s), or None. Unless
+        `across_gaps`, only samples since the ball was last hidden count: across
+        a gap the ball may have waited, then been kicked."""
+        recent = list(self.balls)[-(VEL_FRAMES + 1):]
+        cut = max((i for i in range(1, len(recent)) if recent[i][0] - recent[i - 1][0] > GAP_S), default=0)
+        return self._velocity(recent if across_gaps else recent[cut:])
 
     def _possessor(self, frame: FrameObservation, ball: tuple[float, float]):
         """The track that has the ball this frame (within reach, moving with
@@ -298,7 +313,7 @@ class EventRules:
         p = self._nearest(frame.players, ball)
         if p is None:
             return None
-        vb = self._ball_velocity()
+        vb = self._ball_velocity(across_gaps=True)     # back from behind a player: moved with them?
         vp = self._velocity(self.tracks[p.track_id])
         if vb is None or vp is None or math.hypot(*_sub(vb, vp)) > WITH_BALL_V:
             return None
@@ -308,15 +323,24 @@ class EventRules:
         """Track `p` with the ball at `pos` from `t`, under its current name."""
         return _Possession.starting(p, t, pos, self.lineup.player(p.track_id))
 
-    @staticmethod
-    def _nearest(players, ball):
-        """The track nearest the ball if within reach, else None."""
+    def _nearest(self, players, ball):
+        """The track nearest the ball if within reach, else None. A second box
+        on a named player (its twin, see Lineup) stands for that player's track."""
         near = min(players, key=lambda p: math.dist(p.pos, ball), default=None)
-        return near if near is not None and math.dist(near.pos, ball) <= REACH_M else None
+        if near is None or math.dist(near.pos, ball) > REACH_M:
+            return None
+        twin = self.lineup.twin.get(near.track_id)
+        return next((p for p in players if p.track_id == twin), near)
+
+    @staticmethod
+    def _same(p: PlayerObservation, held: _Possession) -> bool:
+        """Whether track `p` is the one in `held`, in the same kit: a track whose
+        kit changed has swapped onto another player."""
+        return p.track_id == held.track_id and p.team == held.team and p.goalkeeper == held.goalkeeper
 
     def _update_possession(self, frame, ball, possessor, out: list[dict]) -> None:
         """Advance the holder and candidate; start and resolve kicks."""
-        if possessor is not None and self.holder and possessor.track_id == self.holder.track_id:
+        if possessor is not None and self.holder and self._same(possessor, self.holder):
             self.holder.last_t, self.holder.last_pos = frame.t, ball
             self.holder.frames += 1
             self.since_held = 0
@@ -324,7 +348,7 @@ class EventRules:
             return
         if possessor is None:
             self.candidate = None
-        elif self.candidate and self.candidate.track_id == possessor.track_id:
+        elif self.candidate and self._same(possessor, self.candidate):
             self.candidate.last_t, self.candidate.last_pos = frame.t, ball
             self.candidate.frames += 1
         else:
@@ -355,7 +379,9 @@ class EventRules:
         s = self.on_spot
         if s is not None and math.dist(ball, s.anchor) > STILL_M:
             v = self._ball_velocity()
-            if v is not None and math.hypot(*v) >= MIN_KICK_V and s.lined_up and s.taker:
+            if v is None:
+                return                                  # back from behind a player: speed known next frame
+            if math.hypot(*v) >= MIN_KICK_V and s.lined_up and s.taker:
                 taker = self._kickoff_taker(s, v)
                 self.lineup.assign(s.players, self._home_attacks_right(self.period), taker.track_id)
                 k = self._possession(taker, s.last_t, s.anchor)
@@ -456,11 +482,12 @@ class EventRules:
             t, pos = f.stop
         k = f.kicker
         d = math.dist(k.last_pos, pos)
+        kicked = self._kick_time(k, f.balls)
         # The ball arrived when it first came within ARRIVE_M of where it stopped.
-        dur = next((bt for bt, b, _ in f.balls if math.dist(b, pos) <= ARRIVE_M), t) - k.last_t
+        dur = next((bt for bt, b, _ in f.balls if math.dist(b, pos) <= ARRIVE_M), t) - kicked
         conf = sum(c for _, _, c in f.balls) / len(f.balls) if f.balls else 1.0
         speed_kmh = d / dur * 3.6 if dur > 0 else 0.0
-        base = {"match_id": self.match_id, "t": round(k.last_t, 2), "period": f.period,
+        base = {"match_id": self.match_id, "t": round(kicked, 2), "period": f.period,
                 "team": k.team, "from": k.player, "to": None,
                 "start": [round(k.last_pos[0], 2), round(k.last_pos[1], 2)],
                 "end": [round(pos[0], 2), round(pos[1], 2)],
@@ -476,7 +503,8 @@ class EventRules:
         if receiver is not None and receiver.track_id == k.track_id:
             return []                                   # the kicker kept it: a dribble
         if d < MIN_KICK_M or dur <= 0 or d / dur < MIN_KICK_V:
-            return self._lost(k, receiver, conf)        # not a kick: lost, tackled, drifting
+            seen = f.balls[0][0] if f.balls and f.balls[0][0] - k.last_t > GAP_S else k.last_t
+            return self._lost(k, receiver, conf, seen)  # not a kick: lost, tackled, drifting
         was_dead, self.dead = self.dead, False
         stood = self._stand_won() if self._just_won(k) else []   # the winner played it on
         aim = self._aim(k.last_pos, pos)
@@ -502,17 +530,33 @@ class EventRules:
                          "success": success, "to": receiver.player if success else None,
                          "confidence": _confidence("pass", conf)}]
 
-    def _lost(self, k: _Possession, receiver: _Possession | None, conf: float) -> list[dict]:
+    @staticmethod
+    def _kick_time(k: _Possession, balls) -> float:
+        """When `k` kicked the ball: when last seen with it, or, if the ball was
+        hidden then and came back already flying, when its first speed seen
+        puts it back where it was last seen."""
+        if len(balls) < 2 or balls[0][0] - k.last_t <= GAP_S or balls[1][0] - balls[0][0] > GAP_S:
+            return k.last_t
+        (t1, p1, _), (t2, p2, _) = balls[:2]
+        v = math.dist(p1, p2) / (t2 - t1)
+        if v < MIN_KICK_V:
+            return k.last_t
+        return max(k.last_t, t1 - math.dist(k.last_pos, p1) / v)
+
+    def _lost(self, k: _Possession, receiver: _Possession | None, conf: float,
+              seen: float) -> list[dict]:
         """The ball left `k` without a kick. Taken by the other team in play,
-        within TACKLE_S of k's last touch: a possession change. If k had only
-        just won the ball, k's change stands unless the other team takes it
-        straight back: that swing is flicker, and neither change is reported."""
+        within TACKLE_S of k's last touch: a possession change. If the ball was
+        hidden then (behind the players), the time counts from `seen`, when it
+        was seen again. If k had only just won the ball, k's change stands
+        unless the other team takes it straight back: that swing is flicker,
+        and neither change is reported."""
         if self._just_won(k):
             if self._turnover(k, receiver):
                 self.won = None
                 return []
             return self._stand_won()
-        if not self.dead and self._turnover(k, receiver) and receiver.first_t - k.last_t <= TACKLE_S:
+        if not self.dead and self._turnover(k, receiver) and receiver.first_t - seen <= TACKLE_S:
             self._win(receiver, k, "interception" if receiver.goalkeeper else "tackle", conf)
         return []
 

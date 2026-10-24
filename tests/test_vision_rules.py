@@ -2,7 +2,9 @@
 
 The harness turns simulator tracking into frame observations (anonymous
 tracks, no ball height); the rules turn those into detected events, which the
-grader scores against the true events. Lineup assignment names the tracks, so
+grader scores against the true events. The simulator clips (`sim_clips`) are
+built once per session in conftest.py; tests/test_vision_noise.py grades the
+same clips with noise added. Lineup assignment names the tracks, so
 the events' players are graded too.
 """
 
@@ -16,7 +18,6 @@ from pathlib import Path
 
 import pytest
 
-from simulator import Match, build_tracking, load_team
 from vision.grader import grade, match_events
 from vision.harness import observations_from_tracking
 from vision.observation import validate_observations, write_observations
@@ -38,15 +39,6 @@ def calibration():
             json.loads((CALIBRATION / "ground_truth.events.json").read_text()))
 
 
-# Simulator clips: the first minutes of each half of a full match, cut
-# together as the broadcast cuts the break, so kickoff direction and the
-# second-half switch are covered. Not the tuning seeds (201-204), though their
-# grades were looked at while tuning (vision/README.md). Between them the clips
-# hold 7 goals, each followed by a kickoff.
-CLIP_SEEDS = [(401, "bosphorus", "thames"), (402, "caldera", "saltmarsh"),
-              (403, "saltmarsh", "bosphorus"), (404, "thames", "caldera")]
-CLIP_MINUTES = 15                       # from the start of each half
-
 # Clean observations: minimum precision and recall per type over all clips.
 # What keeps them below 1 is the simulator, not noise: a clearance is the
 # same kick as a long pass (v1 reports it as one), and now and then the
@@ -67,22 +59,7 @@ SUBTYPE_THRESHOLDS = {"shot": 0.9, "possession_change": 0.9}
 # frame, where the taker, a striker and an attacking midfielder stand together
 # on the halfway line; and the simulator now and then plays a pass or a shot
 # from a player meters from the ball while another stands at it.
-PLAYER_ID_THRESHOLD = 0.93
-
-
-@pytest.fixture(scope="module")
-def sim_clips():
-    """[(tracking, team sheet, true events in the clip)] for a few seeds and
-    pairings, each clip the first CLIP_MINUTES of both halves."""
-    out = []
-    for seed, home, away in CLIP_SEEDS:
-        m = Match(seed, 2700, "full", f"seam2_{seed}", home=load_team(home), away=load_team(away))
-        m.play()
-        windows = [(p["start"], min(p["end"], p["start"] + CLIP_MINUTES * 60)) for p in m.periods]
-        tracking = [fr for start, end in windows for fr in build_tracking(m, start, end)]
-        out.append((tracking, m.match_info(),
-                    [e for e in m.events if any(start <= e["t"] < end for start, end in windows)]))
-    return out
+PLAYER_ID_THRESHOLD = 0.95
 
 
 @pytest.fixture(scope="module")

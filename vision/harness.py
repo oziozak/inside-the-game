@@ -11,16 +11,23 @@ video stage so the event rules can be built and graded in seconds:
 - the ball keeps only its ground projection: the video stage cannot recover
   its height.
 
+`add_noise` then makes clean observations look like a real video stage's
+(see NOISE): position noise, dropped detections, identity swaps between
+nearby players, merged boxes, ball occlusion and varying confidence.
+
 Usage:
     python -m vision.harness TRACKING.jsonl MATCH_INFO.json --out OBSERVATIONS.jsonl
+    python -m vision.harness ... --noise swaps=0.3 --noise occlusion=0.1
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import random
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Iterable
 
@@ -69,6 +76,163 @@ def observations_from_tracking(tracking: Iterable[dict], team_sheet: dict,
     return out
 
 
+# ---- noise: what a real video stage gets wrong -----------------------------
+CLOSE_M = 1.0               # players this close can be swapped or merged into one box, and hide the ball
+DRIFT_KEEP = 0.998          # position noise: share of a track's offset kept from one frame to the next
+JITTER_SHARE = 1 / 12       # ... plus per-frame jitter of this share of the level
+DROP_MAX_FRAMES = 5         # a dropped detection stays missing 1 to this many frames
+OCCLUDE_MAX_FRAMES = 12     # the ball stays hidden behind a player 1 to this many frames
+FIRST_NEW_TRACK = 10_000    # track ids handed out to tracks that come back after a merge
+
+
+def _close_pairs(players: list[PlayerObservation]) -> set[tuple[int, int]]:
+    """Track id pairs (lower first) of players within CLOSE_M of each other."""
+    by_x = sorted(players, key=lambda p: p.pos[0])
+    out = set()
+    for i, a in enumerate(by_x):
+        for b in by_x[i + 1:]:
+            if b.pos[0] - a.pos[0] > CLOSE_M:
+                break
+            if math.dist(a.pos, b.pos) <= CLOSE_M:
+                out.add((min(a.track_id, b.track_id), max(a.track_id, b.track_id)))
+    return out
+
+
+def _position_noise(frames: list[FrameObservation], sigma_m: float, rng: random.Random):
+    """Each track carries an offset of about `sigma_m` per axis that drifts
+    slowly, plus small per-frame jitter, as a detector's foot point does; the
+    ball's is half that."""
+    offset: dict = {}
+    drift = math.sqrt(1 - DRIFT_KEEP ** 2)
+
+    def moved(key, pos, sigma):
+        ox, oy = offset.get(key) or (rng.gauss(0, sigma), rng.gauss(0, sigma))
+        ox, oy = DRIFT_KEEP * ox + rng.gauss(0, sigma * drift), DRIFT_KEEP * oy + rng.gauss(0, sigma * drift)
+        offset[key] = ox, oy
+        jitter = sigma * JITTER_SHARE
+        return pos[0] + ox + rng.gauss(0, jitter), pos[1] + oy + rng.gauss(0, jitter)
+
+    out = []
+    for f in frames:
+        players = [replace(p, pos=moved(p.track_id, p.pos, sigma_m)) for p in f.players]
+        ball = f.ball and replace(f.ball, pos=moved("ball", f.ball.pos, sigma_m / 2))
+        out.append(replace(f, players=players, ball=ball))
+    return out
+
+
+def _dropped(frames: list[FrameObservation], rate: float, rng: random.Random):
+    """Players go missing for 1-DROP_MAX_FRAMES frames at a time, about
+    `rate` of all detections, and come back under the same track id."""
+    start = rate / ((1 + DROP_MAX_FRAMES) / 2)      # so about `rate` of detections are dropped
+    gone: dict[int, int] = {}                       # track -> frames left missing
+    out = []
+    for f in frames:
+        players = []
+        for p in f.players:
+            if gone.get(p.track_id, 0) == 0 and rng.random() < start:
+                gone[p.track_id] = rng.randint(1, DROP_MAX_FRAMES)
+            if gone.get(p.track_id, 0) > 0:
+                gone[p.track_id] -= 1
+            else:
+                players.append(p)
+        out.append(replace(f, players=players))
+    return out
+
+
+def _swaps(frames: list[FrameObservation], chance: float, rng: random.Random):
+    """When two players come within CLOSE_M, with probability `chance` their
+    tracks swap players. Team and keeper flags stay with the players: the
+    video stage reads them from kit colors."""
+    shown: dict[int, int] = {}                      # player (clean track) -> track id shown
+    close: set = set()
+    out = []
+    for f in frames:
+        now = _close_pairs(f.players)
+        for a, b in sorted(now - close):
+            if rng.random() < chance:
+                shown[a], shown[b] = shown.get(b, b), shown.get(a, a)
+        close = now
+        out.append(replace(f, players=[replace(p, track_id=shown.get(p.track_id, p.track_id))
+                                       for p in f.players]))
+    return out
+
+
+def _merged(frames: list[FrameObservation], chance: float, rng: random.Random):
+    """When two players come within CLOSE_M, with probability `chance` the
+    detector boxes them as one for as long as they stay that close: one track
+    (one player's id and kit) at their midpoint, the other gone. When they
+    part, the hidden player comes back under a new track id."""
+    hidden: dict[int, int] = {}                     # hidden player -> the player whose box covers it
+    shown: dict[int, int] = {}                      # player -> track id shown, after coming back
+    next_id = FIRST_NEW_TRACK
+    close: set = set()
+    out = []
+    for f in frames:
+        at = {p.track_id: p for p in f.players}
+        now = _close_pairs(f.players)
+        for b, a in list(hidden.items()):           # parted (or gone): the hidden one is back
+            if (min(a, b), max(a, b)) not in now:
+                del hidden[b]
+                shown[b], next_id = next_id, next_id + 1
+        busy = set(hidden) | set(hidden.values())
+        for pair in sorted(now - close):
+            if not busy & set(pair) and rng.random() < chance:
+                a, b = pair if rng.random() < 0.5 else pair[::-1]
+                hidden[b] = a
+                busy |= set(pair)
+        close = now
+        players = []
+        for p in f.players:
+            if p.track_id in hidden:
+                continue
+            cover = [at[b].pos for b, a in hidden.items() if a == p.track_id and b in at]
+            pos = ((p.pos[0] + cover[0][0]) / 2, (p.pos[1] + cover[0][1]) / 2) if cover else p.pos
+            players.append(replace(p, track_id=shown.get(p.track_id, p.track_id), pos=pos))
+        out.append(replace(f, players=players))
+    return out
+
+
+def _occlusion(frames: list[FrameObservation], chance: float, rng: random.Random):
+    """While the ball is within CLOSE_M of a player, each frame it goes behind
+    them with probability `chance`, hidden for 1-OCCLUDE_MAX_FRAMES frames
+    (`ball_visible` false, no position)."""
+    left = 0
+    out = []
+    for f in frames:
+        if left == 0 and f.ball is not None and rng.random() < chance and any(
+                math.dist(p.pos, f.ball.pos) <= CLOSE_M for p in f.players):
+            left = rng.randint(1, OCCLUDE_MAX_FRAMES)
+        if left > 0:
+            left -= 1
+            f = replace(f, ball=None, ball_visible=False)
+        out.append(f)
+    return out
+
+
+def _confidence(frames: list[FrameObservation], low: float, rng: random.Random):
+    """Every detection's confidence drawn uniformly from [low, 1]."""
+    return [replace(f, ball=f.ball and replace(f.ball, confidence=rng.uniform(low, 1.0)),
+                    players=[replace(p, confidence=rng.uniform(low, 1.0)) for p in f.players])
+            for f in frames]
+
+
+# Variant -> (function, what its level is).
+NOISE = {"position": (_position_noise, "offset per axis, meters"),
+         "dropped": (_dropped, "share of player detections missing"),
+         "swaps": (_swaps, "chance two players coming within CLOSE_M swap tracks"),
+         "merged": (_merged, "chance two players coming within CLOSE_M merge into one box"),
+         "occlusion": (_occlusion, "chance per frame near a player that the ball hides"),
+         "confidence": (_confidence, "lowest detection confidence")}
+
+
+def add_noise(frames: list[FrameObservation], variant: str, level: float,
+              seed: int = 0) -> list[FrameObservation]:
+    """Clean observations with one NOISE variant applied at `level` (seeded).
+    Swaps and merges assume one track per player, as observations_from_tracking
+    builds them."""
+    return NOISE[variant][0](list(frames), level, random.Random(seed))
+
+
 def main(argv: list[str] | None = None) -> int:
     """Write the observations for one tracking file."""
     ap = argparse.ArgumentParser(prog="python -m vision.harness", description=__doc__,
@@ -76,12 +240,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("tracking", type=Path, help="simulator tracking.jsonl")
     ap.add_argument("match_info", type=Path, help="the match's match_info.json")
     ap.add_argument("--out", type=Path, required=True, help="where to write the observations")
-    ap.add_argument("--seed", type=int, default=0, help="seed for the track-id shuffle")
+    ap.add_argument("--seed", type=int, default=0, help="seed for the track-id shuffle and the noise")
+    ap.add_argument("--noise", action="append", default=[], metavar="VARIANT=LEVEL",
+                    help=f"add noise, in order (repeatable); variants: {', '.join(NOISE)}")
     args = ap.parse_args(argv)
     lines = args.tracking.read_text(encoding="utf-8").splitlines()
     tracking = [json.loads(line) for line in lines if line.strip()]
     team_sheet = json.loads(args.match_info.read_text(encoding="utf-8"))
     frames = observations_from_tracking(tracking, team_sheet, args.seed)
+    for spec in args.noise:
+        variant, _, level = spec.partition("=")
+        if variant not in NOISE or not level:
+            ap.error(f"--noise {spec}: expected VARIANT=LEVEL, VARIANT one of {', '.join(NOISE)}")
+        frames = add_noise(frames, variant, float(level), args.seed)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     write_observations(args.out, frames)
     print(f"Wrote {len(frames)} frames to {args.out}")
