@@ -79,6 +79,21 @@ python scripts/merge_events.py DETECTED_EVENTS TRUE_EVENTS --out data/generated/
 
 Only the rendered video and the team sheet (`match_info.json`), used as a broadcaster would use one. The runtime code never opens simulator `events.json` or `tracking.jsonl`.
 
+## Tracer (`vision/pipeline.py`): video in, events out
+
+The one command for the whole stage: the [video stage](#video-stage-visionvideopy-video-in-frame-observations-out) then the [event rules](#event-rules-visionrulespy), in one batch run.
+
+```bash
+python -m vision vision/fixtures/calibration/calibration.mp4 --out runs/calibration/events.json
+python -m vision data/renders/footage/dev1/dev1.mp4 --out runs/dev1/events.json --observations runs/dev1/observations.jsonl
+```
+
+- **Reads:** the video, its team sheet (`match_info.json` next to the video, or `--match-info`) and the YOLO weights (`--weights`). Nothing else.
+- **Writes:** `--out`, the detected events (`source: cv`, event schema, ids `e0001...`), and with `--observations` the frame observations in between.
+- `--start` and `--frames` as in the video stage. No state is kept between runs and nothing is interactive, so it can run as a batch job (e.g. an Azure job) unchanged. `--help` lists all of this.
+
+`tests/test_vision_pipeline.py` always runs it on the calibration clip and grades the output: one successful pass at 2 s, a shot at 8 s, a goal at 8.9 s, nothing else. The same run is the **guard**: the clip is copied into a folder laid out like a footage clip, with the true events and tracking in `truth/` and beside the video, and the command runs in a child process that records every file opened or listed from Python (an audit hook). The test fails if it opened anything in the clip folder other than the video and team sheet, anything under a `truth/` folder, any events or tracking file, or anything from `simulator/`, `scripts/`, `renderer/fixtures/`, `data/generated/`, `data/renders/` or `data/fake/`, or if it loaded simulator, grader, harness, baseline or footage code. OpenCV reads the video in native code, which the hook does not see. A second test checks that the guard catches a run that does read those files.
+
 ## Video stage (`vision/video.py`): video in, frame observations out
 
 ```bash

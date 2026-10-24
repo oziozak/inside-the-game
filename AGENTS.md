@@ -73,6 +73,7 @@ python -m simulator --home bosphorus --away thames --seed 7 --out data/generated
 python -m simulator.realism --matches 40                # realism report; exits 1 if a check fails
 python -m vision.footage render dev1                    # one footage clip from the seed record (see vision/README.md)
 python -m vision.rules OBS.jsonl --match-info MI --out EVENTS   # frame observations -> detected events (cv)
+python -m vision VIDEO --out EVENTS                     # the tracer: video + match_info.json next to it -> detected events (cv)
 python scripts/merge_events.py DETECTED TRUTH --out OUT  # detected (cv) + sim's foul/card/offside/sub -> events.json
 pytest                                                  # tests
 ```
