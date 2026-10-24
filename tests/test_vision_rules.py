@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from simulator import Match, build_tracking, load_team
-from vision.grader import grade
+from vision.grader import grade, match_events
 from vision.harness import observations_from_tracking
 from vision.observation import validate_observations, write_observations
 from vision.rules import detect_events
@@ -35,33 +35,52 @@ def calibration():
             json.loads((CALIBRATION / "ground_truth.events.json").read_text()))
 
 
-# Simulator clips like the footage clips: the first minutes of a full match.
-# Not the tuning seeds (201-204), though their grades were looked at while
-# tuning (vision/README.md).
+# Simulator clips: the first minutes of each half of a full match, cut
+# together as the broadcast cuts the break, so kickoff direction and the
+# second-half switch are covered. Not the tuning seeds (201-204), though their
+# grades were looked at while tuning (vision/README.md). Between them the clips
+# hold 7 goals, each followed by a kickoff.
 CLIP_SEEDS = [(401, "bosphorus", "thames"), (402, "caldera", "saltmarsh"),
               (403, "saltmarsh", "bosphorus"), (404, "thames", "caldera")]
-CLIP_MINUTES = 15
+CLIP_MINUTES = 15                       # from the start of each half
 
 # Clean observations: minimum precision and recall per type over all clips.
 # What keeps them below 1 is the simulator, not noise: a clearance is the
 # same kick as a long pass (v1 reports it as one), and now and then the
 # simulator plays a pass or a shot from a player who is meters from the ball.
-THRESHOLDS = {"pass": {"precision": 0.95, "recall": 0.97},
+# Possession changes cannot come near: the simulator labels an interception
+# only when a pass is cut out in the first 30 % of the path to its intended
+# target, which video cannot see, and it does not label a recovered loose
+# ball or a cleared ball the other team wins (vision/README.md).
+THRESHOLDS = {"kickoff": {"precision": 1.0, "recall": 1.0},
+              "pass": {"precision": 0.95, "recall": 0.97},
+              "possession_change": {"precision": 0.5, "recall": 0.5},
               "shot": {"precision": 0.9, "recall": 0.85},
               "goal": {"precision": 1.0, "recall": 1.0}}
+# Matched events whose true event has a subtype: minimum share with the same subtype.
+SUBTYPE_THRESHOLDS = {"shot": 0.9, "possession_change": 0.9}
 
 
 @pytest.fixture(scope="module")
 def sim_clips():
-    """[(tracking, team sheet, true events in the clip)] for a few seeds and pairings."""
+    """[(tracking, team sheet, true events in the clip)] for a few seeds and
+    pairings, each clip the first CLIP_MINUTES of both halves."""
     out = []
     for seed, home, away in CLIP_SEEDS:
         m = Match(seed, 2700, "full", f"seam2_{seed}", home=load_team(home), away=load_team(away))
         m.play()
-        end = CLIP_MINUTES * 60
-        out.append((build_tracking(m, 0, end), m.match_info(),
-                    [e for e in m.events if e["t"] < end]))
+        windows = [(p["start"], min(p["end"], p["start"] + CLIP_MINUTES * 60)) for p in m.periods]
+        tracking = [fr for start, end in windows for fr in build_tracking(m, start, end)]
+        out.append((tracking, m.match_info(),
+                    [e for e in m.events if any(start <= e["t"] < end for start, end in windows)]))
     return out
+
+
+@pytest.fixture(scope="module")
+def sim_detections(sim_clips):
+    """The detected events of each clip in sim_clips, from clean observations."""
+    return [detect_events(observations_from_tracking(tracking, team_sheet), team_sheet)
+            for tracking, team_sheet, _ in sim_clips]
 
 
 def test_harness_builds_valid_observations_from_the_calibration_fixture(tmp_path):
@@ -121,22 +140,51 @@ def test_calibration_fixture_gives_one_pass_one_shot_and_a_goal(validate, tmp_pa
     assert events[2]["score"] == {"home": 1, "away": 0}
 
 
-def test_clean_simulator_clips_score_near_perfectly(validate, tmp_path, sim_clips):
-    """Pass, shot and goal precision and recall, pooled over seeds and pairings."""
+def test_clean_simulator_clips_score_near_perfectly(validate, tmp_path, sim_clips, sim_detections):
+    """Precision and recall per type, and shot and possession-change subtypes,
+    pooled over seeds and pairings."""
     counts = {ty: {"detected": 0, "true": 0, "matched": 0} for ty in THRESHOLDS}
-    for i, (tracking, team_sheet, truth) in enumerate(sim_clips):
-        events = detect_events(observations_from_tracking(tracking, team_sheet), team_sheet)
+    subtypes = {ty: [] for ty in SUBTYPE_THRESHOLDS}            # (detected, true) subtype pairs
+    for i, ((_, _, truth), events) in enumerate(zip(sim_clips, sim_detections)):
         assert_valid_events(validate, events, tmp_path)
         report = grade(events, truth, types=list(THRESHOLDS))
         assert report["matched"]["pass_success_accuracy"] >= 0.9, i
         for ty, c in counts.items():
             for k in c:
                 c[k] += report["per_type"][ty][k]
+        for d, t in match_events(events, truth):
+            if t["type"] in subtypes and "subtype" in t:
+                subtypes[t["type"]].append((d.get("subtype"), t["subtype"]))
+    for ty, pairs in subtypes.items():
+        assert pairs, f"no true {ty} subtype in the clips"
+        accuracy = sum(d == t for d, t in pairs) / len(pairs)
+        assert accuracy >= SUBTYPE_THRESHOLDS[ty], (ty, accuracy, len(pairs))
     for ty, c in counts.items():
         assert c["true"] > 0, f"no true {ty} in the clips: pick other seeds"
-        precision, recall = c["matched"] / c["detected"], c["matched"] / c["true"]
+        precision, recall = c["matched"] / max(1, c["detected"]), c["matched"] / c["true"]
         assert precision >= THRESHOLDS[ty]["precision"], (ty, c)
         assert recall >= THRESHOLDS[ty]["recall"], (ty, c)
+
+
+def test_kickoffs_are_found_at_both_half_starts_and_after_every_goal(sim_clips, sim_detections):
+    """Exactly one detected kickoff per half start and per goal, on the center
+    spot, by the right team."""
+    for i, ((_, team_sheet, truth), events) in enumerate(zip(sim_clips, sim_detections)):
+        true_kickoffs = [e for e in truth if e["type"] == "kickoff"]
+        goals = [e for e in truth if e["type"] == "goal"]
+        after_goal = [next(k for k in true_kickoffs if k["t"] > g["t"]) for g in goals
+                      if any(k["t"] > g["t"] for k in true_kickoffs)]
+        starts = [k for k in true_kickoffs
+                  if any(abs(k["t"] - p["start"]) < 0.1 for p in team_sheet["periods"])]
+        assert len(starts) == 2, i
+        expected = sorted(starts + after_goal, key=lambda k: k["t"])
+        detected = [e for e in events if e["type"] == "kickoff"]
+        assert len(detected) == len(expected), (i, [d["t"] for d in detected],
+                                                [k["t"] for k in expected])
+        for d, k in zip(detected, expected):
+            assert abs(d["t"] - k["t"]) <= 0.5, (i, d, k)
+            assert d["team"] == k["team"] and d["period"] == k["period"], (i, d, k)
+            assert abs(d["start"][0] - 52.5) <= 1 and abs(d["start"][1] - 34) <= 1, (i, d)
 
 
 def test_rules_see_only_frame_observations_and_the_team_sheet():

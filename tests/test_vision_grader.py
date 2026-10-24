@@ -115,10 +115,27 @@ def test_matched_event_errors():
     assert m["mean_abs_speed_error_kmh"] == pytest.approx(14 / 3)  # (4 + 0 + 10) / 3
 
 
+def test_subtypes_are_graded_wherever_the_true_event_has_one():
+    det = [ev("e0001", "shot", 10.0, (90.0, 34.0), subtype="on_target"),
+           ev("e0002", "shot", 20.0, (90.0, 34.0), subtype="blocked"),
+           ev("e0003", "shot", 30.0, (90.0, 34.0)),                    # no subtype: wrong
+           ev("e0004", "shot", 40.0, (90.0, 34.0), subtype="off_target"),
+           ev("e0005", "possession_change", 50.0, (40.0, 30.0), subtype="tackle"),
+           ev("e0006", "goal", 60.0, (105.0, 34.0))]               # v1 goals have no subtype
+    truth = [ev("e0001", "shot", 10.0, (90.0, 34.0), subtype="on_target"),
+             ev("e0002", "shot", 20.0, (90.0, 34.0), subtype="off_target"),
+             ev("e0003", "shot", 30.0, (90.0, 34.0), subtype="blocked"),
+             ev("e0004", "shot", 40.0, (90.0, 34.0)),                  # no true subtype: not graded
+             ev("e0005", "possession_change", 50.0, (40.0, 30.0), subtype="tackle"),
+             ev("e0006", "goal", 60.0, (105.0, 34.0), subtype="open_play")]
+    m = grade(det, truth)["matched"]
+    assert m["subtype_accuracy"] == {"shot": pytest.approx(1 / 3), "possession_change": 1.0}
+
+
 def test_matched_metrics_are_null_without_matches():
     m = grade([], [TRUE_PASS])["matched"]
     assert m == {"count": 0, "player_id_accuracy": None, "pass_success_accuracy": None,
-                 "mean_abs_time_error_s": None, "mean_abs_distance_error_m": None,
+                 "subtype_accuracy": {}, "mean_abs_time_error_s": None, "mean_abs_distance_error_m": None,
                  "mean_abs_speed_error_kmh": None}
 
 
@@ -158,6 +175,7 @@ def test_calibration_truth_against_itself_is_perfect(tmp_path):
         assert report["per_type"][ty] == {"detected": 0, "true": 0, "matched": 0,
                                           "precision": None, "recall": None, "f1": None}
     assert report["matched"] == {"count": 3, "player_id_accuracy": 1.0, "pass_success_accuracy": 1.0,
+                                 "subtype_accuracy": {"pass": 1.0, "shot": 1.0},
                                  "mean_abs_time_error_s": 0.0, "mean_abs_distance_error_m": 0.0,
                                  "mean_abs_speed_error_kmh": 0.0}
     assert report["unmatched_detections"] == [] and report["missed"] == []
