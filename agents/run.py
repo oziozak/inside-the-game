@@ -26,7 +26,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("data", help="folder with match_info.json and events.json")
     ap.add_argument("--backend", default="mock", choices=["mock", "noisy", "foundry"])
-    ap.add_argument("--langs", default="en,tr", help="comma-separated, e.g. en,tr,es")
+    ap.add_argument("--langs", default="en,tr,es", help="comma-separated, e.g. en,tr")
     ap.add_argument("--out", help="output folder (default: data/generated/<data folder name>)")
     args = ap.parse_args()
 

@@ -9,8 +9,10 @@ Every decision is logged with a reason, so the director is explainable too
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 
+from .context import moment_context, remember
 from .data_io import Match
 from .stats import PASS_TYPES, MatchState, event_facts
 
@@ -53,6 +55,8 @@ class Candidate:
     duration: float = 5.0
     position: str = "bottom-left"
     setup: dict | None = None  # the pass that set up a shot (shot_card only)
+    context: dict = field(default_factory=dict)  # why it matters, as labels (context.py)
+    key_events: list = field(default_factory=list)  # goals and red cards a recap cites
 
     @property
     def player(self) -> int | None:
@@ -60,8 +64,9 @@ class Candidate:
 
     @property
     def event_ids(self) -> list[str]:
-        """Evidence for the overlay, in time order: the setup pass (if any), then the event."""
-        return ([self.setup["id"]] if self.setup else []) + [self.event["id"]]
+        """Evidence for the overlay, in time order: the setup pass or recapped moments, then the event."""
+        before = ([self.setup] if self.setup else []) + self.key_events
+        return [p["id"] for p in before] + [self.event["id"]]
 
 
 def _pick(f: dict, *keys: str) -> dict:
@@ -78,7 +83,9 @@ def propose(e: dict, f: dict) -> Candidate | None:
     if typ == "yellow_card":
         return Candidate(e, "card_banner", 0.7, "yellow card", f, _pick(f, "minute"))
     if typ in ("half_time", "full_time"):
-        return Candidate(e, "stat_compare", 0.9, typ.replace("_", " "), f, _pick(f, "score_home", "score_away"))
+        return Candidate(e, "stat_compare", 0.9, typ.replace("_", " "), f,
+                         _pick(f, "score_home", "score_away", "shots_home", "shots_away",
+                               "on_target_home", "on_target_away", "pass_accuracy_home", "pass_accuracy_away"))
     if typ == "substitution":
         return Candidate(e, "insight_text", 0.55, "substitution", f, {})
     if typ == "shot":
@@ -131,11 +138,21 @@ def direct(match: Match) -> tuple[list[Candidate], list[dict]]:
     state = MatchState(info=match.info)
     candidates, snapshots = [], []
     last_pass_to: dict[int, dict] = {}  # receiver id -> last completed pass to them
+    recent: deque = deque()  # events of the last 30 s, for the context labels
+    key_events: list[dict] = []  # goals and red cards so far, for the half/full-time recap
     for e in match.events:
+        score_before = dict(state.score)
         state.update(e)
         f = event_facts(e, state)
         snapshots.append((e["t"], e, f))
         c = propose(e, f)
+        if c:
+            c.context = moment_context(e, score_before, state, recent)
+            if c.graphic == "stat_compare":
+                c.key_events = list(key_events)
+        remember(recent, e)
+        if e["type"] in ("goal", "red_card"):
+            key_events.append(e)
         if c and c.graphic == "shot_card":
             # Credit the setup on the shot card itself: a separate key-pass card would have
             # to wait for the shot and then fight it for the same slot.
