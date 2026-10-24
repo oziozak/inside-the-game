@@ -114,14 +114,14 @@ seeded full matches (`footage_seeds.json`): dev1 seed 2007, dev2 2006, dev3 2005
 | --- | --- | --- | --- |
 | 98.5 % | 98.6 % | 98.5 % | 96.0 % |
 
-**Held-out test1** (`runs/footage/test1/vision_report.json`), precision / recall (matched / true, detected):
+**Held-out test1** (`runs/footage/test1/vision_report.json`, re-graded from saved observations after #19), precision / recall (matched / true, detected):
 
 | Type | Grade |
 | --- | --- |
 | Kickoff | 1/1 found, right team |
 | Pass | **P 0.963 / R 0.970** (131/135, 136) |
 | Shot | 2/2 found, P 0.67 (3 detected) |
-| Possession change | P 0.29 / R 0.50 (2/4, 7): a known label limit, see below |
+| Possession change | P 0.43 / R 0.75 (3/4, 7): a known label limit, see below (was 0.29 / 0.50 before #19) |
 | Goal | none in the clip |
 
 Matched passes: success right 92 %, mean timing error 0.03 s.
@@ -134,7 +134,7 @@ after the noise hardening (#19):
 | dev1 | 0.69 | 0.94 |
 | dev2 | 0.38 | 0.72 |
 | dev3 | 0.43 | 0.75 |
-| test1 | 0.46 | **TODO: test1 re-grade after #19** |
+| test1 | 0.46 | 0.88 |
 
 Dev-clip and seam-2 grades in detail: [Footage grades](#footage-grades-visiongrade_footagepy-offline-only),
 [Seam-2 harness](#seam-2-harness-visionharnesspy-offline-only).
@@ -474,4 +474,4 @@ First grades (2026-10-24, pretrained yolo11s, v1 render settings), precision / r
 
 Matched events in test1: pass success right 92 %, pass subtype 85 %, shot and possession-change subtype 100 %, mean timing error 0.03 s, distance error 0.8 m, speed error 7 km/h. The dev clips were graded on an M-series Mac (MPS), test1 on an RTX 5070 (CUDA); a second dev run on the Mac gave byte-identical events.
 
-These grades were measured before lineup assignment (#18), so `from`/`to` were `null` and player-id accuracy 0. Re-running the merged event rules on the dev clips' saved observations (the video stage is unchanged) gives the same detections and grades as above, and player-id accuracy 0.69 / 0.38 / 0.43 (dev1 / dev2 / dev3), against about 0.96 on clean seam-2 observations. With the noise hardening (#19), the same saved observations give player-id accuracy 0.94 / 0.72 / 0.75 ([where names went wrong](#lineup-assignment-visionlineuppy)) and slightly more detections: dev2 passes 16/17 (18 detected), possession changes 0/2 (1); dev3 passes 20/25 (23); dev1 unchanged. Every floor in `THRESHOLDS`, and the kickoff check, still holds on these re-run detections; the floors are still the first grades. test1 went from player-id 0.46 before #19 to **TODO: test1 re-grade after #19**.
+These grades were measured before lineup assignment (#18), so `from`/`to` were `null` and player-id accuracy 0. Re-running the merged event rules on the dev clips' saved observations (the video stage is unchanged) gives the same detections and grades as above, and player-id accuracy 0.69 / 0.38 / 0.43 (dev1 / dev2 / dev3), against about 0.96 on clean seam-2 observations. With the noise hardening (#19), the same saved observations give player-id accuracy 0.94 / 0.72 / 0.75 ([where names went wrong](#lineup-assignment-visionlineuppy)) and slightly more detections: dev2 passes 16/17 (18 detected), possession changes 0/2 (1); dev3 passes 20/25 (23); dev1 unchanged. Every floor in `THRESHOLDS`, and the kickoff check, still holds on these re-run detections; the floors are still the first grades. test1, re-graded the same way (on the PC), goes from player-id 0.46 before #19 to 0.88, and possession changes from 2/4 to 3/4 (7 detected); its other types are unchanged.
