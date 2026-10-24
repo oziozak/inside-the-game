@@ -94,7 +94,8 @@ def test_fixture_team_sheet_is_the_renderer_fixtures():
 def test_video_stage_reads_only_video_and_team_sheet():
     """The video stage never imports simulator, grading or footage code, and never
     names a simulator output file."""
-    banned_imports = ("simulator", "vision.grader", "vision.baseline", "vision.footage")
+    banned_imports = ("simulator", "vision.grader", "vision.baseline", "vision.footage",
+                      "vision.grade_footage")
     banned_names = ("tracking.jsonl", "events.json", "truth", "ground_truth")
     for name in RUNTIME:
         path = ROOT / "vision" / name

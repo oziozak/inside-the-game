@@ -59,7 +59,7 @@ sys.exit(code)
 
 # Code that reads simulator data; none of it may load in the vision runtime.
 SIMULATOR_SIDE = ("simulator", "scripts", "vision.grader", "vision.harness", "vision.baseline",
-                  "vision.footage")
+                  "vision.footage", "vision.grade_footage")
 
 
 @dataclass
