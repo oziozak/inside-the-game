@@ -97,17 +97,23 @@ def _matched_metrics(pairs: list[tuple[dict, dict]]) -> dict:
 
     A player id is correct when `from` agrees, and `to` too for types that
     have one (see TYPES_WITH_TO). Pass success is
-    scored over matched passes; distance and speed errors over pairs where
+    scored over matched passes; subtype accuracy, per type, over pairs whose
+    true event has a subtype; distance and speed errors over pairs where
     both events carry the number.
     """
     def abs_errors(key):
         return [abs(d[key] - t[key]) for d, t in pairs if key in d and key in t]
 
     passes = [(d, t) for d, t in pairs if t["type"] == "pass" and "success" in t]
+    with_subtype = [(d, t) for d, t in pairs if "subtype" in t]
+    subtype_types = list(dict.fromkeys(t["type"] for _, t in with_subtype))
     return {
         "count": len(pairs),
         "player_id_accuracy": _mean([float(_same_players(d, t)) for d, t in pairs]),
         "pass_success_accuracy": _mean([float(d.get("success") == t["success"]) for d, t in passes]),
+        "subtype_accuracy": {ty: _mean([float(d.get("subtype") == t["subtype"])
+                                        for d, t in with_subtype if t["type"] == ty])
+                             for ty in subtype_types},
         "mean_abs_time_error_s": _mean(abs_errors("t")),
         "mean_abs_distance_error_m": _mean(abs_errors("distance_m")),
         "mean_abs_speed_error_kmh": _mean(abs_errors("speed_kmh")),
