@@ -36,6 +36,9 @@ LEAD_IN = {  # how the attack came about
     "es": {"counter_attack": "al contragolpe", "set_piece": "a balón parado",
            "patient_build_up": "tras una paciente elaboración"},
 }
+# A team as the scorer: "puts them in front" needs a player as the subject.
+TEAM_GOAL_EFFECT = {"en": {"go_ahead": "go in front"}, "tr": {"go_ahead": "öne geçti"},
+                    "es": {"go_ahead": "se adelanta"}}
 OWN_GOAL = {"en": "og", "tr": "k.k.", "es": "p.p."}
 
 
@@ -53,10 +56,13 @@ def _fit(*options: str) -> str:
 
 
 def render(req: dict, lang: str) -> dict:
-    """Return {'title', 'text'} for one explain request in one language."""
+    """Return {'title', 'text'} for one explain request in one language.
+
+    A request with no `actor` (a team-only event) gets the team-only wording: no player is named."""
     g, mode, v = req["graphic"], req["mode"], req["values"]
     actor, target = req.get("actor") or "", req.get("target") or ""
     team, home, away = req.get("actor_team") or "", req["home"], req["away"]
+    who = actor or team  # the subject of the sentence
     sub, kind = req.get("subtype"), req["event_type"]
     ctx = req.get("context") or {}
     L = _l(lang)
@@ -66,26 +72,33 @@ def render(req: dict, lang: str) -> dict:
         title = pick(lang, f"GOAL! {team}", f"GOL! {team}", f"¡GOL! {team}")
         score = f"{home} {v['score_home']}-{v['score_away']} {away}"
         if sub == "own_goal":
+            if not actor:
+                return {"title": title, "text": pick(lang, f"Own goal. {score}", f"Kendi kalesine gol. {score}",
+                                                     f"Gol en propia puerta. {score}")}
             return {"title": title, "text": pick(lang, f"Own goal by {actor}. {score}",
                                                  f"{actor} kendi kalesine attı. {score}",
                                                  f"Gol en propia puerta de {actor}. {score}")}
         if mode == "casual":
-            text = pick(lang, f"{actor} finds the net! {score}", f"{actor} ağları sarstı! {score}",
-                        f"¡{actor} marca! {score}")
+            text = pick(lang, f"{who} finds the net! {score}", f"{who} ağları sarstı! {score}",
+                        f"¡{who} marca! {score}")
             return {"title": title, "text": text}
-        effect = GOAL_EFFECT[L].get(ctx.get("goal_effect"), pick(lang, "scores", "golü attı", "marca"))
+        effects = GOAL_EFFECT[L] if actor else {**GOAL_EFFECT[L], **TEAM_GOAL_EFFECT[L]}
+        effect = effects.get(ctx.get("goal_effect"), pick(lang, "scores", "golü attı", "marca"))
         if sub == "penalty":
             how = pick(lang, "from the spot", "penaltıdan", "de penalti")
-        short = f"{actor} {effect}. {score}"
+        short = f"{who} {effect}. {score}"
         if L == "tr" and how:
-            return {"title": title, "text": _fit(f"{actor} {how} {effect}. {score}", short)}
-        return {"title": title, "text": _fit(f"{actor} {effect} {how}. {score}" if how else short, short)}
+            return {"title": title, "text": _fit(f"{who} {how} {effect}. {score}", short)}
+        return {"title": title, "text": _fit(f"{who} {effect} {how}. {score}" if how else short, short)}
 
     if g == "card_banner":
         red = kind == "red_card"
         title = pick(lang, "Red card" if red else "Yellow card", "Kırmızı kart" if red else "Sarı kart",
                      "Tarjeta roja" if red else "Tarjeta amarilla")
-        if red:
+        if not actor:
+            text = (pick(lang, f"{team} down to ten men", f"{team} bir kişi eksik kaldı", f"{team} se queda con diez")
+                    if red else pick(lang, f"Booking for {team}", f"{team} oyuncusuna sarı kart", f"Amarilla para {team}"))
+        elif red:
             text = pick(lang, f"{actor} is sent off, {team} down to ten men",
                         f"{actor} oyundan atıldı, {team} bir kişi eksik",
                         f"{actor} expulsado, {team} se queda con diez")
@@ -125,11 +138,23 @@ def render(req: dict, lang: str) -> dict:
     if g == "insight_text":
         if kind == "substitution":
             title = pick(lang, "Substitution", "Oyuncu değişikliği", "Cambio")
-            text = pick(lang, f"{actor} on, {target} off", f"{actor} oyuna girdi, {target} çıktı",
-                        f"Entra {actor}, sale {target}")
+            if not actor:
+                text = pick(lang, f"{team} make a change", f"{team} oyuncu değişikliği yaptı", f"Cambio en {team}")
+            else:
+                text = pick(lang, f"{actor} on, {target} off", f"{actor} oyuna girdi, {target} çıktı",
+                            f"Entra {actor}, sale {target}")
             return {"title": title, "text": text}
         title = pick(lang, "Ball won", "Top kazanıldı", "Balón recuperado")
-        if ctx.get("score_situation") == "trailing":
+        if not actor:
+            if ctx.get("score_situation") == "trailing":
+                text = pick(lang, f"{team} win it high up, a chance to hit back",
+                            f"{team} topu rakip yarıda kaptı, geri dönmek için hücumda",
+                            f"{team} roba arriba y busca la remontada")
+            else:
+                text = pick(lang, f"{team} win it high up the pitch and attack at once",
+                            f"{team} topu rakip yarıda kaptı, hemen hücumda",
+                            f"{team} roba arriba y ataca de inmediato")
+        elif ctx.get("score_situation") == "trailing":
             text = pick(lang, f"{actor} wins it high up, a chance for {team} to hit back",
                         f"{actor} topu rakip yarıda kaptı, {team} geri dönmek için hücumda",
                         f"{actor} roba arriba, {team} busca la remontada")
@@ -143,7 +168,7 @@ def render(req: dict, lang: str) -> dict:
         out = OUTCOME[L].get(sub, "")
         setup = req.get("setup_by")
         if mode == "casual":
-            text = pick(lang, f"What a strike from {actor}!", f"{actor} sert vurdu!", f"¡Qué disparo de {actor}!")
+            text = pick(lang, f"What a strike from {who}!", f"{who} sert vurdu!", f"¡Qué disparo de {who}!")
         else:
             parts = []
             if "goal_distance_m" in v:
@@ -158,7 +183,7 @@ def render(req: dict, lang: str) -> dict:
         if setup:
             # "Pas: X" avoids a Turkish genitive suffix that depends on the name's vowels.
             text += pick(lang, f". Set up by {setup}", f". Pas: {setup}", f". Asistencia de {setup}")
-        return {"title": actor, "text": text}
+        return {"title": who, "text": text}
 
     if g == "pass_card":
         if mode == "casual":
@@ -172,6 +197,6 @@ def render(req: dict, lang: str) -> dict:
             text = pick(lang, f"{v['distance_m']} m pass, difficulty {v['difficulty']}/10",
                         f"{v['distance_m']} m pas, zorluk {v['difficulty']}/10",
                         f"Pase de {v['distance_m']} m, dificultad {v['difficulty']}/10")
-        return {"title": actor, "text": text}
+        return {"title": who, "text": text}
 
-    return {"title": actor, "text": ""}
+    return {"title": who, "text": ""}

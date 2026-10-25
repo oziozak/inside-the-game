@@ -39,9 +39,11 @@ def mode_values(c: Candidate, mode: str) -> dict:
 
 
 def build_request(c: Candidate, mode: str, match: Match, langs: list[str]) -> dict:
+    """What the explainer sees. A team-only candidate has no `actor`, `target` or `setup_by`:
+    `subject` (the team) is who the text is about, so no player can be named."""
     e = c.event
     side = e.get("team")
-    return {
+    req = {
         "graphic": c.graphic,
         "mode": mode,
         "langs": langs,
@@ -61,14 +63,24 @@ def build_request(c: Candidate, mode: str, match: Match, langs: list[str]) -> di
         "facts": {k: c.facts[k] for k in FACT_KEYS if k in c.facts},
         "values": mode_values(c, mode),
     }
+    if c.team_only:
+        for k in ("actor", "target", "setup_by"):
+            del req[k]
+        req["subject"] = req["actor_team"]
+    return req
+
+
+def involved_names(req: dict) -> set[str]:
+    """The players a request's text may name: the ones it was given."""
+    named = [req.get("actor"), req.get("target"), req.get("setup_by")] + [k["player"] for k in req["key_moments"]]
+    return {n for n in named if n}
 
 
 async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: list[str],
                       report: dict) -> list[dict]:
     req = build_request(c, mode, match, langs)
     roster = {p["name"] for p in match.players.values()}
-    named = [req["actor"], req["target"], req["setup_by"]] + [k["player"] for k in req["key_moments"]]
-    involved = {n for n in named if n}
+    involved = involved_names(req)
 
     def problems(out: dict, lang: str) -> list[str]:
         t = out.get(lang, {"title": "", "text": ""})

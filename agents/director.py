@@ -64,6 +64,12 @@ class Candidate:
         return self.event.get("from")
 
     @property
+    def team_only(self) -> bool:
+        """A team's event with no player to name (detected before the lineup is known):
+        the graphic is worded about the team and gets no player_focus overlay."""
+        return self.event.get("team") in ("home", "away") and self.player is None
+
+    @property
     def event_ids(self) -> list[str]:
         """Evidence for the overlay: the setup pass, then the recapped moments and the events
         behind the values in time order, then the event itself (each id once)."""
@@ -170,7 +176,8 @@ def direct(match: Match) -> tuple[list[Candidate], list[dict]]:
         if e["type"] in PASS_TYPES and e.get("success") and e.get("to") is not None:
             last_pass_to[e["to"]] = e
         if c:
-            c.modes = {m for m in MODES if c.priority >= MODE_RULES[m]["min_priority"]}
+            c.modes = {m for m in MODES if c.priority >= MODE_RULES[m]["min_priority"]
+                       and not (m == "player_focus" and c.team_only)}
             candidates.append(c)
     candidates += momentum_candidates(match, snapshots)
     for c in candidates:
