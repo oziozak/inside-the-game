@@ -5,12 +5,14 @@ Used three ways:
 - the fallback when the LLM text fails the verifier twice,
 - examples of the expected style inside the LLM prompt.
 
-Only numbers from `values`, the minute and the score may appear here. The `context` labels
-(context.py) add the "why it matters" in words.
+Numbers are never written here: the text carries placeholders (`{distance_m}`, `{score}`...)
+that fill.py formats per language, the same filler the LLM's text goes through. The `context`
+labels (context.py) add the "why it matters" in words.
 """
 
 from __future__ import annotations
 
+from .fill import fill
 from .verifier import MAX_TEXT_CHARS
 
 LANGS = ("en", "tr", "es")
@@ -47,13 +49,14 @@ def pick(lang: str, en: str, tr: str, es: str) -> str:
     return {"en": en, "tr": tr, "es": es}[_l(lang)]
 
 
-def _fit(*options: str) -> str:
-    """The first (richest) option that fits on the graphic; the last one otherwise."""
-    return next((o for o in options if len(o) <= MAX_TEXT_CHARS), options[-1])
+def _fit(req: dict, lang: str, *options: str) -> str:
+    """The first (richest) option that fits on the graphic once filled; the last one otherwise."""
+    return next((o for o in options if len(fill(o, req["values"], lang, req["facts"])) <= MAX_TEXT_CHARS),
+                options[-1])
 
 
 def render(req: dict, lang: str) -> dict:
-    """Return {'title', 'text'} for one explain request in one language."""
+    """Return {'title', 'text'} for one explain request in one language, numbers as placeholders."""
     g, mode, v = req["graphic"], req["mode"], req["values"]
     actor, target = req.get("actor") or "", req.get("target") or ""
     team, home, away = req.get("actor_team") or "", req["home"], req["away"]
@@ -64,7 +67,7 @@ def render(req: dict, lang: str) -> dict:
 
     if g == "goal_banner":
         title = pick(lang, f"GOAL! {team}", f"GOL! {team}", f"¡GOL! {team}")
-        score = f"{home} {v['score_home']}-{v['score_away']} {away}"
+        score = f"{home} {{score}} {away}"
         if sub == "own_goal":
             return {"title": title, "text": pick(lang, f"Own goal by {actor}. {score}",
                                                  f"{actor} kendi kalesine attı. {score}",
@@ -78,8 +81,8 @@ def render(req: dict, lang: str) -> dict:
             how = pick(lang, "from the spot", "penaltıdan", "de penalti")
         short = f"{actor} {effect}. {score}"
         if L == "tr" and how:
-            return {"title": title, "text": _fit(f"{actor} {how} {effect}. {score}", short)}
-        return {"title": title, "text": _fit(f"{actor} {effect} {how}. {score}" if how else short, short)}
+            return {"title": title, "text": _fit(req, lang, f"{actor} {how} {effect}. {score}", short)}
+        return {"title": title, "text": _fit(req, lang, f"{actor} {effect} {how}. {score}" if how else short, short)}
 
     if g == "card_banner":
         red = kind == "red_card"
@@ -97,29 +100,29 @@ def render(req: dict, lang: str) -> dict:
         ft = kind == "full_time"
         title = pick(lang, "Full-time" if ft else "Half-time", "Maç sonu" if ft else "İlk yarı sonu",
                      "Final del partido" if ft else "Descanso")
-        score = f"{home} {v['score_home']}-{v['score_away']} {away}"
+        score = f"{home} {{score}} {away}"
         # Each scorer once: "x2" would be a number the verifier cannot back.
         scorers = ", ".join(dict.fromkeys(k["player"] + (f" ({OWN_GOAL[L]})" if k["own_goal"] else "")
                                           for k in req.get("key_moments", []) if k["type"] == "goal" and k["player"]))
         goals = pick(lang, "Scorers: ", "Golcüler: ", "Goleadores: ") + scorers if scorers else ""
         options = [score]
         if "shots_home" in v:
-            shots = pick(lang, f"Shots {v['shots_home']}-{v['shots_away']}, on target {v['on_target_home']}-{v['on_target_away']}",
-                         f"Şut {v['shots_home']}-{v['shots_away']}, isabetli {v['on_target_home']}-{v['on_target_away']}",
-                         f"Tiros {v['shots_home']}-{v['shots_away']}, a puerta {v['on_target_home']}-{v['on_target_away']}")
+            shots = pick(lang, "Shots {shots_home}-{shots_away}, on target {on_target_home}-{on_target_away}",
+                         "Şut {shots_home}-{shots_away}, isabetli {on_target_home}-{on_target_away}",
+                         "Tiros {shots_home}-{shots_away}, a puerta {on_target_home}-{on_target_away}")
             options = [f"{score}. {shots}"] + options
             if goals:
                 options = [f"{score}. {shots}. {goals}", f"{shots}. {goals}"] + options
         elif goals:
             options = [f"{score}. {goals}"] + options
-        return {"title": title, "text": _fit(*options)}
+        return {"title": title, "text": _fit(req, lang, *options)}
 
     if g == "momentum_bar":
-        pct = max(v["momentum_home"], v["momentum_away"])
+        pct = "{momentum_home}" if v["momentum_home"] >= v["momentum_away"] else "{momentum_away}"
         title = pick(lang, "Momentum", "Baskı", "Dominio")
-        text = pick(lang, f"{team} on top: {pct}% of the threat in the last {v['window_min']} min",
-                    f"Son {v['window_min']} dakikada baskı {team} tarafında: %{pct}",
-                    f"{team} domina: {pct}% del peligro en los últimos {v['window_min']} min")
+        text = pick(lang, f"{team} on top: {pct} of the threat in the last {{window_min}} min",
+                    f"Son {{window_min}} dakikada baskı {team} tarafında: {pct}",
+                    f"{team} domina: {pct} del peligro en los últimos {{window_min}} min")
         return {"title": title, "text": text}
 
     if g == "insight_text":
@@ -142,36 +145,39 @@ def render(req: dict, lang: str) -> dict:
     if g == "shot_card":
         out = OUTCOME[L].get(sub, "")
         setup = req.get("setup_by")
-        if mode == "casual":
+        if mode == "casual" and "speed_kmh" in v:
+            text = pick(lang, f"{actor} hits it at {{speed_kmh}}!", f"{actor} {{speed_kmh}} hızla vurdu!",
+                        f"¡Disparo de {actor} a {{speed_kmh}}!")
+        elif mode == "casual":
             text = pick(lang, f"What a strike from {actor}!", f"{actor} sert vurdu!", f"¡Qué disparo de {actor}!")
         else:
             parts = []
             if "goal_distance_m" in v:
-                parts.append(pick(lang, f"from {v['goal_distance_m']} m", f"{v['goal_distance_m']} m mesafeden",
-                                  f"desde {v['goal_distance_m']} m"))
+                parts.append(pick(lang, "from {goal_distance_m}", "{goal_distance_m} mesafeden",
+                                  "desde {goal_distance_m}"))
             if "speed_kmh" in v:
-                parts.append(pick(lang, f"{v['speed_kmh']} km/h", f"{v['speed_kmh']} km/s", f"{v['speed_kmh']} km/h"))
+                parts.append("{speed_kmh}")
             head = pick(lang, "Shot", "Şut", "Disparo")
             if parts:
                 head += " " + (" " if L == "tr" else ", ").join(parts)
             text = ", ".join(x for x in (head, out, how) if x)
         if setup:
             # "Pas: X" avoids a Turkish genitive suffix that depends on the name's vowels.
-            text += pick(lang, f". Set up by {setup}", f". Pas: {setup}", f". Asistencia de {setup}")
+            stop = "" if text.endswith("!") else "."
+            text += stop + pick(lang, f" Set up by {setup}", f" Pas: {setup}", f" Asistencia de {setup}")
         return {"title": actor, "text": text}
 
     if g == "pass_card":
         if mode == "casual":
             text = pick(lang, "What a pass!", "Ne pas ama!", "¡Qué pase!")
         elif mode == "player_focus" and "player_passes" in v:
-            done, total, dist = v["player_passes_completed"], v["player_passes"], v["distance_m"]
-            text = pick(lang, f"{done}/{total} passes completed, this one {dist} m",
-                        f"{done}/{total} isabetli pas, bu {dist} m",
-                        f"{done}/{total} pases completados, este de {dist} m")
+            text = pick(lang, "{player_passes_completed}/{player_passes} passes completed, this one {distance_m}",
+                        "{player_passes_completed}/{player_passes} isabetli pas, bu {distance_m}",
+                        "{player_passes_completed}/{player_passes} pases completados, este de {distance_m}")
         else:
-            text = pick(lang, f"{v['distance_m']} m pass, difficulty {v['difficulty']}/10",
-                        f"{v['distance_m']} m pas, zorluk {v['difficulty']}/10",
-                        f"Pase de {v['distance_m']} m, dificultad {v['difficulty']}/10")
+            text = pick(lang, "{distance_m} pass, difficulty {difficulty}",
+                        "{distance_m} pas, zorluk {difficulty}",
+                        "Pase de {distance_m}, dificultad {difficulty}")
         return {"title": actor, "text": text}
 
     return {"title": actor, "text": ""}
