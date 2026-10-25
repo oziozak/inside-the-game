@@ -38,6 +38,8 @@ so code owns both. The LLM only writes words, and the verifier checks those word
 | `player_focus` | 0.4 | 40% per player | adds the player's running pass count |
 
 `player_focus` overlays carry `player`; the web player shows only the ones for the viewer's chosen player.
+Every overlay is written once per language (`--langs`, default `en,tr,es`), so switching mode or language in the
+player is instant: no LLM call at playback time.
 
 ## Detected events (`source: cv`)
 
@@ -48,14 +50,12 @@ Detected and true events go through the same code; nothing here branches on `sou
   `setup_by`, only `subject` (the team). No `player_focus` overlay is made; `analyst` and `casual` are.
   Every template has a team-only wording, so the fallback is always valid.
 - **Missing optional fields** (`duration_s`, `end`, `success`, `speed_kmh`): the facts that need them are
-  left out and the rule table skips a candidate that needs them. Per-player counters skip events with no
-  player; team totals still count them.
+  left out and the rule table skips a candidate that needs them (a pass with no `end` is not counted in
+  pass totals). Per-player counters skip events with no player; team totals still count them.
 - **Missing event types** (no `half_time`/`full_time`, clearances or throw-ins on a short clip): no recap.
   The agents stage never invents events.
 - Merged simulator events (fouls, cards, substitutions) keep their player, so a card banner names the
   booked player.
-Every overlay is written once per language (`--langs`, default `en,tr,es`), so switching mode or language in the
-player is instant: no LLM call at playback time.
 
 ## Run
 

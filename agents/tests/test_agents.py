@@ -215,20 +215,20 @@ class PipelineTest(unittest.TestCase):
         self.assertFalse(any("87" in o["text"] for o in overlays))
 
 
-CV_TYPES = {"kickoff", "pass", "possession_change", "shot", "goal"}  # what the vision AI detects
+DETECTED_TYPES = {"kickoff", "pass", "possession_change", "shot", "goal"}  # what the vision AI detects
 MERGED_SIM_TYPES = {"foul", "yellow_card", "red_card", "offside", "substitution"}  # scripts/merge_events.py
 
 
-def cv_shaped(match):
+def as_detected(match):
     """sample_a as the vision AI + merge_events.py would deliver it: only detected types
     (plus the merged simulator ones), confidences below 1, no player on every other
     detected event and on the goal, some optional fields missing, no half_time/full_time."""
     events = []
     for i, e in enumerate(match.events):
-        if e["type"] not in CV_TYPES | MERGED_SIM_TYPES:
+        if e["type"] not in DETECTED_TYPES | MERGED_SIM_TYPES:
             continue
         e = dict(e)
-        if e["type"] in CV_TYPES:
+        if e["type"] in DETECTED_TYPES:
             e.update(source="cv", confidence=0.62)
             if i % 2 or e["type"] == "goal":
                 e["from"] = e["to"] = None
@@ -240,12 +240,12 @@ def cv_shaped(match):
     return match
 
 
-class CvInputTest(unittest.TestCase):
+class DetectedEventsTest(unittest.TestCase):
     """The agents stage on detected events: nothing branches on `source`, only null players
     (and, later, confidence) change what is shown."""
 
     def setUp(self):
-        self.match = cv_shaped(load_match(SAMPLE_A))
+        self.match = as_detected(load_match(SAMPLE_A))
         self.by_id = {e["id"]: e for e in self.match.events}
         self.roster = {p["name"] for p in self.match.players.values()}
         candidates, _ = direct(self.match)
