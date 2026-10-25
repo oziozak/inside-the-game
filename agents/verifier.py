@@ -38,7 +38,8 @@ def names_in(s: str, roster_names: set[str]) -> set[str]:
 
 def allowed_numbers(values: dict, facts: dict) -> set[float]:
     nums = set()
-    for k, v in {**values, **{k: facts[k] for k in ("minute", "score_home", "score_away") if k in facts}}.items():
+    # `values` wins over the moment's facts, as in fill.py.
+    for k, v in {**{k: facts[k] for k in ("minute", "score_home", "score_away") if k in facts}, **values}.items():
         if isinstance(v, (int, float)) and not isinstance(v, bool):
             nums.add(round(float(v), 1))
             nums.add(float(round(v)))

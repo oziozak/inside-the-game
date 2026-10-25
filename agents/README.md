@@ -8,11 +8,11 @@ Develop against `data/fake/` until real events arrive; nothing here changes when
 ## How it works
 
 ```
-events.json ──► stats.py ──► director.py ──► explainer.py ──► verifier.py ──► overlays.json
-               (code: exact   (code: which      (LLM: words,      (code: every number
-                numbers, as    moment, when,     every mode and    and name must match
-                of that        how long, which   language in one   the event; 1 retry with
-                moment)        mode, budget)     call)             feedback, then template)
+events.json ──► stats.py ──► director.py ──► explainer.py ──► fill.py ──► verifier.py ──► overlays.json
+               (code: exact   (code: which      (LLM: words,      (code:       (code: every number
+                numbers, as    moment, when,     every mode and    numbers +    and name must match
+                of that        how long, which   language in one   units per    the event; 1 retry with
+                moment)        mode, budget)     call)             language)    feedback, then template)
 ```
 
 | File | Role | LLM? |
@@ -23,7 +23,8 @@ events.json ──► stats.py ──► director.py ──► explainer.py ─�
 | `explainer.py` | Builds the request (facts + `values`), calls the backend, runs the verify / retry / fallback loop | Yes |
 | `verifier.py` | Rejects numbers not in `values` (or minute/score) and player names not in the cited event | No |
 | `llm.py` | Backends: `mock` (offline templates), `noisy` (invents stats to demo the verifier), `foundry` (Microsoft Agent Framework on a Foundry / Azure OpenAI deployment, disk-cached) | Yes |
-| `templates.py` | Code-written text per graphic, mode and language (en, tr, es). Mock backend + fallback | No |
+| `fill.py` | Fills placeholders (`{distance_m}`, `{speed_kmh}`, `{score}`, `{minute}`, any `values` key) with numbers formatted per language (`28 m`; `km/h`, tr `km/sa`; `62%`, tr `%62`, es `62 %`; `2-1`; `7/10`; `34'`), then normalises apostrophes and spacing. Every backend's text goes through it before the verifier (templates write placeholders; the LLM prompt still asks for digits until it moves to placeholders) | No |
+| `templates.py` | Code-written text per graphic, mode and language (en, tr, es), numbers as placeholders. Mock backend + fallback | No |
 | `run.py` | CLI | |
 
 Why the split: timing and budgets must be predictable live, and numbers on a broadcast must be right,

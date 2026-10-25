@@ -13,6 +13,7 @@ from unittest import mock
 from jsonschema import Draft202012Validator
 
 from agents import templates, verifier
+from agents.fill import UnknownPlaceholder, fill
 from agents.context import goal_effect, lead_in, scoring_side
 from agents.data_io import load_match
 from agents.director import GRAPHIC_LAYOUT, MODES, direct, propose
@@ -88,6 +89,51 @@ class VerifierTest(unittest.TestCase):
         out = parse_json_reply('```json\n{"en": {"title": "a", "text": "b"}}\n```', ["en", "tr"])
         self.assertEqual(out["en"]["text"], "b")
         self.assertEqual(out["tr"]["text"], "")
+
+
+class FillTest(unittest.TestCase):
+    def test_speed_unit_per_language(self):
+        v = {"speed_kmh": 112}
+        self.assertEqual(fill("{speed_kmh}", v, "tr"), "112 km/sa")
+        self.assertEqual(fill("{speed_kmh}", v, "en"), "112 km/h")
+        self.assertEqual(fill("{speed_kmh}", v, "es"), "112 km/h")
+
+    def test_distance_is_number_space_unit_in_every_language(self):
+        for lang in templates.LANGS:
+            self.assertEqual(fill("{distance_m}, {goal_distance_m}", {"distance_m": 28, "goal_distance_m": 13}, lang),
+                             "28 m, 13 m")
+
+    def test_percentage_per_language(self):
+        v = {"momentum_home": 62}
+        self.assertEqual(fill("{momentum_home}", v, "en"), "62%")
+        self.assertEqual(fill("{momentum_home}", v, "tr"), "%62")
+        self.assertEqual(fill("{momentum_home}", v, "es"), "62 %")
+
+    def test_score_and_minute_from_values_or_facts(self):
+        facts = {"minute": 34, "score_home": 2, "score_away": 1}
+        for lang in templates.LANGS:
+            self.assertEqual(fill("{score}, {minute}", {}, lang, facts), "2-1, 34'")
+        self.assertEqual(fill("{score}", {"score_home": 3, "score_away": 1}, "en", facts), "3-1")
+        self.assertEqual(fill("{difficulty}", {"difficulty": 7}, "tr"), "7/10")
+
+    def test_unknown_placeholder_is_rejected(self):
+        with self.assertRaises(UnknownPlaceholder) as ctx:
+            fill("Shot at {speed_kmh}", {"distance_m": 28}, "en")
+        self.assertIn("speed_kmh", str(ctx.exception))
+        with self.assertRaises(UnknownPlaceholder):
+            fill("{score}", {}, "en")  # no score known for this overlay
+
+    def test_one_apostrophe_character_everywhere(self):
+        self.assertEqual(fill("K. Aydin’den pas", {}, "tr"), "K. Aydin'den pas")
+        self.assertEqual(fill("Aydin‘s strike, {minute}", {"minute": 9}, "en"), "Aydin's strike, 9'")
+
+    def test_whitespace_collapsed_and_no_space_before_punctuation(self):
+        self.assertEqual(fill("  Shot  from {goal_distance_m} ,  on target !  ", {"goal_distance_m": 13}, "en"),
+                         "Shot from 13 m, on target!")
+        self.assertEqual(fill("Score : {score} .", {"score_home": 1, "score_away": 0}, "en"), "Score: 1-0.")
+
+    def test_spanish_openers_are_kept(self):
+        self.assertEqual(fill("¡Qué disparo ! ¿Gol ?", {}, "es"), "¡Qué disparo! ¿Gol?")
 
 
 class LlmCacheTest(unittest.TestCase):
@@ -293,8 +339,10 @@ class DetectedEventsTest(unittest.TestCase):
                     for mode in MODES:
                         req = build_request(cand, mode, match, list(templates.LANGS))
                         for lang in templates.LANGS:
-                            out = templates.render(req, lang)
-                            where = (c.graphic, c.event["id"], mode, lang, form, out)
+                            raw = templates.render(req, lang)
+                            out = {k: fill(raw[k], req["values"], lang, req["facts"]) for k in raw}
+                            where = (c.graphic, c.event["id"], mode, lang, form, raw)
+                            self.assertNotRegex(raw["title"] + raw["text"], r"\d", where)  # numbers only via placeholders
                             self.assertEqual(verifier.check(out["text"], out["title"], req["values"], cand.facts,
                                                             involved_names(req), roster), [], where)
                             self.assertTrue(out["title"].strip() and out["text"].strip(), where)
@@ -309,6 +357,68 @@ class DetectedEventsTest(unittest.TestCase):
 
     def test_no_recap_without_clock_events(self):
         self.assertNotIn("stat_compare", {o["graphic"] for o in self.overlays})
+
+
+class TemplateFormatTest(unittest.TestCase):
+    """Every graphic in every mode and language, written by the templates (mock backend)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.runs = {}
+        for sample in (SAMPLE_A, SAMPLE_B):
+            match = load_match(sample)
+            candidates, _ = direct(match)
+            for c in candidates:
+                c.modes = set(MODES)  # not only the slots the director scheduled
+            cls.runs[sample.name] = asyncio.run(explain_all(candidates, match, MockBackend(), list(templates.LANGS)))
+
+    def overlays(self, graphic=None, lang=None):
+        return [o for overlays, _ in self.runs.values() for o in overlays
+                if graphic in (None, o["graphic"]) and lang in (None, o["lang"])]
+
+    def test_every_graphic_mode_and_language_passes_the_verifier(self):
+        for name, (overlays, report) in self.runs.items():
+            self.assertEqual(report["rejected"], [], name)
+            self.assertEqual(report["dropped"], [], name)
+            graphics = {o["graphic"] for o in overlays}
+            self.assertEqual({(g, m, l) for g in graphics for m in MODES for l in templates.LANGS},
+                             {(o["graphic"], o["mode"], o["lang"]) for o in overlays}, name)
+
+    def test_turkish_speed_is_km_sa_never_km_s(self):
+        tr = [o for o in self.overlays("shot_card", "tr") if "speed_kmh" in o["values"]]
+        self.assertGreater(len(tr), 0)
+        for o in self.overlays(lang="tr"):
+            self.assertNotRegex(o["text"], r"km/s\b", o)
+        for o in tr:
+            self.assertIn(f"{o['values']['speed_kmh']} km/sa", o["text"])
+        for lang in ("en", "es"):
+            for o in self.overlays("shot_card", lang):
+                if "speed_kmh" in o["values"]:
+                    self.assertIn(f"{o['values']['speed_kmh']} km/h", o["text"])
+
+    def test_distances_read_number_space_unit(self):
+        for o in self.overlays():
+            self.assertNotRegex(o["text"], r"\d(m|km)\b", o)
+        for o in self.overlays("pass_card"):
+            if o["mode"] != "casual":
+                self.assertIn(f"{o['values']['distance_m']} m", o["text"])
+
+    def test_percentages_per_language(self):
+        want = {"en": "{}%", "tr": "%{}", "es": "{} %"}
+        bars = self.overlays("momentum_bar")
+        self.assertGreater(len(bars), 0)
+        for o in bars:
+            pct = max(o["values"]["momentum_home"], o["values"]["momentum_away"])
+            self.assertIn(want[o["lang"]].format(pct), o["text"])
+
+    def test_scores_read_home_dash_away(self):
+        for o in self.overlays("goal_banner") + self.overlays("stat_compare"):
+            self.assertIn(f"{o['values']['score_home']}-{o['values']['score_away']}", o["text"])
+
+    def test_text_is_typeset(self):
+        for o in self.overlays():
+            for s in (o["title"], o["text"]):
+                self.assertNotRegex(s, r"\s[,.!?:]|\s\s|^\s|\s$|[{}’‘]|[!?]\.", o)
 
 
 class RateLimited(Exception):
