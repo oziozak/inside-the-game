@@ -5,9 +5,10 @@ import type { CameraPreset } from '../scene/config';
 export function applyCamera(camera: PerspectiveCamera, preset: CameraPreset, ball: Vector3): void {
   camera.zoom = 1;
   if (preset === 'broadcast') {
-    const x = Math.max(-38, Math.min(38, ball.x));
+    const x = Math.max(-35, Math.min(35, ball.x));
     const z = Math.max(-18, Math.min(18, ball.z));
-    camera.fov = 40; camera.position.set(x, 38, z + 48); camera.lookAt(x, 0, z);
+    // Slight infield bias near either goal reduces apron while keeping the goal/ball framed.
+    camera.fov = 38; camera.position.set(x, 34, z + 44); camera.lookAt(x * 0.8, 0, z - 2);
     camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
     return;
   }

@@ -2,13 +2,13 @@ import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { artifactDirectory } from './lib/paths';
 const { values } = parseArgs({ options: {
   runs: { type: 'string', default: '3' }, concurrency: { type: 'string', default: '1' }, load: { type: 'boolean', default: false },
 } });
 const runs = Number(values.runs), concurrency = Number(values.concurrency);
 if (![runs, concurrency].every(n => Number.isInteger(n) && n >= 1) || concurrency > runs) throw new Error('runs and concurrency must be positive integers, with concurrency <= runs');
-await mkdir('../runs', { recursive: true });
-const artifacts = await mkdtemp(resolve('../runs/browser-repeat-'));
+const artifacts = await mkdtemp(resolve(await artifactDirectory(), 'browser-repeat-'));
 async function run(script: string, id: string) {
   const directory = `${artifacts}/${id}`; await mkdir(directory);
   const child = spawn(process.execPath, ['--import', 'tsx', script], {

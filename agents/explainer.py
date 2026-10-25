@@ -118,7 +118,7 @@ async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: lis
 
 
 async def explain_all(candidates: list[Candidate], match: Match, backend, langs: list[str],
-                      concurrency: int = 8) -> tuple[list[dict], dict]:
+                      concurrency: int = 4) -> tuple[list[dict], dict]:
     report = {"rejected": [], "fixed_on_retry": 0, "template_fallbacks": 0, "dropped": []}
     sem = asyncio.Semaphore(concurrency)
 

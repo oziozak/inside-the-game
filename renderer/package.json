@@ -20,6 +20,9 @@
     "test:calibration": "node --import tsx scripts/check-calibration.ts",
     "validate:calibration": "node --import tsx scripts/validate-calibration.ts",
     "test:simulator": "node --import tsx scripts/check-simulator.ts",
+    "benchmark:capture": "node --import tsx scripts/benchmark-capture.ts",
+    "test:presentation": "node --import tsx scripts/check-presentation.ts",
+    "test:server": "node --import tsx scripts/check-server.ts",
     "benchmark:input": "node --import tsx scripts/benchmark-input.ts",
     "validate:simulator": "node --import tsx scripts/validate-simulator.ts",
     "test:browser:repeat": "node --import tsx scripts/repeat-browser.ts"

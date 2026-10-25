@@ -1,14 +1,14 @@
-import { captureCanvas } from './lib/capture';
-import { parseArgs } from 'node:util';
+import { spawn } from 'node:child_process';
 import { readFile, mkdir, writeFile, access } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
-import { spawn } from 'node:child_process';
+import { parseArgs } from 'node:util';
 import { chromium } from 'playwright';
-import { renderingServer } from './lib/server';
-import { loadInterval } from './lib/interval';
 import { sample } from '../src/data/match';
 import { exportTimes, FPS } from '../src/playback/timing';
 import { renderConfig, type CameraPreset } from '../src/scene/config';
+import { captureCanvas } from './lib/capture';
+import { loadInterval } from './lib/interval';
+import { renderingServer } from './lib/server';
 
 const { values } = parseArgs({ options: {
   metadata: { type: 'string', default: '../data/fake/sample_a/match_info.json' },
@@ -18,10 +18,13 @@ const { values } = parseArgs({ options: {
   width: { type: 'string', default: '1920' }, height: { type: 'string', default: '1080' },
   rich: { type: 'boolean', default: false },
   cv_visibility: { type: 'boolean', default: false },
+  'jersey-numbers': { type: 'boolean', default: false },
+  'animate-players': { type: 'boolean', default: false },
+  'no-animation': { type: 'boolean', default: false },
   camera: { type: 'string', default: 'cv_full_pitch' },
   'player-scale': { type: 'string', default: '1' }, 'ball-scale': { type: 'string', default: '1' },
 } });
-const config = renderConfig({ cvVisibility: values.cv_visibility!, camera: values.camera as CameraPreset, playerScale: Number(values['player-scale']), ballScale: Number(values['ball-scale']) });
+const config = renderConfig({ jerseyNumbers: values['jersey-numbers']!, animatePlayers: values['animate-players']! && !values['no-animation'], cvVisibility: values.cv_visibility!, camera: values.camera as CameraPreset, playerScale: Number(values['player-scale']), ballScale: Number(values['ball-scale']) });
 const metadata = JSON.parse(await readFile(resolve(values.metadata!), 'utf8'));
 const interval = await loadInterval(metadata, resolve(values.tracking!), { start: values.start === undefined ? undefined : Number(values.start), end: Number(values.end) });
 const { match, tracking, start, end } = interval;
@@ -40,7 +43,7 @@ for (const path of [output, `${output}.manifest.json`, `${output}.metrics.json`]
 const { server, closeServer } = await renderingServer();
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 let encoder: ReturnType<typeof spawn> | undefined;
-let encoderClosed: Promise<void> | undefined;
+let encoderClosed: Promise<{ code: number | null; error?: Error }> | undefined;
 try {
   await server.listen();
   const url = server.resolvedUrls!.local[0];
@@ -56,10 +59,11 @@ try {
   const browserLoadMs = performance.now() - browserLoadStarted;
   const renderStarted = performance.now();
   encoder = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-n', '-f', 'image2pipe', '-vcodec', 'png', '-framerate', String(FPS), '-i', 'pipe:0', '-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', output], { stdio: ['pipe', 'inherit', 'inherit'] });
-  encoderClosed = new Promise(resolve => encoder!.once('close', () => resolve()));
-  const finished = new Promise<void>((ok, fail) => { encoder!.on('error', fail); encoder!.on('close', code => code === 0 ? ok() : fail(new Error(`FFmpeg exit ${code}`))); });
-  // Attach handlers immediately so early encoder exits cannot become unhandled rejections.
-  finished.catch(() => {});
+  encoderClosed = new Promise(resolve => {
+    let error: Error | undefined;
+    encoder!.once('error', cause => { error = cause; });
+    encoder!.once('close', code => resolve({ code, error }));
+  });
   let pipeError: Error | undefined;
   encoder.stdin!.on('error', err => { pipeError = err; });
   const mapping = [];
@@ -76,7 +80,10 @@ try {
     mapping.push({ output_frame: index, t: time, input_frame: source.frame });
     if (index % 100 === 0) console.log(`Rendered ${index + 1}/${times.length}`);
   }
-  encoder.stdin!.end(); await finished;
+  encoder.stdin!.end();
+  const completion = await encoderClosed;
+  if (completion.error) throw completion.error;
+  if (completion.code !== 0) throw new Error(`FFmpeg exit ${completion.code}`);
   const exportMs = performance.now() - renderStarted;
   const metrics = { input: interval.stats, browserLoadMs, exportMs, framesPerSecond: times.length * 1000 / exportMs, nodePeakRssBytes: process.resourceUsage().maxRSS * 1024 };
   await writeFile(`${output}.metrics.json`, JSON.stringify(metrics, null, 2));

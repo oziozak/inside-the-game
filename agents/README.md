@@ -58,10 +58,12 @@ Output goes to `data/generated/<match>/` (git-ignored): `overlays.json` and `age
 ### Foundry setup
 
 1. In Microsoft Foundry, create a project and deploy a chat model (e.g. `gpt-4o-mini`).
-2. In `.env`: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`, and `AZURE_OPENAI_API_KEY`
-   (or leave the key empty and run `az login`).
+2. In `.env`: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION=2025-04-01-preview`,
+   and `AZURE_OPENAI_API_KEY` (or leave the key empty and run `az login`).
 3. `python -m agents.run data/fake/sample_a --backend foundry`. Answers are cached in
-   `data/generated/llm_cache.json`, so re-runs are free.
+   `data/generated/llm_cache.json` after every new answer, so re-runs are free and a crash keeps
+   what was already paid for. Rate limits (HTTP 429) are retried up to 6 times with exponential
+   backoff (2, 4, 8, 16, 32, 60 s plus jitter); at most 4 requests run at once.
 
 ## Next steps (P3 backlog)
 

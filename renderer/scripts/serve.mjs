@@ -4,7 +4,7 @@ import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../dist/', import.meta.url));
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.jsonl': 'application/x-ndjson' };
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
   if (req.url === '/healthz') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"status":"ok"}'); return; }
   try {
@@ -15,4 +15,7 @@ createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': mime[extname(path)] ?? 'application/octet-stream', 'X-Content-Type-Options': 'nosniff' });
     res.end(req.method === 'HEAD' ? undefined : bytes);
   } catch { res.writeHead(404); res.end('Not found'); }
-}).listen(Number(process.env.PORT ?? 8080), process.env.HOST ?? '0.0.0.0', () => console.log(`Renderer listening on ${process.env.PORT ?? 8080}`));
+});
+server.listen(Number(process.env.PORT ?? 8080), process.env.HOST ?? '0.0.0.0', () => {
+  console.log(`Renderer listening on ${server.address().port}`);
+});
