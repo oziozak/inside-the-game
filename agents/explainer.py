@@ -27,7 +27,8 @@ def mode_values(c: Candidate, mode: str) -> dict:
     if "difficulty" in v:
         v["difficulty_max"] = 10  # so "7/10" is a backed number
     if mode == "casual":
-        keep = {"pass_card": ("distance_m",), "shot_card": ("speed_kmh",)}.get(c.graphic)
+        keep = {"pass_card": ("distance_m",), "shot_card": ("speed_kmh",),
+                "stat_compare": ("score_home", "score_away")}.get(c.graphic)
         if keep:
             v = {k: v[k] for k in keep if k in v}
     if mode == "player_focus" and c.graphic == "pass_card":
@@ -54,6 +55,9 @@ def build_request(c: Candidate, mode: str, match: Match, langs: list[str]) -> di
         "home": match.team_name("home"),
         "away": match.team_name("away"),
         "setup_by": match.player_name(c.setup["from"]) if c.setup else None,
+        "key_moments": [{"type": k["type"], "player": match.player_name(k.get("from")),
+                         "own_goal": k.get("subtype") == "own_goal"} for k in c.key_events],
+        "context": c.context,
         "facts": {k: c.facts[k] for k in FACT_KEYS if k in c.facts},
         "values": mode_values(c, mode),
     }
@@ -63,7 +67,8 @@ async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: lis
                       report: dict) -> list[dict]:
     req = build_request(c, mode, match, langs)
     roster = {p["name"] for p in match.players.values()}
-    involved = {n for n in (req["actor"], req["target"], req["setup_by"]) if n}
+    named = [req["actor"], req["target"], req["setup_by"]] + [k["player"] for k in req["key_moments"]]
+    involved = {n for n in named if n}
 
     def problems(out: dict, lang: str) -> list[str]:
         t = out.get(lang, {"title": "", "text": ""})

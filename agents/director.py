@@ -9,8 +9,10 @@ Every decision is logged with a reason, so the director is explainable too
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 
+from .context import moment_context, remember
 from .data_io import Match
 from .stats import PASS_TYPES, MatchState, event_facts
 
@@ -53,6 +55,9 @@ class Candidate:
     duration: float = 5.0
     position: str = "bottom-left"
     setup: dict | None = None  # the pass that set up a shot (shot_card only)
+    context: dict = field(default_factory=dict)  # why it matters, as labels (context.py)
+    key_events: list = field(default_factory=list)  # goals and red cards a recap names
+    evidence: list = field(default_factory=list)  # events behind the values: recap shots, momentum window
 
     @property
     def player(self) -> int | None:
@@ -60,8 +65,11 @@ class Candidate:
 
     @property
     def event_ids(self) -> list[str]:
-        """Evidence for the overlay, in time order: the setup pass (if any), then the event."""
-        return ([self.setup["id"]] if self.setup else []) + [self.event["id"]]
+        """Evidence for the overlay: the setup pass, then the recapped moments and the events
+        behind the values in time order, then the event itself (each id once)."""
+        cited = ([self.setup] if self.setup else []) + sorted(self.key_events + self.evidence, key=lambda p: p["t"])
+        ids = list(dict.fromkeys(p["id"] for p in cited))
+        return ids + ([self.event["id"]] if self.event["id"] not in ids else [])
 
 
 def _pick(f: dict, *keys: str) -> dict:
@@ -78,7 +86,9 @@ def propose(e: dict, f: dict) -> Candidate | None:
     if typ == "yellow_card":
         return Candidate(e, "card_banner", 0.7, "yellow card", f, _pick(f, "minute"))
     if typ in ("half_time", "full_time"):
-        return Candidate(e, "stat_compare", 0.9, typ.replace("_", " "), f, _pick(f, "score_home", "score_away"))
+        return Candidate(e, "stat_compare", 0.9, typ.replace("_", " "), f,
+                         _pick(f, "score_home", "score_away", "shots_home", "shots_away",
+                               "on_target_home", "on_target_away"))
     if typ == "substitution":
         return Candidate(e, "insight_text", 0.55, "substitution", f, {})
     if typ == "shot":
@@ -109,10 +119,11 @@ def _timing(c: Candidate) -> None:
     c.start = round(c.event["t"] + delay, 2)
 
 
-def momentum_candidates(match: Match, snapshots: list[tuple[float, dict, dict]]) -> list[Candidate]:
-    """Every 5 minutes of play, show a momentum bar if one team clearly dominates (>= 65%)."""
+def momentum_candidates(match: Match, snapshots: list[tuple[float, dict, dict, list[dict]]]) -> list[Candidate]:
+    """Every 5 minutes of play, show a momentum bar if one team clearly dominates (>= 65%).
+    The bar cites every event in the window that fed the percentages."""
     out, next_t = [], BUDGET_WINDOW_S
-    for t, e, f in snapshots:
+    for t, e, f, window in snapshots:
         if t < next_t or "momentum_home" not in f:
             continue
         next_t = t + BUDGET_WINDOW_S
@@ -121,7 +132,7 @@ def momentum_candidates(match: Match, snapshots: list[tuple[float, dict, dict]])
             side = "home" if f["momentum_home"] >= f["momentum_away"] else "away"
             fake_event = {**e, "team": side, "from": None, "duration_s": 0.0}
             c = Candidate(fake_event, "momentum_bar", 0.5, f"{side} dominating ({lead}%)", f,
-                          _pick(f, "momentum_home", "momentum_away"), modes={"analyst"})
+                          _pick(f, "momentum_home", "momentum_away"), modes={"analyst"}, evidence=window)
             out.append(c)
     return out
 
@@ -131,11 +142,24 @@ def direct(match: Match) -> tuple[list[Candidate], list[dict]]:
     state = MatchState(info=match.info)
     candidates, snapshots = [], []
     last_pass_to: dict[int, dict] = {}  # receiver id -> last completed pass to them
+    recent: deque = deque()  # events of the last 30 s, for the context labels
+    key_events: list[dict] = []  # goals and red cards so far, for the half/full-time recap
+    shots: list[dict] = []  # every shot so far: the evidence for the recap's shot counts
     for e in match.events:
+        score_before = dict(state.score)
         state.update(e)
         f = event_facts(e, state)
-        snapshots.append((e["t"], e, f))
+        snapshots.append((e["t"], e, f, state.momentum_events(e["t"])))
         c = propose(e, f)
+        if c:
+            c.context = moment_context(e, score_before, state, recent)
+            if c.graphic == "stat_compare":
+                c.key_events, c.evidence = list(key_events), list(shots)
+        remember(recent, e)
+        if e["type"] in ("goal", "red_card"):
+            key_events.append(e)
+        if e["type"] == "shot":
+            shots.append(e)
         if c and c.graphic == "shot_card":
             # Credit the setup on the shot card itself: a separate key-pass card would have
             # to wait for the shot and then fight it for the same slot.

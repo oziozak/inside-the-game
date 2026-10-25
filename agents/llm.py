@@ -26,11 +26,14 @@ the graphic shows). Write a short title and text for every language in `langs`.
 Hard rules:
 - Use ONLY numbers that appear in `values`, `minute`, `score_home` or `score_away`. Never invent,
   round differently, or convert a number. If unsure, write no number.
-- Mention only the players named in `actor`, `target` and `setup_by` (the passer who set up a
-  shot). Copy each name exactly as given, initial included ("K. Aydin", never "Aydin" or "K. Aydın").
+- Mention only the players named in `actor`, `target`, `setup_by` (the passer who set up a
+  shot) and `key_moments` (goals and red cards so far, for half-time and full-time recaps). Copy each name exactly as given, initial included ("K. Aydin", never "Aydin" or "K. Aydın").
   In Turkish, add case suffixes after an apostrophe ("K. Aydin'den"). All clubs and players are fictional.
 - `text` at most 100 characters, `title` at most 35.
 - mode "analyst": precise and tactical, may use the numbers. Explain WHY the moment matters.
+  `context` says why, in labels computed by code: `goal_effect` (opener, equaliser, go_ahead,
+  extends_lead, pulls_one_back), `score_situation` of the acting team, `lead_in` (how the attack
+  came about), `momentum` over the last minutes, `phase` of the match. Use them; do not contradict them.
 - mode "casual": warm and simple, like talking to a friend new to football; avoid numbers except the score.
 - mode "player_focus": everything from the point of view of `actor`.
 - Write natural, native text in each language (not a word-by-word translation).

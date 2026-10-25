@@ -4,19 +4,22 @@ import asyncio
 import json
 import tempfile
 import unittest
+from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
 from jsonschema import Draft202012Validator
 
-from agents import verifier
+from agents import templates, verifier
+from agents.context import goal_effect, lead_in, scoring_side
 from agents.data_io import load_match
 from agents.director import direct
 from agents.explainer import explain_all
 from agents.llm import (RATE_LIMIT_DELAYS_S, FoundryBackend, MockBackend, NoisyBackend, cache_key,
                         is_rate_limit, parse_json_reply)
-from agents.stats import attacks_positive_x, display_minute, pass_difficulty
+from agents.stats import (MOMENTUM_WINDOW_S, attacks_positive_x, display_minute, pass_difficulty,
+                          threat_share, threat_weight)
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_A = ROOT / "data" / "fake" / "sample_a"
@@ -107,11 +110,67 @@ class DirectorTest(unittest.TestCase):
             self.assertGreaterEqual(c.start, shot["t"])
 
 
+class ContextTest(unittest.TestCase):
+    def test_goal_effect(self):
+        cases = [({"home": 0, "away": 0}, {"home": 1, "away": 0}, "opener"),
+                 ({"home": 0, "away": 1}, {"home": 1, "away": 1}, "equaliser"),
+                 ({"home": 1, "away": 1}, {"home": 2, "away": 1}, "go_ahead"),
+                 ({"home": 1, "away": 0}, {"home": 2, "away": 0}, "extends_lead"),
+                 ({"home": 0, "away": 2}, {"home": 1, "away": 2}, "pulls_one_back")]
+        for before, after, want in cases:
+            self.assertEqual(goal_effect(before, after, "home"), want)
+
+    def test_own_goal_credits_the_team_whose_score_went_up(self):
+        self.assertEqual(scoring_side({"home": 0, "away": 0}, {"home": 0, "away": 1}), "away")
+
+    def test_lead_in(self):
+        shot = {"t": 100.0, "type": "shot", "team": "home"}
+        won = {"t": 92.0, "type": "possession_change", "team": "home"}
+        self.assertEqual(lead_in(shot, "home", deque([won])), "counter_attack")
+        passes = deque({"t": 70.0 + i, "type": "pass", "team": "home", "success": True} for i in range(6))
+        self.assertEqual(lead_in(shot, "home", passes), "patient_build_up")
+        passes.popleft()
+        self.assertIsNone(lead_in(shot, "home", passes))
+
+    def test_recap_cites_the_events_behind_its_numbers(self):
+        # AGENTS.md rules 3-4: the shot counts can be recomputed from the cited events alone.
+        match = load_match(SAMPLE_B)
+        by_id = {e["id"]: e for e in match.events}
+        candidates, _ = direct(match)
+        recaps = [c for c in candidates if c.graphic == "stat_compare"]
+        self.assertEqual([c.event["type"] for c in recaps], ["half_time", "full_time"])
+        for c in recaps:
+            cited = [by_id[i] for i in c.event_ids]
+            self.assertEqual([e["t"] for e in cited], sorted(e["t"] for e in cited))
+            for side in ("home", "away"):
+                shots = [e for e in cited if e["type"] == "shot" and e["team"] == side]
+                self.assertEqual(len(shots), c.values[f"shots_{side}"])
+                self.assertEqual(sum(e.get("subtype") == "on_target" for e in shots), c.values[f"on_target_{side}"])
+            goals = {e["id"] for e in match.events if e["type"] == "goal" and e["t"] < c.event["t"]}
+            self.assertLessEqual(goals, set(c.event_ids))
+            self.assertNotIn("pass_accuracy_home", c.values)  # would need every pass cited
+
+    def test_momentum_bar_cites_the_window_behind_its_percentages(self):
+        match = load_match(SAMPLE_B)
+        by_id = {e["id"]: e for e in match.events}
+        candidates, _ = direct(match)
+        bars = [c for c in candidates if c.graphic == "momentum_bar"]
+        self.assertGreater(len(bars), 0)
+        for c in bars:
+            t = c.event["t"]
+            window = [by_id[i] for i in c.event_ids if threat_weight(by_id[i], match.info)]
+            self.assertTrue(all(t - MOMENTUM_WINDOW_S <= e["t"] <= t for e in window))
+            # Only the anchor event (when the bar appears) may carry no threat weight.
+            self.assertEqual(len(window), len(c.event_ids) - (c.event["id"] not in {e["id"] for e in window}))
+            share = threat_share([(e["team"], threat_weight(e, match.info)) for e in window])
+            self.assertEqual(share, {"home": c.values["momentum_home"], "away": c.values["momentum_away"]})
+
+
 class PipelineTest(unittest.TestCase):
     def run_pipeline(self, backend):
         match = load_match(SAMPLE_A)
         candidates, _ = direct(match)
-        return asyncio.run(explain_all(candidates, match, backend, ["en", "tr"]))
+        return asyncio.run(explain_all(candidates, match, backend, list(templates.LANGS)))
 
     def test_overlays_match_schema_and_cite_events(self):
         overlays, report = self.run_pipeline(MockBackend())
@@ -121,6 +180,11 @@ class PipelineTest(unittest.TestCase):
         for o in overlays:
             self.assertEqual(list(OVERLAY_SCHEMA.iter_errors(o)), [], o)
             self.assertTrue(set(o["event_ids"]) <= event_ids)
+
+    def test_templates_pass_the_verifier_in_every_language(self):
+        overlays, report = self.run_pipeline(MockBackend())
+        self.assertEqual(report["rejected"], [])
+        self.assertEqual({o["lang"] for o in overlays}, set(templates.LANGS))
 
     def test_every_goal_and_red_card_is_shown(self):
         overlays, _ = self.run_pipeline(MockBackend())
