@@ -12,10 +12,8 @@ labels (context.py) add the "why it matters" in words.
 
 from __future__ import annotations
 
-from .fill import fill
+from .fill import LANGS, fill
 from .verifier import MAX_TEXT_CHARS
-
-LANGS = ("en", "tr", "es")
 
 OUTCOME = {
     "en": {"on_target": "on target", "off_target": "off target", "blocked": "blocked", None: ""},

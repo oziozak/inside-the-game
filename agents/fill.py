@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import re
 
+LANGS = ("en", "tr", "es")
+
 # kind -> lang -> format; "{n}" is the number, "{h}"/"{a}" the home/away score.
 FORMATS = {
     "distance": {"en": "{n} m", "tr": "{n} m", "es": "{n} m"},
@@ -27,21 +29,17 @@ OTHER_APOSTROPHES = re.compile("[’‘ʼ′`´]")
 SPACE_BEFORE_PUNCT = re.compile(r"\s+([,.!?:])")
 
 
+# values key -> kind; keys not listed are plain numbers (counts such as shots_home, window_min).
+KINDS = {
+    "distance_m": "distance", "goal_distance_m": "distance", "progress_m": "distance",
+    "speed_kmh": "speed",
+    "momentum_home": "percentage", "momentum_away": "percentage",
+    "score": "score", "difficulty": "difficulty", "minute": "minute",
+}
+
+
 class UnknownPlaceholder(ValueError):
     """A placeholder that is not a key of this overlay's `values` (nor minute or score)."""
-
-
-def kind_of(key: str) -> str:
-    """Formatting kind of a `values` key, from its name."""
-    if key in ("difficulty", "minute", "score"):
-        return key
-    if key.endswith("_kmh"):
-        return "speed"
-    if key.endswith("_m"):
-        return "distance"
-    if key.startswith("momentum_") or key.endswith("_pct"):
-        return "percentage"
-    return "number"
 
 
 def known(values: dict, facts: dict | None = None) -> dict:
@@ -58,7 +56,7 @@ def known(values: dict, facts: dict | None = None) -> dict:
 
 def fill(text: str, values: dict, lang: str, facts: dict | None = None) -> str:
     """`text` with every placeholder replaced by its formatted number."""
-    lang = lang if lang in FORMATS["speed"] else "en"
+    lang = lang if lang in LANGS else "en"
     nums = known(values, facts)
 
     def one(m: re.Match) -> str:
@@ -66,10 +64,11 @@ def fill(text: str, values: dict, lang: str, facts: dict | None = None) -> str:
         if key not in nums:
             raise UnknownPlaceholder(f"unknown placeholder {{{key}}} (allowed: "
                                      + ", ".join(f"{{{k}}}" for k in sorted(nums)) + ")")
-        if kind_of(key) == "score":
+        kind = KINDS.get(key, "number")
+        if kind == "score":
             h, a = nums[key]
             return FORMATS["score"][lang].format(h=h, a=a)
-        return FORMATS[kind_of(key)][lang].format(n=nums[key])
+        return FORMATS[kind][lang].format(n=nums[key])
 
     return normalise(PLACEHOLDER_RE.sub(one, text))
 
