@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from collections import deque
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -15,12 +16,12 @@ from agents import templates, verifier
 from agents.fill import UnknownPlaceholder, fill
 from agents.context import goal_effect, lead_in, scoring_side
 from agents.data_io import load_match
-from agents.director import MODES, direct
-from agents.explainer import explain_all
+from agents.director import GRAPHIC_LAYOUT, MODES, direct, propose
+from agents.explainer import build_request, explain_all, involved_names
 from agents.llm import (RATE_LIMIT_DELAYS_S, FoundryBackend, MockBackend, NoisyBackend, cache_key,
                         is_rate_limit, parse_json_reply)
-from agents.stats import (MOMENTUM_WINDOW_S, attacks_positive_x, display_minute, pass_difficulty,
-                          threat_share, threat_weight)
+from agents.stats import (MOMENTUM_WINDOW_S, MatchState, attacks_positive_x, display_minute, event_facts,
+                          pass_difficulty, threat_share, threat_weight)
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_A = ROOT / "data" / "fake" / "sample_a"
@@ -39,6 +40,22 @@ class StatsTest(unittest.TestCase):
         info = {"periods": [{"period": 1, "start": 0, "end": 2700}, {"period": 2, "start": 2701, "end": 5400}]}
         self.assertEqual(display_minute(0, info), 1)
         self.assertEqual(display_minute(2701, info), 46)
+
+    def test_events_with_no_player_or_optional_fields_keep_team_totals(self):
+        # A detected event may lack `from`, `duration_s`, `end`, `success`: facts that need them are left out.
+        state = MatchState(info={"kickoff_direction": {"home": "left_to_right"}})
+        shot = {"id": "e0001", "t": 10.0, "type": "shot", "team": "home", "from": None, "start": [95.0, 34.0]}
+        bare_pass = {"id": "e0002", "t": 12.0, "type": "pass", "team": "home", "from": 7, "start": [50.0, 30.0]}
+        for e in (shot, bare_pass):
+            state.update(e)
+        self.assertEqual((state.teams["home"].shots, state.teams["home"].passes), (1, 0))
+        self.assertNotIn(None, state.players)
+        f = event_facts(shot, state)
+        self.assertEqual(f["goal_distance_m"], 10)
+        self.assertFalse({"speed_kmh", "player_shots"} & set(f))
+        f = event_facts(bare_pass, state)
+        self.assertFalse({"difficulty", "progress_m", "into_box"} & set(f))
+        self.assertIsNone(propose(bare_pass, f))
 
     def test_difficulty_range(self):
         self.assertEqual(pass_difficulty(5, 30, 0, "short"), 2)
@@ -242,6 +259,104 @@ class PipelineTest(unittest.TestCase):
         overlays, report = self.run_pipeline(NoisyBackend())
         self.assertGreater(len(report["rejected"]), 0)
         self.assertFalse(any("87" in o["text"] for o in overlays))
+
+
+DETECTED_TYPES = {"kickoff", "pass", "possession_change", "shot", "goal"}  # what the vision AI detects
+MERGED_SIM_TYPES = {"foul", "yellow_card", "red_card", "offside", "substitution"}  # scripts/merge_events.py
+
+
+def as_detected(match):
+    """sample_a as the vision AI + merge_events.py would deliver it: only detected types
+    (plus the merged simulator ones), confidences below 1, no player on every other
+    detected event and on the goal, some optional fields missing, no half_time/full_time."""
+    events = []
+    for i, e in enumerate(match.events):
+        if e["type"] not in DETECTED_TYPES | MERGED_SIM_TYPES:
+            continue
+        e = dict(e)
+        if e["type"] in DETECTED_TYPES:
+            e.update(source="cv", confidence=0.62)
+            if i % 2 or e["type"] == "goal":
+                e["from"] = e["to"] = None
+            if i % 5 == 0:
+                for k in ("duration_s", "end", "success", "speed_kmh"):
+                    e.pop(k, None)
+        events.append(e)
+    match.events = events
+    return match
+
+
+class DetectedEventsTest(unittest.TestCase):
+    """The agents stage on detected events: nothing branches on `source`, only null players
+    (and, later, confidence) change what is shown."""
+
+    def setUp(self):
+        self.match = as_detected(load_match(SAMPLE_A))
+        self.by_id = {e["id"]: e for e in self.match.events}
+        self.roster = {p["name"] for p in self.match.players.values()}
+        candidates, _ = direct(self.match)
+        self.overlays, self.report = asyncio.run(
+            explain_all(candidates, self.match, MockBackend(), list(templates.LANGS)))
+
+    def subject(self, o):
+        """The event an overlay is about: the last id it cites."""
+        return self.by_id[o["event_ids"][-1]]
+
+    def test_overlays_pass_the_schema_and_nothing_is_dropped(self):
+        self.assertGreater(len(self.overlays), 0)
+        self.assertEqual(self.report["dropped"], [])
+        for o in self.overlays:
+            self.assertEqual(list(OVERLAY_SCHEMA.iter_errors(o)), [], o)
+            self.assertTrue(set(o["event_ids"]) <= set(self.by_id))
+            self.assertTrue(o["title"].strip() and o["text"].strip(), o)
+            self.assertNotIn("None", o["title"] + o["text"])
+
+    def test_events_with_no_player_are_worded_about_the_team(self):
+        affected = [o for o in self.overlays if o["graphic"] != "momentum_bar"  # about a window, not an event
+                    and self.subject(o)["from"] is None and self.subject(o)["team"] in ("home", "away")]
+        self.assertTrue({"goal_banner", "shot_card", "pass_card"} <= {o["graphic"] for o in affected})
+        for o in affected:
+            self.assertNotEqual(o["mode"], "player_focus", o)
+            self.assertEqual(verifier.names_in(f"{o['title']} {o['text']}", self.roster), set(), o)
+            self.assertIn(self.match.team_name(self.subject(o)["team"]), o["title"] + o["text"], o)
+        self.assertTrue({"analyst", "casual"} <= {o["mode"] for o in affected})
+
+    def test_merged_card_still_names_the_booked_player(self):
+        cards = [o for o in self.overlays if o["graphic"] == "card_banner"]
+        self.assertGreater(len(cards), 0)
+        for o in cards:
+            self.assertIn(self.match.player_name(self.subject(o)["from"]), o["text"], o)
+
+    def test_every_template_passes_the_verifier_named_and_team_only(self):
+        # The fallback must always be valid: every graphic x mode x language, with and without a player.
+        covered = set()
+        for match in (load_match(SAMPLE_A), load_match(SAMPLE_B), self.match):
+            roster = {p["name"] for p in match.players.values()}
+            candidates, _ = direct(match)
+            for c in candidates:
+                no_player = replace(c, event={**c.event, "from": None, "to": None})
+                for cand, form in ((c, "named"), (no_player, "team-only")):
+                    for mode in MODES:
+                        req = build_request(cand, mode, match, list(templates.LANGS))
+                        for lang in templates.LANGS:
+                            raw = templates.render(req, lang)
+                            out = {k: fill(raw[k], req["values"], lang, req["facts"]) for k in raw}
+                            where = (c.graphic, c.event["id"], mode, lang, form, raw)
+                            self.assertNotRegex(raw["title"] + raw["text"], r"\d", where)  # numbers only via placeholders
+                            self.assertEqual(verifier.check(out["text"], out["title"], req["values"], cand.facts,
+                                                            involved_names(req), roster), [], where)
+                            self.assertTrue(out["title"].strip() and out["text"].strip(), where)
+                            if cand.team_only:
+                                self.assertNotIn("actor", req)
+                                self.assertEqual(verifier.names_in(f"{out['title']} {out['text']}", roster),
+                                                 set(), where)
+                            covered.add((c.graphic, form))
+        self.assertEqual({g for g, _ in covered}, set(GRAPHIC_LAYOUT))
+        self.assertTrue({(g, "team-only") for g in ("goal_banner", "card_banner", "shot_card", "pass_card",
+                                                    "insight_text")} <= covered)
+
+    def test_no_recap_without_clock_events(self):
+        self.assertNotIn("stat_compare", {o["graphic"] for o in self.overlays})
 
 
 class TemplateFormatTest(unittest.TestCase):
