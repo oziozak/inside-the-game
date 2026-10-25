@@ -3,7 +3,7 @@
 For each accepted (candidate, mode):
   1. build a request with facts and values (all computed by code),
   2. ask the explainer backend for title + text in every language,
-  3. verify each language; on failure, retry ONCE with the verifier's feedback,
+  3. fill the placeholders with code-formatted numbers (fill.py), verify each language; on failure, retry ONCE with the verifier's feedback,
   4. if it still fails, fall back to the code template (and log it).
 """
 
@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 
 from . import templates, verifier
+from .fill import UnknownPlaceholder, fill
 from .data_io import Match
 from .director import BUDGET_WINDOW_S, Candidate
 
@@ -70,34 +71,45 @@ async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: lis
     named = [req["actor"], req["target"], req["setup_by"]] + [k["player"] for k in req["key_moments"]]
     involved = {n for n in named if n}
 
-    def problems(out: dict, lang: str) -> list[str]:
-        t = out.get(lang, {"title": "", "text": ""})
-        return verifier.check(t["text"], t["title"], req["values"], c.facts, involved, roster)
+    def finish(answer: dict, lang: str) -> tuple[dict, list[str]]:
+        """One language of a backend answer with its placeholders filled, and its problems."""
+        t = answer.get(lang, {"title": "", "text": ""})
+        try:
+            t = {k: fill(t[k], req["values"], lang, req["facts"]) for k in ("title", "text")}
+        except UnknownPlaceholder as ex:
+            return t, [str(ex)]
+        return t, verifier.check(t["text"], t["title"], req["values"], c.facts, involved, roster)
 
-    out = await backend.explain(req)
-    bad = {lang: p for lang in langs if (p := problems(out, lang))}
+    answer = await backend.explain(req)
+    out, bad = {}, {}
+    for lang in langs:
+        out[lang], p = finish(answer, lang)
+        if p:
+            bad[lang] = p
     if bad:
         report["rejected"].append({"event_id": c.event.get("id"), "mode": mode, "attempt": 1,
-                                   "problems": bad, "text": {l: out.get(l) for l in bad}})
+                                   "problems": bad, "text": {l: answer.get(l) for l in bad}})
         feedback = "; ".join(f"[{l}] " + ", ".join(p) for l, p in bad.items())
         retry = await backend.explain(req, feedback)
         for lang in list(bad):
-            if not problems(retry, lang):
-                out[lang] = retry[lang]
+            t, p = finish(retry, lang)
+            if not p:
+                out[lang] = t
                 report["fixed_on_retry"] += 1
                 del bad[lang]
+    dropped = set()
     for lang in bad:
-        fallback = templates.render(req, lang)
-        if problems({lang: fallback}, lang):
+        t, p = finish({lang: templates.render(req, lang)}, lang)
+        if p:
             report["dropped"].append({"event_id": c.event.get("id"), "mode": mode, "lang": lang})
+            dropped.add(lang)
             continue
-        out[lang] = fallback
+        out[lang] = t
         report["template_fallbacks"] += 1
 
     overlays = []
     for lang in langs:
-        if lang not in out or any(d["event_id"] == c.event.get("id") and d["mode"] == mode and d["lang"] == lang
-                                  for d in report["dropped"]):
+        if lang in dropped:
             continue
         overlays.append({
             "id": "o0000",
