@@ -69,5 +69,5 @@ Output goes to `data/generated/<match>/` (git-ignored): `overlays.json` and `age
 - [x] Richer "why it matters": `context.py` labels (goal effect, score situation, lead-in, momentum, phase).
 - [ ] Turn the pipeline into an Agent Framework workflow (director → explainer → verifier as executors) for the multi-agent category; keep the same functions inside.
 - [ ] Live mode: consume events one by one (Event Hubs) and emit overlays with a measured latency.
-- [x] Half-time / full-time recap: shots, on target, pass accuracy, scorers; cites every goal and red card.
+- [x] Half-time / full-time recap: score, shots, on target, scorers; cites every shot, goal and red card, so its numbers can be recomputed from the cited events. The momentum bar cites the events in its 5-minute window.
 - [x] Add `es` to show multi-language reach.

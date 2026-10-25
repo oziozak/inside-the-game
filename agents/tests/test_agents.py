@@ -3,11 +3,10 @@
 import asyncio
 import json
 import unittest
+from collections import deque
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
-
-from collections import deque
 
 from agents import templates, verifier
 from agents.context import goal_effect, lead_in, scoring_side
@@ -15,7 +14,8 @@ from agents.data_io import load_match
 from agents.director import direct
 from agents.explainer import explain_all
 from agents.llm import MockBackend, NoisyBackend, cache_key, parse_json_reply
-from agents.stats import attacks_positive_x, display_minute, pass_difficulty
+from agents.stats import (MOMENTUM_WINDOW_S, attacks_positive_x, display_minute, pass_difficulty,
+                          threat_share, threat_weight)
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_A = ROOT / "data" / "fake" / "sample_a"
@@ -128,13 +128,38 @@ class ContextTest(unittest.TestCase):
         passes.popleft()
         self.assertIsNone(lead_in(shot, "home", passes))
 
-    def test_recap_cites_every_goal(self):
+    def test_recap_cites_the_events_behind_its_numbers(self):
+        # AGENTS.md rules 3-4: the shot counts can be recomputed from the cited events alone.
         match = load_match(SAMPLE_B)
-        goals = [e["id"] for e in match.events if e["type"] == "goal"]
+        by_id = {e["id"]: e for e in match.events}
         candidates, _ = direct(match)
-        ft = next(c for c in candidates if c.event["type"] == "full_time")
-        self.assertEqual(ft.event_ids, goals + [ft.event["id"]])
-        self.assertIn("shots_home", ft.values)
+        recaps = [c for c in candidates if c.graphic == "stat_compare"]
+        self.assertEqual([c.event["type"] for c in recaps], ["half_time", "full_time"])
+        for c in recaps:
+            cited = [by_id[i] for i in c.event_ids]
+            self.assertEqual([e["t"] for e in cited], sorted(e["t"] for e in cited))
+            for side in ("home", "away"):
+                shots = [e for e in cited if e["type"] == "shot" and e["team"] == side]
+                self.assertEqual(len(shots), c.values[f"shots_{side}"])
+                self.assertEqual(sum(e.get("subtype") == "on_target" for e in shots), c.values[f"on_target_{side}"])
+            goals = {e["id"] for e in match.events if e["type"] == "goal" and e["t"] < c.event["t"]}
+            self.assertLessEqual(goals, set(c.event_ids))
+            self.assertNotIn("pass_accuracy_home", c.values)  # would need every pass cited
+
+    def test_momentum_bar_cites_the_window_behind_its_percentages(self):
+        match = load_match(SAMPLE_B)
+        by_id = {e["id"]: e for e in match.events}
+        candidates, _ = direct(match)
+        bars = [c for c in candidates if c.graphic == "momentum_bar"]
+        self.assertGreater(len(bars), 0)
+        for c in bars:
+            t = c.event["t"]
+            window = [by_id[i] for i in c.event_ids if threat_weight(by_id[i], match.info)]
+            self.assertTrue(all(t - MOMENTUM_WINDOW_S <= e["t"] <= t for e in window))
+            # Only the anchor event (when the bar appears) may carry no threat weight.
+            self.assertEqual(len(window), len(c.event_ids) - (c.event["id"] not in {e["id"] for e in window}))
+            share = threat_share([(e["team"], threat_weight(e, match.info)) for e in window])
+            self.assertEqual(share, {"home": c.values["momentum_home"], "away": c.values["momentum_away"]})
 
 
 class PipelineTest(unittest.TestCase):

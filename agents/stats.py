@@ -80,20 +80,21 @@ class MatchState:
     score: dict = field(default_factory=lambda: {"home": 0, "away": 0})
     teams: dict = field(default_factory=lambda: {"home": TeamTotals(), "away": TeamTotals()})
     players: dict = field(default_factory=lambda: defaultdict(lambda: defaultdict(int)))
-    _recent: deque = field(default_factory=deque)  # (t, side, weight) for momentum
+    _recent: deque = field(default_factory=deque)  # (t, side, weight, event) for momentum
+
+    def _trim(self, t: float) -> None:
+        while self._recent and self._recent[0][0] < t - MOMENTUM_WINDOW_S:
+            self._recent.popleft()
 
     def momentum(self, t: float) -> dict:
         """Share of attacking threat in the last 5 minutes, in percent, home + away = 100."""
-        while self._recent and self._recent[0][0] < t - MOMENTUM_WINDOW_S:
-            self._recent.popleft()
-        w = {"home": 0.0, "away": 0.0}
-        for _, side, weight in self._recent:
-            w[side] += weight
-        total = w["home"] + w["away"]
-        if total == 0:
-            return {"home": 50, "away": 50}
-        home = round(100 * w["home"] / total)
-        return {"home": home, "away": 100 - home}
+        self._trim(t)
+        return threat_share([(side, weight) for _, side, weight, _ in self._recent])
+
+    def momentum_events(self, t: float) -> list[dict]:
+        """The events behind momentum(t), oldest first: the evidence a momentum graphic cites."""
+        self._trim(t)
+        return [e for *_, e in self._recent]
 
     def update(self, e: dict) -> None:
         side, typ, t = e.get("team"), e["type"], e["t"]
@@ -103,8 +104,6 @@ class MatchState:
             return
         team, pid = self.teams[side], e.get("from")
         pstats = self.players[pid] if pid is not None else defaultdict(int)
-        period = e.get("period", 1)
-        fx = forward_x(e["start"][0], side, period, self.info)
 
         if typ in PASS_TYPES and "end" in e:
             team.passes += 1
@@ -112,26 +111,48 @@ class MatchState:
             if e.get("success"):
                 team.passes_completed += 1
                 pstats["passes_completed"] += 1
-                end_fx = forward_x(e["end"][0], side, period, self.info)
-                if end_fx >= 70:
-                    self._recent.append((t, side, 1.0))
         elif typ == "shot":
             team.shots += 1
             pstats["shots"] += 1
             if e.get("subtype") == "on_target":
                 team.shots_on_target += 1
-            self._recent.append((t, side, 3.0))
         elif typ == "goal":
             team.goals += 1
             pstats["goals"] += 1
-            self._recent.append((t, side, 5.0))
         elif typ == "possession_change":
             team.tackles_won += 1
             pstats["ball_wins"] += 1
-            if fx >= 70:
-                self._recent.append((t, side, 2.0))
+        weight = threat_weight(e, self.info)
+        if weight:
+            self._recent.append((t, side, weight, e))
         if e.get("score"):
             self.score = dict(e["score"])
+
+
+def threat_weight(e: dict, info: dict) -> float:
+    """How much an event adds to its team's momentum: a completed pass into the final third 1,
+    a ball win in the final third 2, a shot 3, a goal 5, anything else 0."""
+    side, typ = e.get("team"), e["type"]
+    if side not in ("home", "away"):
+        return 0.0
+    period = e.get("period", 1)
+    if typ in PASS_TYPES and "end" in e:
+        return 1.0 if e.get("success") and forward_x(e["end"][0], side, period, info) >= 70 else 0.0
+    if typ == "possession_change":
+        return 2.0 if forward_x(e["start"][0], side, period, info) >= 70 else 0.0
+    return {"shot": 3.0, "goal": 5.0}.get(typ, 0.0)
+
+
+def threat_share(weighted: list[tuple[str, float]]) -> dict:
+    """(side, weight) pairs -> percent of the threat per side, home + away = 100 (50/50 if none)."""
+    w = {"home": 0.0, "away": 0.0}
+    for side, weight in weighted:
+        w[side] += weight
+    total = w["home"] + w["away"]
+    if total == 0:
+        return {"home": 50, "away": 50}
+    home = round(100 * w["home"] / total)
+    return {"home": home, "away": 100 - home}
 
 
 def event_facts(e: dict, state: MatchState) -> dict:
@@ -153,7 +174,6 @@ def event_facts(e: dict, state: MatchState) -> dict:
                 team = state.teams[s]
                 f[f"shots_{s}"] = team.shots
                 f[f"on_target_{s}"] = team.shots_on_target
-                f[f"pass_accuracy_{s}"] = team.pass_accuracy
         return f
 
     sx, sy = e["start"]
