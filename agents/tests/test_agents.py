@@ -2,8 +2,11 @@
 
 import asyncio
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 from jsonschema import Draft202012Validator
 
@@ -11,7 +14,8 @@ from agents import verifier
 from agents.data_io import load_match
 from agents.director import direct
 from agents.explainer import explain_all
-from agents.llm import MockBackend, NoisyBackend, cache_key, parse_json_reply
+from agents.llm import (RATE_LIMIT_DELAYS_S, FoundryBackend, MockBackend, NoisyBackend, cache_key,
+                        is_rate_limit, parse_json_reply)
 from agents.stats import attacks_positive_x, display_minute, pass_difficulty
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -128,6 +132,62 @@ class PipelineTest(unittest.TestCase):
         overlays, report = self.run_pipeline(NoisyBackend())
         self.assertGreater(len(report["rejected"]), 0)
         self.assertFalse(any("87" in o["text"] for o in overlays))
+
+
+class RateLimited(Exception):
+    """Stands in for openai.RateLimitError (HTTP 429)."""
+    status_code = 429
+
+
+class FlakyAgent:
+    """Fake Agent Framework agent: rate-limited `failures` times (wrapped, like a
+    ChatClientException around the openai error), then answers."""
+
+    def __init__(self, failures: int) -> None:
+        self.failures, self.calls = failures, 0
+
+    async def run(self, prompt: str):
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise RuntimeError("service failed to complete the prompt") from RateLimited()
+        return SimpleNamespace(text='{"en": {"title": "Goal", "text": "K. Aydin scores"}}')
+
+
+class FoundryRetryTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cache_path = Path(self.tmp.name) / "llm_cache.json"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def explain(self, agent):
+        backend = FoundryBackend(self.cache_path, agent=agent, deployment="fake")
+        with mock.patch("agents.llm.asyncio.sleep", new=mock.AsyncMock()) as sleep:
+            out = asyncio.run(backend.explain({"langs": ["en"], "event_type": "goal"}))
+        return out, sleep
+
+    def test_retries_429_then_succeeds_and_saves_cache(self):
+        agent = FlakyAgent(failures=2)
+        out, sleep = self.explain(agent)
+        self.assertEqual(out["en"]["text"], "K. Aydin scores")
+        self.assertEqual(agent.calls, 3)
+        waits = [c.args[0] for c in sleep.await_args_list]
+        self.assertEqual(len(waits), 2)
+        for wait, base in zip(waits, RATE_LIMIT_DELAYS_S):
+            self.assertTrue(base <= wait <= base + 1, wait)
+        self.assertEqual(len(json.loads(self.cache_path.read_text("utf-8"))), 1)
+
+    def test_gives_up_after_six_retries(self):
+        agent = FlakyAgent(failures=99)
+        with self.assertRaises(RuntimeError):
+            self.explain(agent)
+        self.assertEqual(agent.calls, len(RATE_LIMIT_DELAYS_S) + 1)
+        self.assertFalse(self.cache_path.exists())
+
+    def test_other_errors_are_not_retried(self):
+        self.assertFalse(is_rate_limit(ValueError("bad request")))
+        self.assertTrue(is_rate_limit(SimpleNamespace(status_code=429, __cause__=None, __context__=None)))
 
 
 if __name__ == "__main__":
