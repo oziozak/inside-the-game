@@ -8,12 +8,13 @@ import subprocess
 
 import pytest
 
+from simulator import iter_tracking
 from vision import footage
 
 
-def clip(name, role, seed, home="bosphorus", away="thames", minutes=2):
+def clip(name, role, seed, home="bosphorus", away="thames", minutes=2, **extra):
     return {"name": name, "role": role, "seed": seed, "home": home, "away": away,
-            "minutes": minutes}
+            "minutes": minutes, **extra}
 
 
 VALID = {"clips": [
@@ -66,6 +67,8 @@ def test_dev_needs_a_white_away_kit():
     (lambda r: r["clips"].pop(3), "no test clip"),
     (lambda r: r["clips"].pop(4), "no training clip"),
     (lambda r: r["clips"][4].update(minutes=0), "minutes"),
+    (lambda r: r["clips"][4].update(start_minute=-1), "start_minute"),
+    (lambda r: r["clips"][4].update(start_minute=50, minutes=10), "before any substitution"),
     (lambda r: r["clips"][4].update(home="thames", away="thames"), "different teams"),
     (lambda r: r["clips"][4].pop("seed"), "missing seed"),
 ])
@@ -80,7 +83,8 @@ def test_committed_seed_record_is_valid():
     assert footage.check_record(record) == []
     by_role = {role: [c for c in record["clips"] if c["role"] == role] for role in footage.ROLES}
     assert len(by_role["dev"]) == 3 and all(c["minutes"] == 2 for c in by_role["dev"])
-    assert [c["minutes"] for c in by_role["test"]] == [10]
+    assert [(c["name"], footage.window(c)) for c in by_role["test"]] == \
+        [("test1", (0, 600)), ("test2", (2400, 3000))]
     assert all(c["minutes"] == 2 for c in by_role["training"])
     assert "disjoint" in record["rule"]
 
@@ -116,6 +120,62 @@ def test_prepare_clip_trims_true_events_to_the_clip(tmp_path):
     assert events and all(e["t"] < 120 for e in events)
     assert full[:len(events)] == events and full[len(events)]["t"] >= 120   # a prefix, ids kept
     assert full[-1]["type"] == "full_time"
+
+
+def test_window_defaults_to_the_kickoff():
+    assert footage.window(clip("a", "dev", 1, minutes=2)) == (0, 120)
+    assert footage.window(clip("a", "dev", 1, minutes=10, start_minute=40)) == (2400, 3000)
+    assert footage.check_record({**VALID, "clips": VALID["clips"] + [
+        clip("late", "training", 9, minutes=10, start_minute=48)]}) == []    # ends at 58'
+
+
+def test_prepare_clip_cuts_truth_and_tracking_to_a_later_window(tmp_path):
+    late = clip("late", "dev", 7, minutes=1, start_minute=1)
+    plan = footage.prepare_clip(late, tmp_path)
+    frames = [json.loads(line) for line in plan.tracking.read_text().splitlines()]
+    # The same frames as the full match's tracking over the window, not re-placed players.
+    assert frames == list(iter_tracking(footage.simulate(late), 0, 120))[60 * 25:]
+    events = json.loads((tmp_path / "late" / "truth" / "events.json").read_text())
+    full = json.loads((tmp_path / "late" / "truth" / "events.full.json").read_text())
+    assert events == [e for e in full if 60 <= e["t"] < 120] and events
+    args = plan.export_args
+    assert (args[args.index("--start") + 1], args[args.index("--end") + 1]) == ("60", "120")
+
+
+def test_a_window_over_half_time_holds_the_second_half_kickoff(tmp_path):
+    over = clip("over", "dev", 7, minutes=2, start_minute=44)
+    plan = footage.prepare_clip(over, tmp_path)
+    info = json.loads(plan.metadata.read_text())
+    second = info["periods"][1]["start"]
+    frames = plan.tracking.read_text().splitlines()
+    assert len(frames) == 2 * 60 * 25
+    assert (json.loads(frames[0])["t"], json.loads(frames[-1])["t"]) == (2640, 2759.96)
+    assert {json.loads(f)["period"] for f in frames} == {1, 2}
+    events = json.loads((tmp_path / "over" / "truth" / "events.json").read_text())
+    assert all(2640 <= e["t"] < 2760 for e in events)
+    assert any(e["type"] == "half_time" for e in events)
+    assert any(e["type"] == "kickoff" and e["t"] == second for e in events)
+
+
+def test_find_seed_skips_used_seeds_and_needs_goals_in_the_window():
+    seed = footage.find_seed(2101, "bosphorus", "thames", 40, 10, used={2102})
+    assert seed > 2102
+    late = {"name": "x", "seed": seed, "home": "bosphorus", "away": "thames",
+            "start_minute": 40, "minutes": 10}
+    assert all(2400 <= g["t"] < 3000 for g in footage.goals_in_window(late))
+    assert footage.goals_in_window(late)
+
+
+def test_test2_seed_follows_its_rule():
+    """#35: the first seed after test1's, unused in any role, with a goal in minutes 40-50,
+    found with the simulator only (the rule is in the record's `rule`)."""
+    clips = footage.load_record()["clips"]
+    test1, test2 = (next(c for c in clips if c["name"] == n) for n in ("test1", "test2"))
+    used = {c["seed"] for c in clips if c["name"] != "test2"}
+    assert (test2["home"], test2["away"]) == (test1["home"], test1["away"])
+    assert footage.window(test2) == (2400, 3000)
+    assert test2["seed"] == footage.find_seed(test1["seed"], test2["home"], test2["away"], 40, 10, used)
+    assert "test2" in footage.load_record()["rule"]
 
 
 def test_prepare_clip_is_deterministic(tmp_path):

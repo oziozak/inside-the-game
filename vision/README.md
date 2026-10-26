@@ -154,7 +154,8 @@ Dev-clip and seam-2 grades in detail: [Footage grades](#footage-grades-visiongra
 - **Substitutions:** never named. A substitute's track takes the name of the player who went off, so
   player-id drops to about 0.5 after the first substitution (58'-82'). Footage clips end before any.
 - **test1 has no goals:** goal detection is graded on the calibration clip and the seam-2 matches only.
-  A second held-out clip with goals and the half-time kickoff is planned (test2, #35).
+  A second held-out clip with a goal and the half-time kickoff, test2 (minutes 40-50, seed 2102), is
+  seeded but not yet rendered or graded (#35).
 - **Second-half kickoff** is tested only on simulator observations (seam-2), not on rendered footage.
 
 ## Footage
@@ -167,24 +168,30 @@ python -m vision.footage check                 # seed record valid, roles disjoi
 python -m vision.footage list                  # clips with role, seed, pairing, kits
 python -m vision.footage render dev1           # one clip (skipped if already rendered)
 python -m vision.footage render --role dev     # or --all; --force rebuilds
+python -m vision.footage find-seed --after 2101 --start-minute 40 --minutes 10   # a test seed rule, simulator only
 ```
 
 | Role | Clips | Purpose |
 | --- | --- | --- |
 | dev | `dev1`-`dev3`, 2 min each | develop the pipeline; red v blue, orange v white (away kit), green v orange |
-| test | `test1`, 10 min | held-out grade; its seed is never used for dev or training |
+| test | `test1`, minutes 0-10; `test2`, minutes 40-50 | held-out grades; their seeds are never used for dev or training. test2 adds a goal, the kickoff after it, half-time and the second-half kickoff (teams switch ends) |
 | training | `train1`-`train6`, 2 min each | reserved for fine-tuning the player detector; the other six pairings. Unused: pretrained recall sufficed (#21) |
 
 Dev, test and training seeds are disjoint. `check` (and `pytest`) fails if a
 seed is used by two clips, if a role has no clip, or if the dev clips show
 fewer than three kit combinations or no white away kit.
 
-Each clip is **the first `minutes` of a full 90-minute match** (seeded, `full`
-profile), from the kickoff, so `[0, minutes * 60)` seconds. The simulator plays
-the whole match but writes tracking only for the clip, and `truth/events.json`
-holds only the true events before the clip's end, so the grader needs no
-clip-end logic. Clips stay inside the first half, which keeps
-substitutions (58'-82') out of them. Short simulated halves are not used
+Each clip is **`minutes` of a full 90-minute match** (seeded, `full`
+profile) from `start_minute` (optional, default 0: the kickoff), so
+`[start_minute * 60, (start_minute + minutes) * 60)` seconds on the continuous
+clock (the half-time break is cut, so a window over minute 45 holds the end of
+the first half and the start of the second). The simulator plays the whole
+match but writes tracking only for the window (built from the kickoff and cut,
+so the frames are the full match's), and `truth/events.json` holds only the
+true events in the window, so the grader needs no clip-edge logic. The video
+starts at `start_minute`, and `grade_footage` passes that time to the tracer
+as `--start`. Clips end by minute 58, which keeps substitutions (58'-82') out
+of them. Short simulated halves are not used
 because the simulator squeezes its full substitution plan into them, which
 adds minutes of dead time.
 
@@ -202,7 +209,7 @@ simulator's truth, which the vision stage never reads:
 | `match_info.json` | team sheet: the only other file the vision stage may read |
 | `<name>.mp4.manifest.json`, `.metrics.json` | renderer export manifest (camera, scales, CV visibility, frame-to-tracking map) and timing |
 | `clip.json` | seed record entry + render settings; written last, after `validate:export` passed |
-| `truth/events.json` | true events (`source: sim`) with `t` before the clip's end, original ids: grading only |
+| `truth/events.json` | true events (`source: sim`) with `t` in the clip's window, original ids: grading only |
 | `truth/events.full.json` | true events of the whole simulated match, for reference |
 | `truth/tracking.jsonl` | simulator tracking for the clip: training-label projection and grading only |
 
@@ -236,7 +243,7 @@ python -m vision.video data/renders/footage/dev1/dev1.mp4 --out runs/dev1/observ
 ```
 
 Reads only the video and the team sheet (`match_info.json` next to the video, or `--match-info`).
-`--start` gives the match time of the first frame (default 0: footage clips start at the kickoff).
+`--start` gives the match time of the first frame (default 0, the kickoff; `grade_footage` passes a later clip's start, e.g. 2400 for test2).
 
 | Part | How | Module |
 | --- | --- | --- |

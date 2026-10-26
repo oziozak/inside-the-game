@@ -59,6 +59,8 @@ THRESHOLDS: dict[str, dict[str, dict[str, float]]] = {
     "test1": {"pass": {"precision": 0.93, "recall": 0.94},                 # 131/135, 136
               "possession_change": {"precision": 0.14, "recall": 0.25},   # 2/4, 7
               "shot": {"precision": 0.33, "recall": 0.5}},                # 2/2, 3
+    # Held out, minutes 40-50 (#35): floors by the same rule once graded.
+    "test2": {},
 }
 
 
@@ -137,6 +139,25 @@ def test_grade_clip_records_settings_and_seeds(tmp_path):
     assert (report["clip"]["seed"], report["clip"]["role"], report["clip"]["training_seeds"]) == \
         (clip["seed"], "dev", [])
     assert report["missed"] == report["unmatched_detections"] == []
+
+
+def test_grade_clip_runs_the_tracer_from_the_clip_start(tmp_path, monkeypatch):
+    """A clip from minute 40 is traced with --start 2400, so its events carry match time."""
+    clip = {**CLIPS["test2"], "name": "calib"}
+    folder = tmp_path / "footage" / "calib"
+    (folder / "truth").mkdir(parents=True)
+    (folder / "calib.mp4").write_bytes(b"")
+    shutil.copy(CALIBRATION / "calibration.mp4.manifest.json", folder / "calib.mp4.manifest.json")
+    shutil.copy(TRUTH, folder / "truth" / "events.json")
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        shutil.copy(TRUTH, tmp_path / "runs" / "events.json")
+    monkeypatch.setattr("vision.grade_footage.subprocess.run", run)
+    grade_clip(clip, tmp_path / "footage", tmp_path / "runs")
+    args = calls[0]
+    assert args[1:3] == ["-m", "vision"] and args[args.index("--start") + 1] == "2400"
 
 
 def test_footage_root_prefers_argument_then_environment(monkeypatch, tmp_path):
