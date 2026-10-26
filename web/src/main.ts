@@ -113,7 +113,7 @@ async function main() {
     if (width === 0 || height === 0) return;
     const t = matchTime();
     const visible = activeOverlays(overlays, t, mode, lang);
-    const camera = buildCamera(cameraPreset, match, t, width / height);
+    const camera = match.frames.length ? buildCamera(cameraPreset, match, t, width / height) : undefined;
     hitRegions = drawOverlays(ctx, width, height, visible, roster, eventsById, match, t, camera);
     clockEl.textContent = clock(t, match.info.periods);
     const pct = video.duration ? (video.currentTime / video.duration) * 100 : 0;

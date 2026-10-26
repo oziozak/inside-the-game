@@ -12,7 +12,41 @@ npm install
 npm run dev
 ```
 
-`predev`/`prebuild` copy dev data into ignored `public/sample/`: `data/fake/sample_a/{match_info,tracking,events}` plus director output from `data/generated/sample_a/overlays.json` (the schema-example `data/fake/sample_a/overlays.json` is a stale stand-in — see `../docs` team notes). If `data/renders/sample_a-60s.mp4` + its `.manifest.json` sidecar exist, they're copied in too and used as the video source; otherwise fetching `sample/match.mp4` 404s and the player shows the fetch error.
+`predev`/`prebuild` prepare the selected assets in ignored `public/sample/`. Set `MATCH` to a **repository-root-relative directory**, even though npm runs from `web/`:
+
+```bash
+MATCH=data/demo/test1 npm run dev
+MATCH=data/demo/dev1 npm run build
+npm test
+```
+
+These commands expect Ozan's prepared directories to exist; they do not create demo data. Absolute paths, paths outside the repository (including directory symlink escapes), and empty explicit selections are rejected. An invalid explicit `MATCH` never falls back to sample_a.
+
+Each selected folder must contain exactly these required asset names (other files are not copied):
+
+```text
+data/demo/test1/
+  match_info.json
+  events.json                 # merged CV + simulator invisible events
+  overlays.json               # generated against these merged event IDs
+  match.mp4
+  match.mp4.manifest.json      # original sidecar for this exact video
+  tracking.jsonl              # optional; needed only for tags anchored over players
+```
+
+Metadata, events, video and sidecar must describe the same match and source interval. Preparation checks metadata/manifest/event match IDs and overlay evidence references. It copies the video and sidecar from the same selected folder together; the producer must supply the correct original sidecar (a video's match identity cannot be inferred from its filename). Keep source files unchanged while preparation runs. Browser schema validation still applies to JSON/tracking. When tracking is supplied, its frame match IDs must match the metadata.
+
+The five-file bundle supports video playback, timed cards, language/mode switching, and evidence. Without tracking, `follow-player` overlays appear as ordinary bottom-left cards; no player positions are invented. With tracking, existing projected tags are retained. Include tracking for the video's interval plus camera history if precise projected placement is needed. Changing `MATCH` requires restarting `npm run dev` (or rebuilding); it is a preparation-time selection, not an in-page picker. Run dev/build preparation sequentially: one checkout has one shared `public/sample/` bundle.
+
+Preparation clears the old generated bundle, copies only the five required files and optional tracking into staging, validates them, then publishes the complete directory. Missing required assets stop dev/build with file paths in the error; failures leave no previous match available for accidental reuse. Unrelated videos, detector weights, `truth/`, and other files are never copied.
+
+With `MATCH` **unset**, the existing sample_a sources remain:
+
+- `data/fake/sample_a/{match_info.json,tracking.jsonl,events.json}`
+- `data/generated/sample_a/overlays.json` (director output, not the stale example overlays)
+- `data/renders/sample_a-60s.mp4` and `sample_a-60s.mp4.manifest.json`
+
+All are required. Generate missing director output from the repository root with `python -m agents.run data/fake/sample_a`. Default sample_a uses its existing simulator events for development; an explicit prepared folder supplies its own merged events.
 
 To (re)produce the dev clip:
 
@@ -24,7 +58,7 @@ npm run export -- --start 0 --end 60 --camera broadcast --out ../data/renders/sa
 
 ## How it fits together
 
-- `src/data/loadMatch.ts` — fetches and schema-validates (`ajv`, against `../schemas/*.schema.json` directly) match info, tracking, events, overlays; same frame-ordering/roster invariants the renderer enforces.
+- `src/data/loadMatch.ts` — fetches and schema-validates (`ajv`, against `../schemas/*.schema.json` directly) match info, optional tracking, events, overlays; supplied tracking must satisfy frame-ordering/roster invariants. A missing tracking file disables projection, while malformed tracking is an error.
 - `src/render/camera.ts` — the renderer's camera math (`renderer/src/camera/{presets,tracking}.ts`) ported here, not imported, to keep the two Vite projects independent. Used to project a tracked player's pitch position to canvas pixels so `follow-player` overlays land on the player actually visible in the broadcast video. Must be re-synced by hand if the renderer's camera changes.
 - `src/render/theme.ts` — the design system's palette/font tokens as plain values, for canvas drawing. Mirrored as CSS custom properties in `style.css` for the DOM chrome — **keep both in sync by hand**, there's no single source of truth between them.
 - `src/render/schedule.ts` — which overlays are active at time `t` for the chosen mode/language; the shared match-clock formatter.

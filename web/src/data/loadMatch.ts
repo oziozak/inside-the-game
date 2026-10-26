@@ -27,6 +27,7 @@ function parseTracking(info: MatchInfo, text: string): Frame[] {
     if (!raw.trim()) continue;
     const frame = JSON.parse(raw) as Frame;
     if (!validateFrame(frame)) throw new Error(`Tracking line ${line + 1}: ${ajv.errorsText(validateFrame.errors)}`);
+    if (frame.match_id !== info.match_id) throw new Error(`Tracking line ${line + 1}: match_id does not match metadata`);
     if (prev && (frame.t <= prev.t || frame.frame <= prev.frame)) throw new Error('Tracking must increase strictly in t and frame');
     for (const p of frame.players) {
       if (p.team !== 'referee' && roster.get(p.id) !== p.team) throw new Error(`Unknown player or team mismatch: ${p.id}`);
@@ -41,8 +42,10 @@ function parseTracking(info: MatchInfo, text: string): Frame[] {
 export async function loadMatch(baseUrl: string): Promise<Match> {
   const info = await fetchJson<MatchInfo>(`${baseUrl}/match_info.json`);
   if (!validateInfo(info)) throw new Error(`Match info: ${ajv.errorsText(validateInfo.errors)}`);
-  const trackingText = await (await fetch(`${baseUrl}/tracking.jsonl`)).text();
-  const frames = parseTracking(info, trackingText);
+  // This Accept header prevents Vite's HTML fallback from hiding an absent optional file.
+  const tracking = await fetch(`${baseUrl}/tracking.jsonl`, { headers: { Accept: 'application/x-ndjson' } });
+  if (!tracking.ok && tracking.status !== 404) throw new Error(`Failed to fetch tracking: ${tracking.status}`);
+  const frames = tracking.status === 404 ? [] : parseTracking(info, await tracking.text());
   return { info, frames };
 }
 
@@ -67,6 +70,7 @@ export async function loadManifest(videoUrl: string): Promise<ExportManifest | u
 /** Binary search and identity-based interpolation; hold across gaps and half-time cuts. Ported from renderer/src/data/match.ts for parity. */
 export function sample(match: Match, t: number): Frame {
   const { frames, info } = match;
+  if (!frames.length) throw new Error('Player projection requires optional tracking.jsonl');
   if (t <= frames[0].t) return frames[0];
   if (t >= frames.at(-1)!.t) return frames.at(-1)!;
   let lo = 0, hi = frames.length - 1;

@@ -247,7 +247,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 export function drawOverlays(
   ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number,
   overlays: Overlay[], roster: Map<number, PlayerInfo>, events: Map<string, MatchEvent>,
-  match: Match, t: number, camera: PerspectiveCamera,
+  match: Match, t: number, camera?: PerspectiveCamera,
 ): HitRegion[] {
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
   const s = canvasWidth / REF_WIDTH;
@@ -256,11 +256,12 @@ export function drawOverlays(
   const periods = match.info.periods;
 
   for (const overlay of overlays) {
-    const position = overlay.position ?? 'bottom-left';
+    // A five-file bundle has no player projection data; keep its overlay as a normal card.
+    const position = overlay.position === 'follow-player' && !camera ? 'bottom-left' : overlay.position ?? 'bottom-left';
     const reveal = Math.min(1, Math.max(0, (t - overlay.start) / 0.35));
     const isDual = overlay.graphic === 'momentum_bar' || overlay.graphic === 'stat_compare';
 
-    if (position === 'follow-player' && overlay.player != null) {
+    if (position === 'follow-player' && overlay.player != null && camera) {
       const frame = sample(match, t);
       const tracked = frame.players.find(p => p.id === overlay.player);
       const info = roster.get(overlay.player);
