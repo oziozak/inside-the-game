@@ -39,3 +39,9 @@ _Avoid_: Identity matching, re-identification, player mapping
 **Possession**:
 The player nearest the ball while the ball is at ground level and within reach, for a moment (not a ball flying past). From frame observations, which have no ball height, "at ground level" means the ball moves with the track.
 _Avoid_: Control, ball ownership
+
+### Tactics
+
+**Regain**:
+A team winning the ball back in play: a possession change, or the other team's failed pass that it then plays on. Where it happens (high, mid or low third) measures how high a team presses.
+_Avoid_: Recovery, turnover (the other team's side of it)

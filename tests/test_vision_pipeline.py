@@ -9,9 +9,10 @@ successful pass at 2 s, a shot at 8 s, a goal right after, nothing else) and
 guarded (it opened none of the simulator files). The clip has two players and
 no kickoff, so roster ids are not asserted. The same run is then carried
 through the merge and the agents stage (mock backend) to overlays.json, so
-the chain is proven on real detected events without a second decode, and
-drawn as the AI view (`python -m vision.annotate`), under the same guard. The
-run takes about a minute.
+the chain is proven on real detected events without a second decode, drawn
+as the AI view (`python -m vision.annotate`) and its saved observations carried
+through the tactical facts (agents.tactics), under the same guard. The run
+takes about a minute.
 
 The audit hook sees every open made from Python (the team sheet, the weights,
 modules); the video itself is read by OpenCV's native code, which it does not see.
@@ -273,6 +274,26 @@ def test_calibration_chain_gives_valid_overlays_about_the_team(run, tmp_path):
         assert o["player"] is None and o["mode"] != "player_focus", o
         assert names_in(words, roster) == set(), o
         assert surnames.isdisjoint(re.findall(r"\w+", words)), o
+
+
+def test_tactical_facts_open_only_the_vision_output_and_team_sheet(run, tmp_path):
+    """The tactics read the tracer's observations and detected events and the team sheet, with true
+    events and tracking beside the video and in truth/, and open nothing else of the clip's."""
+    _, video, detected = run
+    observations, out = detected.with_name("observations.jsonl"), tmp_path / "tactics.json"
+    done = record("agents.tactics", [str(observations), "--events", str(detected), "--match-info",
+                                     str(video.with_name("match_info.json")), "--out", str(out)],
+                  tmp_path / "opened.json")
+    assert done.code == 0, done.stdout
+    assert observations.resolve() in done.opened and detected.resolve() in done.opened   # the hook is recording
+    assert forbidden(done.opened, video, out, also=(observations, detected)) == []
+    assert [m for m in done.modules if any(m == s or m.startswith(s + ".") for s in SIMULATOR_SIDE)] == []
+    facts = json.loads(out.read_text())
+    goal = next(e["id"] for e in json.loads(detected.read_text()) if e["type"] == "goal")
+    assert [s["id"] for s in facts["segments"]] == ["whole", f"before_{goal}", f"after_{goal}"]
+    home = facts["segments"][0]["teams"]["home"]
+    assert home["long_balls"]["of"] == 1                      # the clip's one pass
+    assert home["shape"]["all"]["value"] is None              # no kickoff: no track is named, so no shape
 
 
 @pytest.mark.parametrize("target", ["truth/events.json", "truth/tracking.jsonl", "truth/clip.json",
