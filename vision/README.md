@@ -104,9 +104,10 @@ Simulator truth is read only offline, by the grading code (`grader.py`, `grade_f
 
 All on v1 render settings: `cv_full_pitch` camera, CV visibility on, ball scale 2, player scale 1,
 1920x1080, 25 fps, not rich (recorded in each `vision_report.json`'s `clip` block). Detector:
-**pretrained yolo11s, no fine-tuning** (#21 closed: training seeds none). Clips are the first minutes of
-seeded full matches (`footage_seeds.json`): dev1 seed 2007, dev2 2006, dev3 2005, **test1 seed 2101**
-(Bosphorus FC v Thames United, red v blue, 10 min, `[0, 600)` s, held out: never used for tuning).
+**pretrained yolo11s, no fine-tuning** (#21 closed: training seeds none). Clips are windows of
+seeded full matches (`footage_seeds.json`): dev1 seed 2007, dev2 2006, dev3 2005 (first 2 minutes),
+**test1 seed 2101** (Bosphorus FC v Thames United, red v blue, 10 min, `[0, 600)` s) and **test2 seed 2102**
+(same pairing, minutes 40-50, `[2400, 3000)` s, over half-time). Both test clips are held out: never used for tuning.
 
 **Player detector recall** (`baseline.py`, IoU >= 0.5 with each projected player):
 
@@ -136,6 +137,26 @@ after the noise hardening (#19):
 | dev3 | 0.43 | 0.75 |
 | test1 | 0.46 | 0.88 |
 
+**Held-out test2** (`runs/footage/test2/vision_report.json`, graded once, after #19 and #65), minutes 40-50: a
+goal, the kickoff after it, half-time and the second-half kickoff with the teams switching ends:
+
+| Type | Grade |
+| --- | --- |
+| Goal | **1/1 found** (Bosphorus, 43:34), no false goal |
+| Kickoff | **2/2 found**: after the goal (44:23) and the second half's (45:00, ends switched); KICKOFF_TEAMS_PENDING |
+| Pass | **P 0.988 / R 0.933** (84/90, 85) |
+| Shot | 3/3 found, P 0.75 (4 detected) |
+| Possession change | P 0.50 / R 0.40 (2/5, 4): the known label limit |
+
+Matched passes: success right 98 %, mean timing error 0.03 s.
+
+**Player-id accuracy on test2: 0.52** (48/92 matched events), split at the 44:23 kickoff: PLAYER_ID_SPLIT_PENDING.
+Names are anchored at kickoffs: lineup assignment matches each team's tracks to its starters when
+everyone stands in its own half for a kickoff, and a track has no name until then. test1 starts with
+the opening kickoff, so it is named from the first second; test2 starts at 40:00 in open play, and its
+first kickoff comes at 44:23, so for the first 4.4 minutes events name nobody. That is part of the
+held-out result, not tuned away: a broadcast joined mid-half has the same problem.
+
 Dev-clip and seam-2 grades in detail: [Footage grades](#footage-grades-visiongrade_footagepy-offline-only),
 [Seam-2 harness](#seam-2-harness-visionharnesspy-offline-only).
 
@@ -153,10 +174,10 @@ Dev-clip and seam-2 grades in detail: [Footage grades](#footage-grades-visiongra
   precision and recall sit around 0.5-0.6 even on clean observations ([details](#seam-2-harness-visionharnesspy-offline-only)).
 - **Substitutions:** never named. A substitute's track takes the name of the player who went off, so
   player-id drops to about 0.5 after the first substitution (58'-82'). Footage clips end before any.
-- **test1 has no goals:** goal detection is graded on the calibration clip and the seam-2 matches only.
-  A second held-out clip with a goal and the half-time kickoff, test2 (minutes 40-50, seed 2102), is
-  seeded but not yet rendered or graded (#35).
-- **Second-half kickoff** is tested only on simulator observations (seam-2), not on rendered footage.
+- **One goal on held-out footage:** test2's goal is found (1/1); test1 has none. Goal detection is
+  otherwise graded on the calibration clip and the seam-2 matches.
+- **Joining mid-play:** a clip that starts in open play names nobody until its first kickoff (test2:
+  4.4 minutes, see above).
 
 ## Footage
 
@@ -489,13 +510,13 @@ python -m vision.grade_footage --role dev --reuse      # re-grade saved detectio
 
 Clips are read from `--footage`, else `$VISION_FOOTAGE`, else `data/renders/footage`. Output in `runs/footage/<name>/` (ignored by git): `events.json`, `observations.jsonl`, `frame_boxes.jsonl`, `vision_report.json`, `ai_view.mp4`. `--reuse` runs neither the tracer nor the drawing. The tracer runs at about 6 frames/s on an M-series Mac: 8 minutes per dev clip, about 40 for the test clip (`caffeinate -i` keeps the Mac awake).
 
-`tests/test_vision_footage.py` runs the same on every dev and test clip when `$VISION_FOOTAGE` points at the rendered clips, and skips otherwise. Its `THRESHOLDS` hold each clip's minimum precision and recall per type: the first measured grade minus a cross-hardware margin (the dev clips were graded on MPS, test1 on CUDA): 0.03 for passes, one match fewer for types with fewer than 5 true events. Floors are only ever raised. Kickoffs get no margin: every clip's kickoff must be found, for the right team, because kickoffs anchor lineup assignment. Player-id accuracy is reported but not asserted yet.
+`tests/test_vision_footage.py` runs the same on every dev and test clip when `$VISION_FOOTAGE` points at the rendered clips, and skips otherwise. Its `THRESHOLDS` hold each clip's minimum precision and recall per type: the first measured grade minus a cross-hardware margin (the dev clips were graded on MPS, test1 and test2 on CUDA): 0.03 for passes, one match fewer for the other types (5 true events or fewer in every clip). Floors are only ever raised. Kickoffs get no margin: every clip's kickoff (test2's two) must be found, for the right team, because kickoffs anchor lineup assignment. Player-id accuracy is reported but not asserted yet.
 
 ```bash
-VISION_FOOTAGE=data/renders/footage pytest tests/test_vision_footage.py -k dev    # or -k test1
+VISION_FOOTAGE=data/renders/footage pytest tests/test_vision_footage.py -k dev    # or -k test1, -k test2
 ```
 
-**Dev clips are for tuning; `test1` is the held-out grade and is never used to tune the rules or the detector.**
+**Dev clips are for tuning; `test1` and `test2` are the held-out grades and are never used to tune the rules or the detector.**
 
 First grades (2026-10-24, pretrained yolo11s, v1 render settings), precision / recall (matched / true, detected):
 
@@ -506,7 +527,10 @@ First grades (2026-10-24, pretrained yolo11s, v1 render settings), precision / r
 | dev3 (green v orange) | 1.00 / 1.00 (1/1, 1) | 0.86 / 0.76 (19/25, 22) | 0.33 / 0.50 (1/2, 3) | 0.67 / 1.00 (2/2, 3) | none |
 | **dev, all three** | 1.00 / 1.00 (3/3, 3) | **0.91 / 0.84** (64/76, 70) | 0.50 / 0.57 (4/7, 8) | 0.75 / 0.60 (3/5, 4) | none |
 | **test1 (held out, 10 min, red v blue)** | 1.00 / 1.00 (1/1, 1) | **0.96 / 0.97** (131/135, 136) | 0.29 / 0.50 (2/4, 7) | 0.67 / 1.00 (2/2, 3) | none |
+| **test2 (held out, minutes 40-50, red v blue; 2026-10-26)** | **1.00 / 1.00 (2/2, 2)** | **0.99 / 0.93** (84/90, 85) | 0.50 / 0.40 (2/5, 4) | 0.75 / 1.00 (3/3, 4) | **1.00 / 1.00 (1/1, 1)** |
 
 Matched events in test1: pass success right 92 %, pass subtype 85 %, shot and possession-change subtype 100 %, mean timing error 0.03 s, distance error 0.8 m, speed error 7 km/h. The dev clips were graded on an M-series Mac (MPS), test1 on an RTX 5070 (CUDA); a second dev run on the Mac gave byte-identical events.
+
+test2 was graded once, with the event rules of #19 and #65 already in, and nothing was changed after: the goal (Bosphorus, 43:34) and both kickoffs, including the second-half kickoff with the teams switched ends, are found; player-id accuracy is 0.52 because nobody is named before the 44:23 kickoff ([split](#accuracy-the-demo-numbers)). Matched events: pass success right 98 %, pass subtype 79 %, shot and possession-change subtype 100 %, mean timing error 0.03 s, distance error 0.3 m, speed error 6.7 km/h. Of the 4 unmatched detections, 2 are a possession change and a shot at 2578 s, 1 a possession change at 2859 s and 1 a pass at 2899 s, 0.44 s and 5.5 m from a missed true pass (just outside the 5 m tolerance). Rendered at `eecef1b` and graded at `4d19dd9` (the footage code is the same in both) on the RTX PC: Ubuntu on WSL2, NVIDIA GeForce RTX 5070 Ti, driver 610.88, CUDA; one `python -m vision.grade_footage test2` run, which also wrote `ai_view.mp4`.
 
 These grades were measured before lineup assignment (#18), so `from`/`to` were `null` and player-id accuracy 0. Re-running the merged event rules on the dev clips' saved observations (the video stage is unchanged) gives the same detections and grades as above, and player-id accuracy 0.69 / 0.38 / 0.43 (dev1 / dev2 / dev3), against about 0.96 on clean seam-2 observations. With the noise hardening (#19), the same saved observations give player-id accuracy 0.94 / 0.72 / 0.75 ([where names went wrong](#lineup-assignment-visionlineuppy)) and slightly more detections: dev2 passes 16/17 (18 detected), possession changes 0/2 (1); dev3 passes 20/25 (23); dev1 unchanged. Every floor in `THRESHOLDS`, and the kickoff check, still holds on these re-run detections; the floors are still the first grades. test1, re-graded the same way (on the PC), goes from player-id 0.46 before #19 to 0.88, and possession changes from 2/4 to 3/4 (7 detected); its other types are unchanged.

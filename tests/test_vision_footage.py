@@ -33,18 +33,18 @@ TRUTH = ROOT / "renderer" / "fixtures" / "calibration" / "ground_truth.events.js
 CLIPS = {c["name"]: c for c in load_record()["clips"] if c["role"] in ("dev", "test")}
 
 # Minimum precision and recall per clip and type. Each floor is the first
-# measured grade (2026-10-24, pretrained yolo11s) minus a cross-hardware
-# margin, because the dev clips were graded on MPS (Apple GPU) and test1 on
-# CUDA (RTX 5070), and a detection can flip between them:
+# measured grade (2026-10-24, pretrained yolo11s; test2 2026-10-26) minus a
+# cross-hardware margin, because the dev clips were graded on MPS (Apple GPU)
+# and test1 and test2 on CUDA (RTX PC), and a detection can flip between them:
 #   - pass: the measured score minus 0.03, rounded down to 0.01;
-#   - types with fewer than 5 true events: one match fewer, so recall
-#     (matched - 1) / true and precision (matched - 1) / detected.
+#   - the other types (5 true events or fewer in every clip): one match fewer,
+#     so recall (matched - 1) / true and precision (matched - 1) / detected.
 # A floor that comes out at 0 is left out, since it asserts nothing; so is
 # an undefined score (no true events, or none detected). Kickoffs (1 per
-# clip) get no floor; test_every_kickoff_is_found_for_the_right_team
+# clip, 2 in test2) get no floor; test_every_kickoff_is_found_for_the_right_team
 # asserts each one instead.
-# No goal falls in any of these clips. Floors are only ever raised, from a
-# better measured grade by the same rule, never lowered.
+# Only test2 holds a goal (1/1, so its floor is 0 and left out). Floors are
+# only ever raised, from a better measured grade by the same rule, never lowered.
 # Comments: first grade as matched / true, detected.
 THRESHOLDS: dict[str, dict[str, dict[str, float]]] = {
     "dev1": {"pass": {"precision": 0.93, "recall": 0.88},                  # 31/34, 32
@@ -59,8 +59,11 @@ THRESHOLDS: dict[str, dict[str, dict[str, float]]] = {
     "test1": {"pass": {"precision": 0.93, "recall": 0.94},                 # 131/135, 136
               "possession_change": {"precision": 0.14, "recall": 0.25},   # 2/4, 7
               "shot": {"precision": 0.33, "recall": 0.5}},                # 2/2, 3
-    # Held out, minutes 40-50 (#35): floors by the same rule once graded.
-    "test2": {},
+    # Held out, minutes 40-50 (#35): graded once, on CUDA (2026-10-26).
+    "test2": {"pass": {"precision": 0.95, "recall": 0.90},                 # 84/90, 85
+              "possession_change": {"precision": 0.25, "recall": 0.2},    # 2/5, 4
+              "shot": {"precision": 0.5, "recall": 0.66}},                # 3/3, 4
+    # goal 1/1, 1
 }
 
 
