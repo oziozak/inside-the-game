@@ -52,6 +52,7 @@ def main() -> None:
         "moments_selected": len(candidates),
         "overlays_out": len(overlays),
         "overlays_per_mode": dict(Counter(o["mode"] for o in overlays)),
+        "low_confidence_overlays": vreport["low_confidence_overlays"],  # team-named: player uncertain
         "verifier": {"rejected_attempts": len(vreport["rejected"]),
                      "fixed_on_retry": vreport["fixed_on_retry"],
                      "template_fallbacks": vreport["template_fallbacks"],
@@ -64,7 +65,8 @@ def main() -> None:
 
     v = report["verifier"]
     print(f"{report['events_in']} events -> {report['moments_selected']} moments -> "
-          f"{report['overlays_out']} overlays {report['overlays_per_mode']}")
+          f"{report['overlays_out']} overlays {report['overlays_per_mode']}, "
+          f"{report['low_confidence_overlays']} naming the team (player uncertain)")
     print(f"verifier: {v['rejected_attempts']} rejected, {v['fixed_on_retry']} fixed on retry, "
           f"{v['template_fallbacks']} template fallbacks, {v['dropped']} dropped")
     print(f"wrote {out_dir / 'overlays.json'} in {report['seconds']} s")

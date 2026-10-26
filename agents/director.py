@@ -28,6 +28,11 @@ MODE_RULES = {
 BUDGET_WINDOW_S = 300.0
 MIN_GAP_S = 2.0
 SETUP_WINDOW_S = 6.0  # a pass is the setup of a shot if the receiver shoots within this time
+# A graphic names an event's players only at or above this event `confidence`; below it the detection
+# is too poor to trust who played the ball, so the graphic names the team. True events (1.0) are always
+# named. Confidence measures detection, not identity: a safety floor, not a precision dial. Chosen on the
+# dev clips only (agents/README.md, "Naming players"); test1 is held out.
+NAME_MIN_CONFIDENCE = 0.55
 
 GRAPHIC_LAYOUT = {  # graphic -> (position, seconds on screen)
     "goal_banner": ("bottom-center", 8.0),
@@ -61,13 +66,20 @@ class Candidate:
 
     @property
     def player(self) -> int | None:
-        return self.event.get("from")
+        """The player the graphic is about, or None when it may not name one (named_player)."""
+        return named_player(self.event)
 
     @property
     def team_only(self) -> bool:
-        """A team's event with no player to name (detected before the lineup is known):
-        the graphic is worded about the team and gets no player_focus overlay."""
+        """A team's event with no player to name (detected before the lineup is known, or the
+        vision AI is not sure who played the ball): the graphic is worded about the team and
+        gets no player_focus overlay."""
         return self.event.get("team") in ("home", "away") and self.player is None
+
+    @property
+    def player_uncertain(self) -> bool:
+        """A player was detected, but not surely enough to name: the graphic names the team."""
+        return self.team_only and self.event.get("from") is not None
 
     @property
     def event_ids(self) -> list[str]:
@@ -76,6 +88,12 @@ class Candidate:
         cited = ([self.setup] if self.setup else []) + sorted(self.key_events + self.evidence, key=lambda p: p["t"])
         ids = list(dict.fromkeys(p["id"] for p in cited))
         return ids + ([self.event["id"]] if self.event["id"] not in ids else [])
+
+
+def named_player(e: dict) -> int | None:
+    """The player a graphic may name for event `e` (its `from`), or None when it has none or the
+    vision AI is not sure who it was. An event with no `confidence` is a true event."""
+    return e.get("from") if e.get("confidence", 1.0) >= NAME_MIN_CONFIDENCE else None
 
 
 def _pick(f: dict, *keys: str) -> dict:

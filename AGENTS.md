@@ -57,7 +57,7 @@ Events the vision AI cannot see in v1 (`foul`, `yellow_card`, `red_card`, `offsi
 schemas/           shared formats (JSON Schema) + examples
 data/fake/         small committed sample data for development
 data/generated/    big generated files (ignored by git)
-scripts/           validate.py, generate_fake_data.py, merge_events.py
+scripts/           validate.py, generate_fake_data.py, merge_events.py, name_threshold.py
 simulator/ renderer/ vision/ agents/ web/   one folder per stage, each with its own README
 ```
 
@@ -76,6 +76,7 @@ python -m vision.rules OBS.jsonl --match-info MI --out EVENTS   # frame observat
 python -m vision VIDEO --out EVENTS                     # the tracer: video + match_info.json next to it -> detected events (cv)
 python -m vision.grade_footage --role dev               # tracer on rendered footage clips, graded -> runs/footage/<clip>/vision_report.json
 python scripts/merge_events.py DETECTED TRUTH --out OUT  # detected (cv) + sim's foul/card/offside/sub -> events.json
+python scripts/name_threshold.py                        # choose the agents' NAME_MIN_CONFIDENCE on dev1-dev3 (never test1)
 pytest                                                  # tests
 ```
 

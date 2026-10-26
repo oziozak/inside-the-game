@@ -25,7 +25,7 @@ events.json ──► stats.py ──► director.py ──► explainer.py ─�
 | `context.py` | Why a moment matters, as labels with no numbers: goal effect (equaliser, go-ahead...), score situation, how the attack came about (counter, set piece, build-up), momentum, phase | No |
 | `director.py` | Rule table picks moments and graphics; schedules them per mode with slot collisions, a minimum gap and a screen-time budget. Logs every decision with a reason | No |
 | `explainer.py` | Builds the request (facts, `values` and the `placeholders` the model may use), calls the backend, runs the verify / retry / fallback loop | Yes |
-| `verifier.py` | Two stages. On the raw model text: rejects any digit outside a placeholder (the problem names the placeholder to use instead), any placeholder not in this overlay's `values` (or minute/score), and any mistyped one (`{ distance_m }`). On the filled text: length limits, player names not in the cited event, and numbers not in `values` as a safety net | No |
+| `verifier.py` | Two stages. On the raw model text: rejects any digit outside a placeholder (the problem names the placeholder to use instead), any placeholder not in this overlay's `values` (or minute/score), and any mistyped one (`{ distance_m }`). On the filled text: length limits, player names not in the cited event (any player name when `name_players` is false), and numbers not in `values` as a safety net | No |
 | `llm.py` | Backends: `mock` (offline templates), `noisy` (invents stats as stray digits to demo the verifier), `foundry` (Microsoft Agent Framework on a Foundry / Azure OpenAI deployment, disk-cached) | Yes |
 | `fill.py` | Fills placeholders (`{distance_m}`, `{speed_kmh}`, `{score}`, `{minute}`, any `values` key) with numbers formatted per language (`28 m`; `km/h`, tr `km/sa`; `62%`, tr `%62`, es `62 %`; `2-1`; `7/10`; `34'`), then normalises apostrophes and spacing. Every backend's text goes through it once the verifier passes it: templates and the LLM both write placeholders | No |
 | `templates.py` | Code-written text per graphic, mode and language (en, tr, es), numbers as placeholders. Mock backend + fallback | No |
@@ -50,10 +50,11 @@ player is instant: no LLM call at playback time.
 
 Detected and true events go through the same code; nothing here branches on `source`.
 
-- **No player** (`from` is null, e.g. before the first kickoff assigns the lineup): the graphic names the
-  team ("Bosphorus FC", "What a strike from Bosphorus FC!"). The request has no `actor`, `target` or
-  `setup_by`, only `subject` (the team). No `player_focus` overlay is made; `analyst` and `casual` are.
-  Every template has a team-only wording, so the fallback is always valid.
+- **No player, or not sure who** (`from` is null, e.g. before the first kickoff assigns the lineup, or
+  `confidence` below `NAME_MIN_CONFIDENCE`, see [Naming players](#naming-players)): the graphic names the
+  team ("Bosphorus FC", "What a strike from Bosphorus FC!"). The request has `name_players: false` and no
+  `actor`, `target` or `setup_by`, only `subject` (the team). No `player_focus` overlay is made; `analyst`
+  and `casual` are. Every template has a team-only wording, so the fallback is always valid.
 - **Missing optional fields** (`duration_s`, `end`, `success`, `speed_kmh`): the facts that need them are
   left out and the rule table skips a candidate that needs them (a pass with no `end` is not counted in
   pass totals). Per-player counters skip events with no player; team totals still count them.
@@ -61,6 +62,44 @@ Detected and true events go through the same code; nothing here branches on `sou
   The agents stage never invents events.
 - Merged simulator events (fouls, cards, substitutions) keep their player, so a card banner names the
   booked player.
+
+### Naming players
+
+A graphic names a player only when the event's `from` is not null and its `confidence` is at least
+`NAME_MIN_CONFIDENCE` (`director.py`). True events (confidence 1.0, or none given) are always named, so a
+merged card banner still names the booked player. The same rule applies to the pass that set up a shot
+(`setup_by`) and to the goals a recap names. Below it the broadcast names the team instead of maybe the
+wrong player: the verifier rejects any player name in that text, in every language, Turkish suffix forms
+included ("K. Aydin'den"). `agents_report.json` counts these overlays as `low_confidence_overlays`.
+
+**Event confidence measures detection, not identity.** The vision AI's `confidence` is the event rule's
+certainty times the ball and player detections' (`vision/rules.py`); nothing in it says how sure the lineup
+assignment was, and wrong names come from lineup assignment. On the dev clips it barely separates right
+from wrong player ids (median 0.777 right, 0.767 wrong; every graded event between 0.60 and 0.84), so a
+threshold that keeps only right names (0.805: 100% on 9 events) would team-name 88% of detected events and
+empty `player_focus`. The threshold is therefore a **safety floor, not a precision dial**: it removes only
+the clearly poor detections.
+
+`NAME_MIN_CONFIDENCE = 0.55`, chosen on dev1-dev3 only (87 detected events, pooled; test1 is held out, and
+its single measurement belongs to the final runs, #47). It sits in the gap above the three lowest detections
+(0.516-0.538, all possession changes with no true event near them) and below the lowest correctly named one
+(0.596):
+
+| Threshold | Detected events below (team-named) | Named (matched, with a player) | Player-id accuracy of the named |
+| --- | --- | --- | --- |
+| 0.00 | 0.0% | 75 | 0.853 |
+| **0.55** | **3.4%** (3, all unmatched) | **75** | **0.853** |
+| 0.65 | 8.0% | 71 | 0.845 |
+| 0.75 | 17.2% | 64 | 0.875 |
+| 0.80 | 85.1% | 12 | 0.917 |
+
+Player ids are right when `from` agrees with the true event, and `to` too where it is a player (the vision
+grader's rule). Unmatched detections cannot be graded, so they are not in the accuracy. Making confidence
+carry lineup certainty is a vision follow-up (#56); the threshold is re-chosen when it lands.
+
+Reproduce: `python -m vision.footage render --role dev`, `python -m vision.grade_footage --role dev`,
+then `python scripts/name_threshold.py` (dev clips only; it refuses test1). It re-detects the events
+from the saved observations, prints this table and the detections below the current floor.
 
 ## Run
 

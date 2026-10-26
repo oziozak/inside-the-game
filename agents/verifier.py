@@ -11,7 +11,8 @@ Stage 2, on the text after fill.py (what the viewer would see):
 2. Text must be non-empty and short enough for a broadcast graphic, units included.
 3. Every number must equal a number in the overlay's `values` or facts (minute, score).
    A safety net: with stage 1 passed, only the filler wrote numbers.
-4. Every player name in the text must be a player involved in the cited event.
+4. Every player name in the text must be a player involved in the cited event. When naming is
+   off (the vision AI is not sure who played the ball), no player name at all.
 
 Returns a list of problems; an empty list means the text passed.
 """
@@ -83,7 +84,7 @@ def check_raw(text: str, title: str, values: dict, facts: dict) -> list[str]:
 
 
 def check_filled(text: str, title: str, values: dict, facts: dict, involved_names: set[str],
-                 roster_names: set[str]) -> list[str]:
+                 roster_names: set[str], name_players: bool = True) -> list[str]:
     """Stage 2: the text as the viewer would see it."""
     problems = []
     if not text.strip():
@@ -100,7 +101,9 @@ def check_filled(text: str, title: str, values: dict, facts: dict, involved_name
             problems.append(f"number {raw} is not backed by the event data (allowed: {sorted(ok_nums)})")
 
     for name in names_in(f"{title} {text}", roster_names):
-        if name not in roster_names:
+        if not name_players:
+            problems.append(f"player '{name}' is named, but who played the ball is uncertain: name the team")
+        elif name not in roster_names:
             problems.append(f"unknown player name '{name}'")
         elif name not in involved_names:
             problems.append(f"player '{name}' is not part of the cited event")
@@ -108,10 +111,10 @@ def check_filled(text: str, title: str, values: dict, facts: dict, involved_name
 
 
 def check(text: str, title: str, values: dict, facts: dict, involved_names: set[str],
-          roster_names: set[str], lang: str) -> list[str]:
+          roster_names: set[str], lang: str, name_players: bool = True) -> list[str]:
     """Both stages on one language of the model's raw (placeholder) text."""
     problems = check_raw(text, title, values, facts)
     if problems:
         return problems
     text, title = fill(text, values, lang, facts), fill(title, values, lang, facts)
-    return check_filled(text, title, values, facts, involved_names, roster_names)
+    return check_filled(text, title, values, facts, involved_names, roster_names, name_players)

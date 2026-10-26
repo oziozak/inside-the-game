@@ -15,7 +15,7 @@ import asyncio
 from . import templates, verifier
 from .fill import fill, known
 from .data_io import Match
-from .director import BUDGET_WINDOW_S, Candidate
+from .director import BUDGET_WINDOW_S, Candidate, named_player
 
 FACT_KEYS = ("minute", "score_home", "score_away", "zone", "into_box",
              "into_final_third", "team_shots", "team_pass_accuracy")
@@ -42,8 +42,9 @@ def mode_values(c: Candidate, mode: str) -> dict:
 
 def build_request(c: Candidate, mode: str, match: Match, langs: list[str]) -> dict:
     """What the explainer sees. `placeholders` are the only way it may write a number: the `values`
-    keys plus `{minute}` and `{score}`. A team-only candidate has no `actor`, `target` or `setup_by`:
-    `subject` (the team) is who the text is about, so no player can be named."""
+    keys plus `{minute}` and `{score}`. A team-only candidate has `name_players` false and no `actor`,
+    `target` or `setup_by`: `subject` (the team) is who the text is about, so no player can be named.
+    A setup pass or recapped moment the vision AI is not sure about names no player either."""
     e = c.event
     side = e.get("team")
     req = {
@@ -54,13 +55,14 @@ def build_request(c: Candidate, mode: str, match: Match, langs: list[str]) -> di
         "subtype": e.get("subtype"),
         "success": e.get("success"),
         "why_selected": c.reason,
-        "actor": match.player_name(e.get("from")),
+        "name_players": not c.team_only,
+        "actor": match.player_name(c.player),
         "actor_team": match.team_name(side) if side in ("home", "away") else None,
         "target": match.player_name(e.get("to")),
         "home": match.team_name("home"),
         "away": match.team_name("away"),
-        "setup_by": match.player_name(c.setup["from"]) if c.setup else None,
-        "key_moments": [{"type": k["type"], "player": match.player_name(k.get("from")),
+        "setup_by": match.player_name(named_player(c.setup)) if c.setup else None,
+        "key_moments": [{"type": k["type"], "player": match.player_name(named_player(k)),
                          "own_goal": k.get("subtype") == "own_goal"} for k in c.key_events],
         "context": c.context,
         "facts": {k: c.facts[k] for k in FACT_KEYS if k in c.facts},
@@ -90,7 +92,8 @@ async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: lis
         """One language of a backend answer with its placeholders filled, and its problems
         (the raw text if it has any)."""
         t = answer.get(lang, {"title": "", "text": ""})
-        problems = verifier.check(t["text"], t["title"], req["values"], req["facts"], involved, roster, lang)
+        problems = verifier.check(t["text"], t["title"], req["values"], req["facts"], involved, roster, lang,
+                                   req["name_players"])
         if problems:
             return t, problems
         return {k: fill(t[k], req["values"], lang, req["facts"]) for k in ("title", "text")}, []
@@ -141,12 +144,15 @@ async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: lis
             "mode": mode,
             "lang": lang,
         })
+    if c.player_uncertain:
+        report["low_confidence_overlays"] += len(overlays)
     return overlays
 
 
 async def explain_all(candidates: list[Candidate], match: Match, backend, langs: list[str],
                       concurrency: int = 4) -> tuple[list[dict], dict]:
-    report = {"rejected": [], "fixed_on_retry": 0, "template_fallbacks": 0, "dropped": []}
+    report = {"rejected": [], "fixed_on_retry": 0, "template_fallbacks": 0, "dropped": [],
+              "low_confidence_overlays": 0}
     sem = asyncio.Semaphore(concurrency)
 
     async def run(c: Candidate, mode: str) -> list[dict]:
