@@ -8,11 +8,15 @@ Develop against `data/fake/` until real events arrive; nothing here changes when
 ## How it works
 
 ```
-events.json ──► stats.py ──► director.py ──► explainer.py ──► fill.py ──► verifier.py ──► overlays.json
-               (code: exact   (code: which      (LLM: words,      (code:       (code: every number
-                numbers, as    moment, when,     every mode and    numbers +    and name must match
-                of that        how long, which   language in one   units per    the event; 1 retry with
-                moment)        mode, budget)     call)             language)    feedback, then template)
+events.json ──► stats.py ──► director.py ──► explainer.py ──► verifier.py ──► fill.py ──► overlays.json
+               (code: exact   (code: which      (LLM: words,      (code: raw text:   (code:
+                numbers, as    moment, when,     numbers only as   no digit, known    numbers +
+                of that        how long, which   placeholders,     placeholders;      units per
+                moment)        mode, budget)     every mode and    filled text:       language)
+                                                 language in one   length, names;
+                                                 call)             1 retry with
+                                                                   feedback, then
+                                                                   template)
 ```
 
 | File | Role | LLM? |
@@ -20,10 +24,10 @@ events.json ──► stats.py ──► director.py ──► explainer.py ─�
 | `stats.py` | Running match state (score, shots, pass accuracy, momentum, per-player counts) and per-event facts (distance, progress, difficulty 1-10, key pass, into the box) | No |
 | `context.py` | Why a moment matters, as labels with no numbers: goal effect (equaliser, go-ahead...), score situation, how the attack came about (counter, set piece, build-up), momentum, phase | No |
 | `director.py` | Rule table picks moments and graphics; schedules them per mode with slot collisions, a minimum gap and a screen-time budget. Logs every decision with a reason | No |
-| `explainer.py` | Builds the request (facts + `values`), calls the backend, runs the verify / retry / fallback loop | Yes |
-| `verifier.py` | Rejects numbers not in `values` (or minute/score) and player names not in the cited event | No |
-| `llm.py` | Backends: `mock` (offline templates), `noisy` (invents stats to demo the verifier), `foundry` (Microsoft Agent Framework on a Foundry / Azure OpenAI deployment, disk-cached) | Yes |
-| `fill.py` | Fills placeholders (`{distance_m}`, `{speed_kmh}`, `{score}`, `{minute}`, any `values` key) with numbers formatted per language (`28 m`; `km/h`, tr `km/sa`; `62%`, tr `%62`, es `62 %`; `2-1`; `7/10`; `34'`), then normalises apostrophes and spacing. Every backend's text goes through it before the verifier (templates write placeholders; the LLM prompt still asks for digits until it moves to placeholders) | No |
+| `explainer.py` | Builds the request (facts, `values` and the `placeholders` the model may use), calls the backend, runs the verify / retry / fallback loop | Yes |
+| `verifier.py` | Two stages. On the raw model text: rejects any digit outside a placeholder (the problem names the placeholder to use instead) any placeholder not in this overlay's `values` (or minute/score), and any mistyped one (`{ distance_m }`). On the filled text: length limits, player names not in the cited event, and numbers not in `values` as a safety net | No |
+| `llm.py` | Backends: `mock` (offline templates), `noisy` (invents stats as stray digits to demo the verifier), `foundry` (Microsoft Agent Framework on a Foundry / Azure OpenAI deployment, disk-cached) | Yes |
+| `fill.py` | Fills placeholders (`{distance_m}`, `{speed_kmh}`, `{score}`, `{minute}`, any `values` key) with numbers formatted per language (`28 m`; `km/h`, tr `km/sa`; `62%`, tr `%62`, es `62 %`; `2-1`; `7/10`; `34'`), then normalises apostrophes and spacing. Every backend's text goes through it once the verifier passes it: templates and the LLM both write placeholders | No |
 | `templates.py` | Code-written text per graphic, mode and language (en, tr, es), numbers as placeholders. Mock backend + fallback | No |
 | `run.py` | CLI | |
 
