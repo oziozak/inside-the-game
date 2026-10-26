@@ -26,6 +26,7 @@ dist/
 data/frames/
 data/renders/
 data/generated/
+data/demo/
 runs/
 *.pt
 *.onnx

@@ -45,3 +45,21 @@ def test_measure_splits_team_named_and_named(name_threshold):
 
 def test_test1_is_never_used_to_choose(name_threshold, tmp_path):
     assert name_threshold.main(["dev1", "test1", "--runs", str(tmp_path), "--footage", str(tmp_path)]) == 2
+
+
+def test_held_out_adds_the_share_named(name_threshold):
+    def ev(i, t, conf, frm, to=None):
+        return {"id": f"e{i:04d}", "type": "pass", "t": t, "start": [50.0, 30.0], "from": frm, "to": to,
+                "confidence": conf}
+
+    truth = [ev(1, 1.0, 1.0, 7, 9), ev(2, 5.0, 1.0, 9, 7)]
+    detected = [ev(1, 1.1, 0.9, 7, 9), ev(2, 5.1, 0.9, 9, 4), ev(3, 9.0, 0.9, None), ev(4, 30.0, 0.3, 7, 9)]
+    m = name_threshold.held_out(detected, truth, 0.5)
+    assert m["share_named"] == 0.5 and m["named"] == 2 and m["player_id_accuracy_named"] == 0.5
+
+
+def test_held_out_takes_test_clips_once(name_threshold, tmp_path):
+    assert name_threshold.main(["dev1", "--held-out", "--runs", str(tmp_path), "--footage", str(tmp_path)]) == 2
+    (tmp_path / "test1").mkdir()
+    (tmp_path / "test1" / "naming_held_out.json").write_text("{}")
+    assert name_threshold.main(["test1", "--held-out", "--runs", str(tmp_path), "--footage", str(tmp_path)]) == 2

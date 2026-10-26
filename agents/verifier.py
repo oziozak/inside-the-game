@@ -8,7 +8,8 @@ Stage 1, on the raw model text:
    No digit outside a placeholder; the problem names the placeholder to use instead.
 
 Stage 2, on the text after fill.py (what the viewer would see):
-2. Text must be non-empty and short enough for a broadcast graphic, units included.
+2. Text must be non-empty, say more than a player name (not just the title again) and be short enough
+   for a broadcast graphic, units included.
 3. Every number must equal a number in the overlay's `values` or facts (minute, score).
    A safety net: with stage 1 passed, only the filler wrote numbers.
 4. Every player name in the text must be a player involved in the cited event, written in full
@@ -97,6 +98,14 @@ def bare_surnames(s: str, roster_names: set[str]) -> dict[str, set[str]]:
     return out
 
 
+def names_only(s: str, roster_names: set[str]) -> bool:
+    """Whether `s` is player names and nothing else ("T. Castell"): no word or number besides them."""
+    rest = s
+    for name in names_in(s, roster_names):
+        rest = rest.replace(name, " ")
+    return rest != s and not re.search(r"[^\W_]", rest)
+
+
 def allowed_numbers(values: dict, facts: dict) -> set[float]:
     nums = set()
     # `values` wins over the moment's facts, as in fill.py.
@@ -180,6 +189,8 @@ def check_filled(text: str, title: str, values: dict, facts: dict, involved_name
     problems = []
     if not text.strip():
         problems.append("empty text")
+    elif text.strip() == title.strip() or names_only(text, roster_names):
+        problems.append(f"text '{text}' only repeats the title or a name: say what the player did")
     if len(text) > MAX_TEXT_CHARS:
         problems.append(f"text too long ({len(text)} > {MAX_TEXT_CHARS} chars)")
     if len(title) > MAX_TITLE_CHARS:
