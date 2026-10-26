@@ -75,6 +75,7 @@ python -m vision.footage render dev1                    # one footage clip from 
 python -m vision.rules OBS.jsonl --match-info MI --out EVENTS   # frame observations -> detected events (cv)
 python -m vision VIDEO --out EVENTS                     # the tracer: video + match_info.json next to it -> detected events (cv)
 python -m vision.grade_footage --role dev               # tracer on rendered footage clips, graded -> runs/footage/<clip>/vision_report.json
+python -m vision.annotate CLIP_DIR RUN_DIR --out ai_view.mp4   # the clip with what the AI saw drawn on it (tracer run with --frame-boxes)
 python scripts/merge_events.py DETECTED TRUTH --out OUT  # detected (cv) + sim's foul/card/offside/sub -> events.json
 python scripts/name_threshold.py                        # choose the agents' NAME_MIN_CONFIDENCE on dev1-dev3 (never test1)
 pytest                                                  # tests

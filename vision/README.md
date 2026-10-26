@@ -230,10 +230,38 @@ python -m vision data/renders/footage/dev1/dev1.mp4 --out runs/dev1/events.json 
 ```
 
 - **Reads:** the video, its team sheet (`match_info.json` next to the video, or `--match-info`) and the YOLO weights (`--weights`). Nothing else.
-- **Writes:** `--out`, the detected events (`source: cv`, event schema, ids `e0001...`), and with `--observations` the frame observations in between.
+- **Writes:** `--out`, the detected events (`source: cv`, event schema, ids `e0001...`), with `--observations` the frame observations in between, and with `--frame-boxes` the same players as pixel boxes with their names, for the [AI view](#ai-view-visionannotatepy-what-the-ai-saw-drawn-on-the-clip). Neither option changes the events.
 - `--start` and `--frames` as in the video stage. No state is kept between runs and nothing is interactive, so it can run as a batch job (e.g. an Azure job) unchanged. `--help` lists all of this.
 
 `tests/test_vision_pipeline.py` always runs it on the calibration clip and grades the output: one successful pass at 2 s, a shot at 8 s, a goal at 8.9 s, nothing else. The same run is the [guard](#what-it-reads-the-video-and-the-team-sheet-nothing-else).
+
+## AI view (`vision/annotate.py`): what the AI saw, drawn on the clip
+
+`ai_view.mp4` is the full-pitch video the tracer watched, with what it detected drawn on top, so viewers can watch the AI watching (the web player's AI VIEW toggle):
+
+- each detected player's box in the shirt color of the team the AI assigned, goalkeepers marked `GK`;
+- above it, the name lineup assignment gave the track (`A. Kurt`), or `track 12` until the first kickoff names it;
+- a cyan ring on the ball in frames where it was seen, nothing while it is hidden;
+- for 1 s at each detected event, a label above where it happened (labels on screen together stack upward): `KICKOFF`, `PASS`, `SHOT`, `GOAL`, `WON BALL` (possession change), edged in the team's color;
+- a caption in the top-left corner: `AI VIEW: what the vision model detects`.
+
+A frame of dev1 a few seconds in: the static full-pitch camera with 22 small boxes, red Bosphorus and blue Thames, each with its name above it (`B. Kaya`, `GK M. Yilmaz`), the cyan ring at the passer's feet and a `PASS` panel edged in red above them, and the caption in the corner.
+
+```bash
+# 1. the tracer, also writing the pixel boxes and names (frame_boxes.jsonl)
+python -m vision data/renders/footage/dev1/dev1.mp4 --out runs/footage/dev1/events.json \
+    --observations runs/footage/dev1/observations.jsonl --frame-boxes runs/footage/dev1/frame_boxes.jsonl
+# 2. draw them on the clip
+python -m vision.annotate data/renders/footage/dev1 runs/footage/dev1 --out data/demo/dev1/ai_view.mp4
+```
+
+- **Reads:** the clip's video (`CLIP_DIR/<name>.mp4`, else `CLIP_DIR/match.mp4`, or `--video`), `CLIP_DIR/match_info.json` (kit colors, names), and the tracer's `RUN_DIR/frame_boxes.jsonl` and `RUN_DIR/events.json`. Never `truth/`. Event positions go through the pitch calibration of the first frame, as the tracer found it.
+- **Writes:** H.264, yuv420p, `+faststart`, with the source's frame rate and frame count, so it has the same duration as `match.mp4` and passes the web player's two-feed check. The drawing is a transparent layer FFmpeg lays over the decoded source: the pixels under it never take a round trip through RGB, which shifts every color by about 2 levels.
+- **Frame boxes** (`--frame-boxes`, JSON Lines, one record per frame): `{"frame", "t", "players": [{"track_id", "team", "goalkeeper", "box": [x1, y1, x2, y2], "confidence", "player"}], "ball": [x, y] or null}`. The players are exactly the frame observation's, `box` is the detection in image pixels, `player` the roster id lineup assignment names the track for after that frame (or `null`), `ball` the ball's ground point in pixels when it was seen. Pixels only, for drawing: the [frame-observation contract](#frame-observations-visionobservationpy) is unchanged.
+
+Re-running the tracer with `--frame-boxes` (2026-10-26, M-series Mac, MPS) changes no detections: dev1's `events.json` and `observations.jsonl` are byte-identical to the saved run. test1's saved run was made on CUDA, and the video stage on MPS reads slightly different confidences and positions (144 events against 147, 138 at the same type and time), while the event rules on the saved CUDA observations reproduce its `events.json` byte for byte. For an AI view whose labels match the CUDA events exactly, re-run test1 on the RTX PC. Annotating takes about 15 s for a 2-minute clip and 70 s for test1.
+
+`tests/test_vision_pipeline.py` annotates the calibration run: the output has the clip's frame count, frame rate and duration, is H.264/yuv420p with the index first, changes where a player stands and barely elsewhere; and, with the truth beside the clip, opens nothing but the video, team sheet and the tracer's outputs. `tests/test_vision_rules.py` checks the names over time on the seam-2 clips: none before the first kickoff, the right players after it, the same events.
 
 ## Video stage (`vision/video.py`): video in, frame observations out
 

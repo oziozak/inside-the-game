@@ -154,6 +154,10 @@ class Lineup:
         one its twin is named for), or None."""
         return self.player_of.get(track_id, self.player_of.get(self.twin.get(track_id)))
 
+    def names(self, players: list[PlayerObservation]) -> dict[int, int]:
+        """Track id -> roster id for the tracks among `players` named now (twins included)."""
+        return {p.track_id: pid for p in players if (pid := self.player(p.track_id)) is not None}
+
     # ---- at a kickoff ----------------------------------------------------
     def assign(self, players: list[PlayerObservation], home_attacks_right: bool,
                taker: int | None = None) -> None:
