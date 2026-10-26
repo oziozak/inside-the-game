@@ -19,7 +19,17 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--ink); color: var(--chalk); font-family: var(--display); }
+body { position: relative; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+
+/* Floodlight that tracks scroll position — set via --glow-y by main.ts; a fixed 20% with no JS is a fine static fallback. */
+.scroll-glow {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(640px 640px at 50% var(--glow-y, 20%), rgba(84, 240, 190, 0.10), transparent 70%),
+    radial-gradient(520px 520px at 85% calc(var(--glow-y, 20%) + 38%), rgba(200, 16, 46, 0.06), transparent 72%),
+    radial-gradient(520px 520px at 15% calc(var(--glow-y, 20%) + 58%), rgba(27, 77, 155, 0.06), transparent 72%);
+}
 
 button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
@@ -28,7 +38,67 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--mint); outl
 .lab { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--dust); }
 .num { font-family: var(--mono); font-stretch: 75%; font-weight: 700; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
 
-#app { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 16px; }
+html { scroll-behavior: smooth; }
+section[id] { scroll-margin-top: 88px; }
+main { display: flex; flex-direction: column; align-items: center; gap: 64px; padding-bottom: 72px; }
+.section-head { width: min(100%, 1280px); padding: 0 16px; display: flex; flex-direction: column; gap: 6px; }
+.section-head h2 { font-weight: 800; font-stretch: 62%; font-size: clamp(1.5rem, 3vw, 2.25rem); letter-spacing: .01em; }
+
+/* ---------- site header ---------- */
+.site-header {
+  position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 32px; background: rgba(7, 9, 11, .92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
+}
+.wordmark-link { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--chalk); }
+.wordmark-link .corner { display: block; width: 14px; height: 14px; border-top: 3px solid var(--mint); border-left: 3px solid var(--mint); }
+.wordmark-link .name { font-weight: 900; font-stretch: 62%; font-size: 1.1rem; letter-spacing: .06em; }
+.site-nav { display: flex; gap: 28px; }
+.site-nav a { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--dust); text-decoration: none; }
+.site-nav a:hover { color: var(--chalk); }
+
+/* ---------- hero ---------- */
+.hero { width: min(100%, 1280px); padding: 48px 16px 0; display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center; }
+.hero-score { display: flex; align-items: center; justify-content: center; gap: clamp(16px, 4vw, 48px); flex-wrap: wrap; }
+.hero-team { display: flex; align-items: center; gap: 14px; }
+.hero-team.right { flex-direction: row-reverse; }
+.hero-tab { display: flex; align-items: center; justify-content: center; width: 56px; height: 34px; font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .08em; color: #fff; }
+.hero-team-name { font-weight: 800; font-stretch: 62%; font-size: clamp(1.1rem, 2.6vw, 1.75rem); letter-spacing: .01em; }
+.hero-score-numbers { display: flex; align-items: center; gap: 14px; }
+.hero-score-numbers .num { font-size: clamp(2.5rem, 7vw, 4.5rem); }
+.hero-sep { font-family: var(--mono); color: var(--dust); font-size: clamp(2rem, 5vw, 3rem); }
+.hero-meta { display: flex; gap: 20px; }
+
+/* ---------- compare ---------- */
+.compare-section, .lineups-section, .pipeline-section { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.compare-rows { width: min(100%, 1280px); padding: 0 16px; display: flex; flex-direction: column; }
+.compare-row { display: grid; grid-template-columns: 64px 1fr 64px; align-items: center; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); }
+.compare-row .num { font-size: 22px; text-align: center; }
+.compare-mid { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.compare-bar { display: flex; width: 100%; max-width: 420px; height: 6px; gap: 3px; }
+.compare-bar .fill.home { background: var(--home); }
+.compare-bar .fill.away { background: var(--away); }
+
+/* ---------- lineups ---------- */
+.lineups-grid { width: min(100%, 1280px); padding: 0 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.lineup { border: 1px solid var(--line); background: var(--slab); }
+.lineup-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); font-weight: 800; font-stretch: 62%; font-size: 18px; }
+.lineup-list { list-style: none; margin: 0; padding: 0; }
+.lineup-list li { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-top: 1px solid #1a2229; }
+.lineup-number { width: 24px; color: var(--mint); font-weight: 700; }
+.lineup-name { flex: 1; font-weight: 600; }
+
+/* ---------- pipeline ---------- */
+.pipeline-steps { list-style: none; margin: 0; padding: 0 16px; width: min(100%, 1280px); display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.pipeline-steps li { background: var(--slab); padding: 20px 16px; display: flex; flex-direction: column; gap: 8px; }
+.pipeline-steps .step-n { color: var(--mint); font-size: 20px; }
+.pipeline-steps .step-k { color: var(--chalk); }
+.pipeline-steps p { margin: 0; font-size: 13px; line-height: 1.45; color: rgba(237, 240, 234, .78); }
+
+@media (max-width: 720px) {
+  .lineups-grid { grid-template-columns: 1fr; }
+}
+
+#app { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 16px; width: 100%; }
 
 .stage { position: relative; width: min(100%, 1280px); aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
 .stage video, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }

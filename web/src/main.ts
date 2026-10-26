@@ -3,7 +3,11 @@ import { activeOverlays, clock } from './render/schedule';
 import { buildCamera } from './render/camera';
 import { buildRoster, drawOverlays, type HitRegion } from './render/draw';
 import { renderEvidence } from './ui/evidence';
+import { renderHero, renderCompare, renderLineups } from './ui/page';
+import { initScrollGlow } from './ui/scrollGlow';
 import type { Mode, MatchEvent } from './types';
+
+initScrollGlow();
 
 const video = document.querySelector<HTMLVideoElement>('#broadcast')!;
 const canvas = document.querySelector<HTMLCanvasElement>('#overlay')!;
@@ -41,6 +45,14 @@ async function main() {
   const manifest = await loadManifest(`${base}/match.mp4`);
   const roster = buildRoster(match.info);
   const eventsById = new Map<string, MatchEvent>(events.map(e => [e.id, e]));
+
+  renderHero(match.info, events);
+  renderCompare(document.querySelector<HTMLElement>('#compare-rows')!, events);
+  renderLineups(
+    document.querySelector<HTMLElement>('#lineup-home')!,
+    document.querySelector<HTMLElement>('#lineup-away')!,
+    match.info,
+  );
 
   video.src = `${base}/match.mp4`;
   const videoStart = manifest?.start ?? 0;

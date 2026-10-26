@@ -1,5 +1,6 @@
 export interface Team {
   name: string; short: string; kit: { shirt: string; shorts: string; goalkeeper?: string };
+  formation?: string; style?: 'possession' | 'counter' | 'pressing' | 'direct' | 'balanced';
   players: { id: number; number: number; name: string; pos: string; starter: boolean }[];
 }
 export interface MatchInfo {
