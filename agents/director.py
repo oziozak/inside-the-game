@@ -124,7 +124,7 @@ def propose(e: dict, f: dict) -> Candidate | None:
         vals = _pick(f, "distance_m", "speed_kmh", "difficulty", "progress_m")
         if f.get("into_box"):
             return Candidate(e, "pass_card", 0.7, "pass into the box", f, vals)
-        if f["difficulty"] >= 7:
+        if f["difficulty"] >= 9:  # top ~20% of the match's completed passes
             return Candidate(e, "pass_card", 0.62, f"difficult pass ({f['difficulty']}/10)", f, vals)
         if f.get("into_final_third") and f.get("distance_m", 0) >= 25:
             return Candidate(e, "pass_card", 0.55, "long pass into the final third", f, vals)

@@ -20,8 +20,9 @@ from agents.director import GRAPHIC_LAYOUT, MODES, NAME_MIN_CONFIDENCE, direct, 
 from agents.explainer import build_request, explain_all, involved_names
 from agents.llm import (INSTRUCTIONS, RATE_LIMIT_DELAYS_S, FoundryBackend, MockBackend, NoisyBackend, cache_key,
                         is_rate_limit, parse_json_reply, prompt_view)
-from agents.stats import (MOMENTUM_WINDOW_S, MatchState, attacks_positive_x, display_minute, event_facts,
-                          pass_difficulty, threat_share, threat_weight)
+from agents.stats import (MOMENTUM_WINDOW_S, PASS_TYPES, PERCENTILE_MIN_PASSES, MatchState, attacks_positive_x,
+                          display_minute, event_facts, pass_difficulty, pass_difficulty_raw, threat_share,
+                          threat_weight)
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_A = ROOT / "data" / "fake" / "sample_a"
@@ -57,9 +58,57 @@ class StatsTest(unittest.TestCase):
         self.assertFalse({"difficulty", "progress_m", "into_box"} & set(f))
         self.assertIsNone(propose(bare_pass, f))
 
-    def test_difficulty_range(self):
-        self.assertEqual(pass_difficulty(5, 30, 0, "short"), 2)
-        self.assertEqual(pass_difficulty(60, 90, 50, "through"), 10)
+    def test_raw_difficulty_is_not_capped(self):
+        # The ranking key keeps growing past 10: a 49 m switch and a 60 m through ball stay apart.
+        self.assertAlmostEqual(pass_difficulty_raw(5, 30, 0, "short"), 1.625)
+        self.assertGreater(pass_difficulty_raw(60, 90, 50, "through"), pass_difficulty_raw(49, 70, 10, "long") > 10)
+
+    def test_difficulty_falls_back_to_clamped_raw_early(self):
+        few = [3.0] * (PERCENTILE_MIN_PASSES - 1)
+        self.assertEqual(pass_difficulty(1.625, few), 2)
+        self.assertEqual(pass_difficulty(14.0, few), 10)
+        self.assertEqual(pass_difficulty(0.2, []), 1)
+
+    def test_difficulty_is_a_percentile_once_enough_passes(self):
+        past = [float(x) for x in range(1, 101)]  # 100 completed passes, raw 1..100
+        self.assertEqual(pass_difficulty(0.5, past), 1)  # easier than all of them
+        self.assertEqual(pass_difficulty(50.5, past), 6)  # harder than half
+        self.assertEqual(pass_difficulty(89.5, past), 9)  # harder than 89%
+        self.assertEqual(pass_difficulty(90.5, past), 10)  # harder than 90%
+        self.assertEqual(pass_difficulty(500.0, past), 10)
+
+    def test_difficulty_ranks_against_earlier_completed_passes_only(self):
+        state = MatchState(info={"kickoff_direction": {"home": "left_to_right"}})
+
+        def play(d, success=True):
+            n = state.teams["home"].passes + 1
+            e = {"id": f"e{n:04d}", "t": float(n), "type": "pass", "subtype": "short", "team": "home", "from": 7, "start": [30.0, 34.0],
+                 "end": [30.0 + d, 34.0], "distance_m": d, "speed_kmh": 40.0, "success": success}
+            state.update(e)
+            return event_facts(e, state)["difficulty"]
+
+        for _ in range(10):
+            play(5)
+        for _ in range(20):
+            self.assertEqual(play(40, success=False), 10)  # rated, but never joins the pool
+        self.assertEqual(play(20), 10)  # harder than every completed pass so far: the failed long ones do not count
+        self.assertEqual(play(5), 5)  # ties the ten short passes, below the 20 m one: (5 + 0) / 11 -> 5
+
+    def test_difficulty_spreads_over_the_scale_on_the_samples(self):
+        # #59: the old capped score put any pass over ~40 m at 9-10. Shown difficulty must use 1-10.
+        for folder in (SAMPLE_A, SAMPLE_B):
+            match = load_match(folder)
+            state, shown = MatchState(info=match.info), []
+            for e in match.events:
+                state.update(e)
+                f = event_facts(e, state)
+                if e["type"] in PASS_TYPES and e.get("success") and "difficulty" in f:
+                    shown.append(f["difficulty"])
+            with self.subTest(folder.name):
+                self.assertEqual(set(shown), set(range(1, 11)))
+                # ~10% at 10: 12% on both samples, because passes get slightly harder as a match goes on
+                # and a past-only rank counts that as harder (sample_b's passes shuffled: 9.9%).
+                self.assertLessEqual(shown.count(10) / len(shown), 0.13)
 
 
 class VerifierTest(unittest.TestCase):
