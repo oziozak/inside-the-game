@@ -56,8 +56,11 @@ def main() -> None:
         "verifier": {"rejected_attempts": len(vreport["rejected"]),
                      "fixed_on_retry": vreport["fixed_on_retry"],
                      "template_fallbacks": vreport["template_fallbacks"],
+                     # share of the overlays whose text is the code template, not the backend's own
+                     "template_fallback_pct": round(100 * vreport["template_fallbacks"] / max(len(overlays), 1), 1),
                      "dropped": len(vreport["dropped"]),
                      "rejections": vreport["rejected"][:20]},
+        "llm_usage": getattr(backend, "usage", None),  # foundry only: paid calls, cache hits, tokens
         "seconds": round(time.perf_counter() - t0, 2),
         "director_decisions": decisions,
     }
@@ -68,7 +71,11 @@ def main() -> None:
           f"{report['overlays_out']} overlays {report['overlays_per_mode']}, "
           f"{report['low_confidence_overlays']} naming the team (player uncertain)")
     print(f"verifier: {v['rejected_attempts']} rejected, {v['fixed_on_retry']} fixed on retry, "
-          f"{v['template_fallbacks']} template fallbacks, {v['dropped']} dropped")
+          f"{v['template_fallbacks']} template fallbacks ({v['template_fallback_pct']}%), {v['dropped']} dropped")
+    if report["llm_usage"]:
+        u = report["llm_usage"]
+        print(f"llm: {u['calls']} paid calls, {u['cached']} cached, "
+              f"{u['input_tokens']} input + {u['output_tokens']} output tokens")
     print(f"wrote {out_dir / 'overlays.json'} in {report['seconds']} s")
 
 

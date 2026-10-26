@@ -18,33 +18,76 @@ import random
 from pathlib import Path
 
 from . import templates
+from .fill import fill
+from .verifier import MAX_TEXT_CHARS, MAX_TITLE_CHARS
 
-INSTRUCTIONS = """You write on-screen graphics for a live football broadcast.
-You get one moment as JSON: what happened, who did it, the score, and `values` (the numbers
-the graphic shows). Write a short title and text for every language in `langs`.
+INSTRUCTIONS = f"""You write on-screen graphics for a live football broadcast.
+You get one moment as JSON: what happened, who did it, the score, and `placeholders`: each number
+the graphic may show, mapped to how it will read on screen. Write a short title and text for every
+language in `langs`.
 
-Hard rules:
-- Never write a digit. Write a number only as one of the `placeholders` given, exactly as listed
-  ("{distance_m}", "{speed_kmh}", "{score}", "{minute}"...). Code replaces each with the number
-  and its unit in the right form for the language: "{distance_m}" becomes "28 m", "{speed_kmh}"
-  "112 km/h", "{score}" "2-1", "{minute}" "34'". So never write a unit, % or /10 next to a
-  placeholder. If no placeholder fits, write no number.
-- Mention only the players named in `actor`, `target`, `setup_by` (the passer who set up a
-  shot) and `key_moments` (goals and red cards so far, for half-time and full-time recaps). Copy each name exactly as given, initial included ("K. Aydin", never "Aydin" or "K. Aydın").
-  In Turkish, add case suffixes after an apostrophe ("K. Aydin'den"). All clubs and players are fictional.
+Numbers:
+- Never write a digit, not even "1/1" or "4 of 5", and never a number in words ("two from two",
+  "ikide iki", "dos de dos"). Write a number only as a key of `placeholders`,
+  exactly as given ("{{distance_m}}", "{{player_passes_completed}}/{{player_passes}}", "{{score}}"...). The
+  mapped value is only there so your words fit the number (1/1 is a perfect start, 4/9 is not).
+  Use a placeholder only where the number says something; fewer numbers beat a forced one.
+  "{{score}}" is the match score: "lead {{score}}", "level at {{score}}", never "wide of {{score}}" or
+  "finish with {{score}}".
+  Other numbers in `facts` are background: never write them. If no placeholder fits, write no number.
+- Code replaces each placeholder with the number AND its unit or sign, in the form of the language:
+  "{{distance_m}}" becomes "28 m", "{{speed_kmh}}" "112 km/h" (tr "112 km/sa"), "{{momentum_home}}"
+  "62%" (tr "%62", es "62 %"), "{{difficulty}}" "7/10", "{{score}}" "2-1".
+  So never write a unit, "%", "yüzde", "por ciento", "/10" or "metre" next to a placeholder: "{{distance_m}} pass", never "{{distance_m}} m pass" or "{{momentum_home}}%".
+- Turkish: you cannot see the number, so never put a case suffix on a placeholder ("{{score}}'lik",
+  "%{{momentum_home}}'ü" are wrong): rephrase. Only distances and speeds may take a suffix, always after an
+  apostrophe and before a noun ("{{distance_m}}'lik pas", never "{{distance_m}}lik" or a bare "{{distance_m}}'lik"). An apostrophe goes only after a name
+  or a placeholder, never after a common word ("son üçte birlik bölgeye", never "üçte bir'e").
+- "{{difficulty}}" is a stat tag: its own clause after a comma, with its noun: "..., difficulty {{difficulty}}",
+  tr "..., zorluk {{difficulty}}", es "..., dificultad {{difficulty}}". Never "a difficult {{difficulty}} pass".
+
+Players:
+- Mention only the players named in `actor`, `target`, `setup_by` (the passer who set up a shot) and
+  `key_moments` (goals and red cards so far, for half-time and full-time recaps). Copy each name exactly
+  as given, initial included, every time, titles too ("K. Aydin", never "Aydin" or "K. Aydın"). In
+  Turkish, add case suffixes after an apostrophe ("K. Aydin'den"). All clubs and players are fictional.
   A `key_moments` entry with no `player` is credited to the team only.
 - If `name_players` is false, we are not sure who played the ball: name the team, not a player.
   There is no `actor`; `subject` (the team) is who the text is about ("Bosphorus FC pass").
-- `text` at most 100 characters, `title` at most 35, counted with the numbers filled in.
-- mode "analyst": precise and tactical, may use every placeholder. Explain WHY the moment matters.
+
+Length: `text` at most {MAX_TEXT_CHARS} characters, `title` at most {MAX_TITLE_CHARS}, counted with the
+numbers filled in; aim for 60 to 90 and 25. One sentence, two short ones at most. No hashtags, no emoji.
+
+Modes:
+- "analyst": precise and tactical, may use every placeholder. Explain WHY the moment matters.
   `context` says why, in labels computed by code: `goal_effect` (opener, equaliser, go_ahead,
   extends_lead, pulls_one_back), `score_situation` of the acting team, `lead_in` (how the attack
   came about), `momentum` over the last minutes, `phase` of the match. Use them; do not contradict them.
-- mode "casual": warm and simple, like talking to a friend new to football; avoid numbers except "{score}".
-- mode "player_focus": everything from the point of view of `actor`.
-- Write natural, native text in each language (not a word-by-word translation).
+  Never print a label as it is ("go_ahead", "patient_build_up"): say it in words.
+- "casual": warm and simple, like talking to a friend new to football; few numbers.
+- "player_focus": about `actor`, in the third person. When there is an `actor`, the title is the
+  player's name exactly as given, nothing else ("K. Aydin"). The text says what the player did and how their game is going
+  ("Completes {{player_passes_completed}}/{{player_passes}}, this one {{distance_m}}"). Never the first
+  person and never quotes: the player is fictional and did not say anything.
 
-Reply with JSON only, no markdown: {"<lang>": {"title": "...", "text": "..."}, ...}"""
+Style: write each language as a native commentator of that language would, not a translation of the
+English: en like a British TV graphic, tr like a Turkish broadcast, es like a Spanish one. Use the
+football words of each language: final third = tr "son üçte birlik bölge" / es "último tercio"; switch of play =
+tr "oyunun yönünü değiştiren pas" / es "cambio de orientación"; long ball = tr "uzun top" / es "balón
+largo"; the box = tr "ceza sahası" (never "kutu") / es "el área"; on target = tr "isabetli" / es "a puerta";
+opens the scoring = tr "skoru açtı" / es "abre el marcador"; momentum = tr "baskı" / es "dominio";
+after a red card = "a man down", tr "eksik kaldı", es "con uno menos" (never "down to ten": a count). Natural word order (tr verb last: "T. Castell,
+C. Hollis'i buldu"). Titles start with a capital letter, the rest lower case except names ("Half-time
+picture", not "Half-Time Picture"). No full stop at the end of a text.
+
+Example. Input: {{"mode": "player_focus", "actor": "H. Koc", "target": "T. Sahin", "subtype": "long",
+"placeholders": {{"{{distance_m}}": "29 m", "{{player_passes}}": "1", "{{player_passes_completed}}": "1", ...}}}}
+Reply: {{"en": {{"title": "H. Koc", "text": "Perfect start: {{player_passes_completed}}/{{player_passes}}, this one a {{distance_m}} ball to T. Sahin"}},
+"tr": {{"title": "H. Koc", "text": "Kusursuz başlangıç: {{player_passes_completed}}/{{player_passes}}, T. Sahin'e {{distance_m}}'lik uzun top"}},
+"es": {{"title": "H. Koc", "text": "Arranque perfecto: {{player_passes_completed}}/{{player_passes}}, balón largo de {{distance_m}} a T. Sahin"}}}}
+Before replying, check: no digit 0-9 anywhere outside a placeholder.
+
+Reply with JSON only, no markdown: {{"<lang>": {{"title": "...", "text": "..."}}, ...}}"""
 
 # Wait before each retry after a rate limit (HTTP 429), in seconds; jitter is added on top.
 RATE_LIMIT_DELAYS_S = (2, 4, 8, 16, 32, 60)
@@ -94,6 +137,8 @@ class FoundryBackend:
         self.deployment = deployment
         self.cache_path = Path(cache_path)
         self.cache = json.loads(self.cache_path.read_text("utf-8")) if self.cache_path.exists() else {}
+        # Paid calls this run (cache hits cost nothing), for the cost line in agents_report.json.
+        self.usage = {"calls": 0, "cached": 0, "input_tokens": 0, "output_tokens": 0}
 
     @staticmethod
     def _agent_from_env():
@@ -123,21 +168,40 @@ class FoundryBackend:
         """agent.run, retried on rate limits after RATE_LIMIT_DELAYS_S (+ up to 1 s jitter)."""
         for delay in (*RATE_LIMIT_DELAYS_S, None):
             try:
-                return (await self.agent.run(prompt)).text
+                response = await self.agent.run(prompt)
+                used = getattr(response, "usage_details", None) or {}
+                self.usage["calls"] += 1
+                self.usage["input_tokens"] += used.get("input_token_count") or 0
+                self.usage["output_tokens"] += used.get("output_token_count") or 0
+                return response.text
             except Exception as ex:
                 if delay is None or not is_rate_limit(ex):
                     raise
                 await asyncio.sleep(delay + random.uniform(0, 1))
 
     async def explain(self, req: dict, feedback: str | None = None) -> dict:
-        prompt = json.dumps(req, ensure_ascii=False)
+        prompt = json.dumps(prompt_view(req), ensure_ascii=False)
         if feedback:
             prompt += f"\n\nYour previous answer was rejected by the verifier: {feedback}\nFix it."
         key = cache_key(self.deployment, prompt)
         if key not in self.cache:
             self.cache[key] = await self.run_with_retry(prompt)
             self.save_cache()
+        else:
+            self.usage["cached"] += 1
         return parse_json_reply(self.cache[key], req["langs"])
+
+
+def prompt_view(req: dict) -> dict:
+    """The request as the model sees it: `placeholders` maps each placeholder to what it reads on
+    screen ("{distance_m}" -> "28 m"), so the number sits next to the only way to write it and the
+    unit is visibly part of it. Not "{minute}": the broadcast clock already shows it, and offered, the
+    model wrote "at 1'" on pass cards and "must settle down at 4'" on a booking. `values` is left out:
+    it would repeat the numbers without the placeholders."""
+    view = {k: v for k, v in req.items() if k not in ("values", "placeholders")}
+    view["placeholders"] = {p: fill(p, req["values"], "en", req["facts"]) for p in req["placeholders"]
+                            if p != "{minute}"}
+    return view
 
 
 def is_rate_limit(ex: BaseException) -> bool:
