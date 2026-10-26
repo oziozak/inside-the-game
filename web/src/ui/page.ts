@@ -11,8 +11,8 @@ export function renderHero(info: MatchInfo, events: MatchEvent[]): void {
   (document.querySelector('#hero-away-tab') as HTMLElement).style.background = info.away.kit.shirt;
   document.querySelector('#hero-home-score')!.textContent = String(score.home);
   document.querySelector('#hero-away-score')!.textContent = String(score.away);
-  document.querySelector('#hero-formations')!.textContent =
-    `${info.home.formation ?? '—'} · ${info.away.formation ?? '—'}`;
+  document.querySelector('#hero-home-formation')!.textContent = info.home.formation ?? '—';
+  document.querySelector('#hero-away-formation')!.textContent = info.away.formation ?? '—';
 }
 
 export function renderCompare(container: HTMLElement, events: MatchEvent[]): void {
