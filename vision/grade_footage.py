@@ -8,14 +8,19 @@ Offline only: it reads the simulator's truth, so nothing on the runtime path
 imports it. For each clip in the seed record (vision/footage_seeds.json) it
 runs the tracer, `python -m vision`, as a child process on the clip's video,
 so the run reads only the video and its team sheet, exactly as the command
-does on its own. Then it grades the detected events against truth/events.json
+does on its own, plus the match time of the clip's first frame (`--start`, the
+broadcast clock). Then it grades the detected events against truth/events.json
 and records with the grade the render settings (from the export manifest),
 the clip's seed and role (from the seed record), the detector weights and the
-seeds they were trained on (none for the pretrained detector).
+seeds they were trained on (none for the pretrained detector). Last, from the
+same run, it draws the AI view (`python -m vision.annotate`, a child process
+too), so a failed drawing never costs the grade.
 
 Clips are read from --footage, else $VISION_FOOTAGE, else data/renders/footage.
 Output per clip, in --out/<name>/ (default runs/footage/, ignored by git):
-events.json (detected), observations.jsonl, vision_report.json.
+events.json (detected), observations.jsonl, frame_boxes.jsonl,
+vision_report.json and ai_view.mp4. With --reuse the tracer does not run, so
+neither does the drawing.
 
 The test clip is the held-out grade: grade it to report, never to tune.
 """
@@ -30,7 +35,7 @@ import sys
 from pathlib import Path
 
 from vision.detect import DEFAULT_WEIGHTS
-from vision.footage import OUT as RENDERS, ROLES, load_record
+from vision.footage import OUT as RENDERS, ROLES, load_record, window
 from vision.grader import DETECTED_TYPES, build_report, clip_info, summary, write_report
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,26 +48,36 @@ def footage_root(path: Path | str | None = None) -> Path:
     return Path(path or os.environ.get(FOOTAGE_ENV) or RENDERS).expanduser()
 
 
-def detect(video: Path, out: Path, weights: Path | str = DEFAULT_WEIGHTS) -> None:
-    """Run the tracer on a video in a child process: out/events.json and out/observations.jsonl."""
+def detect(video: Path, out: Path, weights: Path | str = DEFAULT_WEIGHTS, start: float = 0.0) -> None:
+    """Run the tracer on a video whose first frame is at match time `start`, in a child
+    process: out/events.json, out/observations.jsonl and out/frame_boxes.jsonl."""
     out.mkdir(parents=True, exist_ok=True)
     subprocess.run([sys.executable, "-m", "vision", str(video), "--out", str(out / "events.json"),
-                    "--observations", str(out / "observations.jsonl"), "--weights", str(weights)],
+                    "--observations", str(out / "observations.jsonl"),
+                    "--frame-boxes", str(out / "frame_boxes.jsonl"), "--weights", str(weights),
+                    "--start", f"{start:g}"],
                    cwd=ROOT, check=True)
+
+
+def draw_ai_view(clip_dir: Path, out: Path) -> None:
+    """Draw the tracer's run in `out` on the clip's video, in a child process: out/ai_view.mp4."""
+    subprocess.run([sys.executable, "-m", "vision.annotate", str(clip_dir), str(out),
+                    "--out", str(out / "ai_view.mp4")], cwd=ROOT, check=True)
 
 
 def grade_clip(clip: dict, footage: Path, out: Path, weights: Path | str = DEFAULT_WEIGHTS,
                training_seeds: list[int] | None = None, reuse: bool = False) -> dict:
     """Run the tracer on one seed-record clip (unless `reuse` and its events exist), grade
-    it, write out/vision_report.json and return the report."""
+    it, write out/vision_report.json, then the AI view if the tracer ran, and return the report."""
     folder = footage / clip["name"]
     video = folder / f"{clip['name']}.mp4"
     if not video.exists():
         raise FileNotFoundError(f"{video} not found (render it: python -m vision.footage render "
                                 f"{clip['name']})")
     detected_file, truth_file = out / "events.json", folder / "truth" / "events.json"
-    if not (reuse and detected_file.exists()):
-        detect(video, out, weights)
+    traced = not (reuse and detected_file.exists())
+    if traced:
+        detect(video, out, weights, window(clip)[0])
     manifest = json.loads(Path(f"{video}.manifest.json").read_text(encoding="utf-8"))
     info = clip_info(manifest, {}, clip["seed"], training_seeds or [])
     info.update(name=clip["name"], role=clip["role"], pairing=[clip["home"], clip["away"]],
@@ -71,6 +86,8 @@ def grade_clip(clip: dict, footage: Path, out: Path, weights: Path | str = DEFAU
                           json.loads(truth_file.read_text(encoding="utf-8")),
                           info, DETECTED_TYPES, detected_file, truth_file)
     write_report(out / "vision_report.json", report)
+    if traced:
+        draw_ai_view(folder, out)
     return report
 
 

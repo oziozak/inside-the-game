@@ -5,14 +5,21 @@
     python -m vision.footage render dev1 test1          # simulate, export, validate
     python -m vision.footage render --role dev [--force]
     python -m vision.footage render --all
+    python -m vision.footage find-seed --after 2101 --start-minute 40 --minutes 10
 
-A clip is the first `minutes` of a full 90-minute match (seeded, `full`
-profile): it starts at the kickoff, and substitutions (58'-82') never fall in
-it. Each clip goes to data/renders/footage/<name>/ (ignored by git): the video,
-its export manifest and metrics, the simulator's match_info.json and clip.json
-(seed record entry + render settings, written last once the export
-validated). The simulator's true events and tracking go to truth/, which the
-vision stage never reads. Renders are never committed.
+A clip is `minutes` of a full 90-minute match (seeded, `full` profile), from
+`start_minute` (default 0, the kickoff), so [start_minute, start_minute +
+minutes) * 60 seconds of match time, and it ends before the first
+substitution can happen (58'). Each clip goes to data/renders/footage/<name>/
+(ignored by git): the video, its export manifest and metrics, the simulator's
+match_info.json and clip.json (seed record entry + render settings, written
+last once the export validated). The simulator's true events and tracking for
+the clip's window go to truth/, which the vision stage never reads. Renders
+are never committed.
+
+`find-seed` applies a test clip's selection rule using the simulator only: the
+first seed after --after, used by no clip, whose window holds at least --goals
+goals.
 """
 
 from __future__ import annotations
@@ -25,18 +32,21 @@ import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterator
 
 from simulator import Match, iter_tracking
+from simulator.config import FPS
 from simulator.io import write_json, write_jsonl
 from simulator.teams import load_team, resolve_kits
 
 ROOT = Path(__file__).resolve().parent.parent
 RECORD = Path(__file__).with_name("footage_seeds.json")
 OUT = ROOT / "data" / "renders" / "footage"          # ignored by git
-FIELDS = ("name", "role", "seed", "home", "away", "minutes")
+FIELDS = ("name", "role", "seed", "home", "away", "minutes")   # plus optional start_minute
 ROLES = ("dev", "test", "training")
 MIN_DEV_KIT_COMBINATIONS = 3
 HALF = 45 * 60                                        # clips are cut from regulation matches
+SUBS_FROM = 58                                        # minute of the earliest substitution
 # v1 footage settings (see #9): static full-pitch camera, yellow CV ball at 2x, real-size
 # players, 1080p at 25 fps. `render` checks the export manifest recorded exactly these.
 RENDER_SETTINGS = {"camera": "cv_full_pitch", "cvVisibility": True, "playerScale": 1, "ballScale": 2,
@@ -98,8 +108,14 @@ def _check_clip(c: dict) -> list[str]:
     errors = []
     if c["role"] not in ROLES:
         errors.append(f"{who}: role must be one of {', '.join(ROLES)}, not {c['role']!r}")
-    if not 0 < c["minutes"] <= HALF / 60:
-        errors.append(f"{who}: minutes must be more than 0 and at most {HALF // 60} (first half)")
+    start = c.get("start_minute", 0)
+    if not c["minutes"] > 0:
+        errors.append(f"{who}: minutes must be more than 0")
+    if not start >= 0:
+        errors.append(f"{who}: start_minute must be at least 0")
+    if start + c["minutes"] > SUBS_FROM:
+        errors.append(f"{who}: start_minute + minutes must be at most {SUBS_FROM} "
+                      f"(before any substitution)")
     if c["home"] == c["away"]:
         errors.append(f"{who}: home and away must be different teams")
     try:
@@ -107,6 +123,12 @@ def _check_clip(c: dict) -> list[str]:
     except ValueError as e:                     # unknown team or unresolvable kit clash
         errors.append(f"{who}: {e}")
     return errors
+
+
+def window(clip: dict) -> tuple[float, float]:
+    """A clip's [start, end) in seconds of match time (the continuous clock)."""
+    start = clip.get("start_minute", 0) * 60
+    return start, start + clip["minutes"] * 60
 
 
 def worn_kits(clip: dict) -> tuple[dict, dict]:
@@ -132,32 +154,66 @@ def _check_dev_kits(dev: list[dict]) -> list[str]:
     return errors
 
 
-def prepare_clip(clip: dict, root: Path) -> ClipPlan:
-    """Simulate a clip's match into root/<name>/ and plan its export to
-    root/<name>/<name>.mp4: the first `minutes` of the match, from the kickoff.
-
-    match_info.json (the team sheet) goes next to the video. The truth goes to
-    truth/: events.json (true events before the clip's end, ids unchanged),
-    events.full.json (the whole match) and tracking.jsonl (the clip only)."""
-    folder = Path(root) / clip["name"]
-    truth = folder / "truth"
+def simulate(clip: dict) -> Match:
+    """The clip's full match, played (events only; tracking is built on demand)."""
     m = Match(clip["seed"], HALF, "full", clip["name"],
               home=load_team(clip["home"]), away=load_team(clip["away"]))
     m.play()
-    end = clip["minutes"] * 60
+    return m
+
+
+def clip_tracking(m: Match, start: float, end: float) -> Iterator[dict]:
+    """The match's tracking frames for start <= t < end. Built from the kickoff
+    and cut, so they are the frames of the full match's tracking (the movement
+    layer carries player positions from frame to frame)."""
+    first = round(start * FPS)
+    return (f for f in iter_tracking(m, 0, min(end, m.t)) if f["frame"] >= first)
+
+
+def prepare_clip(clip: dict, root: Path) -> ClipPlan:
+    """Simulate a clip's match into root/<name>/ and plan its export to
+    root/<name>/<name>.mp4: the clip's window of the match (see window()).
+
+    match_info.json (the team sheet) goes next to the video. The truth goes to
+    truth/: events.json (true events in the window, ids unchanged),
+    events.full.json (the whole match) and tracking.jsonl (the window only)."""
+    folder = Path(root) / clip["name"]
+    truth = folder / "truth"
+    m = simulate(clip)
+    start, end = window(clip)
     metadata, tracking = folder / "match_info.json", truth / "tracking.jsonl"
     write_json(metadata, m.match_info())
     write_json(truth / "events.full.json", m.events)
-    write_json(truth / "events.json", [e for e in m.events if e["t"] < end])
-    write_jsonl(tracking, iter_tracking(m, 0, min(end, m.t)))
+    write_json(truth / "events.json", [e for e in m.events if start <= e["t"] < end])
+    write_jsonl(tracking, clip_tracking(m, start, end))
     video = folder / f"{clip['name']}.mp4"
     args = ["--metadata", str(metadata), "--tracking", str(tracking),
-            "--start", "0", "--end", f"{end:g}",
+            "--start", f"{start:g}", "--end", f"{end:g}",
             "--camera", RENDER_SETTINGS["camera"], "--cv_visibility",
             "--ball-scale", f"{RENDER_SETTINGS['ballScale']:g}",
             "--player-scale", f"{RENDER_SETTINGS['playerScale']:g}",
             "--width", str(VIDEO["width"]), "--height", str(VIDEO["height"]), "--out", str(video)]
     return ClipPlan(video, metadata, tracking, args)
+
+
+def goals_in_window(clip: dict) -> list[dict]:
+    """The true goals in a clip's window, from the simulator alone."""
+    start, end = window(clip)
+    return [e for e in simulate(clip).events if e["type"] == "goal" and start <= e["t"] < end]
+
+
+def find_seed(after: int, home: str, away: str, start_minute: float, minutes: float,
+              used: set[int], goals: int = 1, tries: int = 1000) -> int:
+    """The first seed after `after`, not in `used`, whose clip window holds at
+    least `goals` goals. Runs the simulator only (no tracking, no vision)."""
+    for seed in range(after + 1, after + 1 + tries):
+        if seed in used:
+            continue
+        clip = {"name": f"seed{seed}", "seed": seed, "home": home, "away": away,
+                "start_minute": start_minute, "minutes": minutes}
+        if len(goals_in_window(clip)) >= goals:
+            return seed
+    raise ValueError(f"no seed in {after + 1}..{after + tries} has {goals} goal(s) in the window")
 
 
 def render_clip(clip: dict, root: Path = OUT, force: bool = False) -> Path:
@@ -205,6 +261,13 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="command", required=True)
     sub.add_parser("check", help="check the seed record")
     sub.add_parser("list", help="list the clips in the seed record")
+    find = sub.add_parser("find-seed", help="first unused seed with goals in a window (simulator only)")
+    find.add_argument("--after", type=int, required=True, help="search seeds after this one")
+    find.add_argument("--home", default="bosphorus")
+    find.add_argument("--away", default="thames")
+    find.add_argument("--start-minute", type=float, default=0)
+    find.add_argument("--minutes", type=float, required=True)
+    find.add_argument("--goals", type=int, default=1, help="minimum goals in the window")
     render = sub.add_parser("render", help="render clips from the seed record")
     render.add_argument("names", nargs="*", help="clip names, e.g. dev1 test1")
     render.add_argument("--role", choices=ROLES, help="every clip with this role")
@@ -224,8 +287,18 @@ def main(argv=None) -> int:
     if args.command == "list":
         for c in record["clips"]:
             home, away = worn_kits(c)
-            print(f"{c['name']:8} {c['role']:9} seed {c['seed']:<5} {c['minutes']:>2} min  "
+            start, end = window(c)
+            print(f"{c['name']:8} {c['role']:9} seed {c['seed']:<5} {start / 60:g}-{end / 60:g} min  "
                   f"{c['home']} ({home['shirt']}) v {c['away']} ({away['shirt']})")
+        return 0
+    if args.command == "find-seed":
+        used = {c["seed"] for c in record["clips"]}
+        seed = find_seed(args.after, args.home, args.away, args.start_minute, args.minutes, used,
+                         args.goals)
+        clip = {"name": f"seed{seed}", "seed": seed, "home": args.home, "away": args.away,
+                "start_minute": args.start_minute, "minutes": args.minutes}
+        times = ", ".join(f"{g['t']:g} s ({g['team']})" for g in goals_in_window(clip))
+        print(f"seed {seed}: goals in the window at {times}")
         return 0
 
     by_name = {c["name"]: c for c in record["clips"]}
