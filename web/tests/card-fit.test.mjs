@@ -118,3 +118,16 @@ test('a dual-team card without a title still shows its text', () => {
   const seen = drawnWords(drawn);
   for (const word of words(dual.text)) assert.ok(seen.has(word), `"${word}" not drawn`);
 });
+
+test('a longer title is never drawn larger than a shorter one; wrapped titles use the shrunk size', () => {
+  const { ctx } = context();
+  const full = LONG.en[0];
+  let previous = Infinity;
+  for (let n = 1; n <= full.length; n++) {
+    const overlay = card('en', [full.slice(0, n), 'Short body']);
+    const { title } = standardCardLayout(ctx, overlay, overlayIdentity(overlay, events, info), info, events, 1);
+    assert.ok(title.size <= previous, `title of ${n} chars grew from ${previous} to ${title.size}`);
+    if (title.lines.length > 1) assert.equal(title.size, 34 * 0.75);
+    previous = title.size;
+  }
+});

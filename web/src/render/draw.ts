@@ -325,10 +325,14 @@ function fitText(
   return { size: min, lines: kept.map(line => truncate(ctx, line, maxWidth)), fits: false };
 }
 
-/** A title: one line at the largest size down to TITLE_MIN_SCALE of `base`; else up to 2 lines. */
+/**
+ * A title: one line at the largest size down to TITLE_MIN_SCALE of `base`; else up to 2 lines at that shrunk size,
+ * so a longer title is never drawn larger than a shorter one.
+ */
 function fitTitle(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, font: (size: number) => string, base: number) {
-  const oneLine = fitText(ctx, text, maxWidth, font, base, base * TITLE_MIN_SCALE, 1);
-  return oneLine.fits ? oneLine : fitText(ctx, text, maxWidth, font, base, base * TITLE_MIN_SCALE, 2);
+  const min = base * TITLE_MIN_SCALE;
+  const oneLine = fitText(ctx, text, maxWidth, font, base, min, 1);
+  return oneLine.fits ? oneLine : fitText(ctx, text, maxWidth, font, min, min, 2);
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
