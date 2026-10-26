@@ -336,6 +336,64 @@ def uncited_claims(s: str, cited: set[str], lang: str, team_names: set[str]) -> 
             for topic, rx in terms.items() if topic not in cited and (m := rx.search(s))]
 
 
+# Every number reads with its noun (#79): not a share and a count joined by a bare "and" ("with 91% and 10
+# there"), nor a count followed only by "there". Same-kind pairs ("22 m and 14 m") read fine.
+PAIR_RE = re.compile(r"\{(\w+)\}\s*(?:and|ve|y|e|,)\s+\{(\w+)\}", re.I)
+COUNT_THERE_RE = re.compile(r"\{(\w+)\}\s+(?:there|here|allí|ahí|aquí|burada|orada)\w*\b", re.I)
+
+
+def bare_numbers(raw: str, values: dict) -> list[str]:
+    """Placeholders that do not read with their noun: a share and a count of different kinds joined by
+    only a conjunction or comma, or a plain count followed by "there"."""
+    def count(key):
+        return kind_of(key) == "number" and isinstance(values.get(key), (int, float))
+
+    problems = [f"{{{a}}} and {{{b}}} are joined with no noun: give each number its own noun "
+                f"('{{{a}}} of their passes into the final third, {{{b}}} passes')"
+                for a, b in PAIR_RE.findall(raw) if a in values and b in values and kind_of(a) != kind_of(b)]
+    return problems + [f"{{{k}}} is a count with no noun ('{{{k}}} there'): say what it counts ('{{{k}}} passes')"
+                       for k in COUNT_THERE_RE.findall(raw) if count(k)]
+
+
+# The same headline or insight must mean the same in every language (#79): the same teams, the same numbers.
+# A "both teams" phrase names both; a headline's score line ("<home> {score} <away>:") names nobody.
+BOTH_RE = {"en": re.compile(r"\b(?:both|neither)\b|\beach (?:side|team)\b", re.I),
+           "tr": re.compile(r"\btakımlar\w*|\bher (?:iki )?takım\w*|\bikisi\w*|\bhiçbir takım\w*", re.I),
+           "es": re.compile(r"\bamb[oa]s\b|\b(?:cada|ningún) equipo\b|\bninguno\b|\blos dos\b", re.I)}
+SCORE_LINE_RE = re.compile(r"^[^:]*\{score\}[^:]*:")
+
+
+def teams_named(s: str, lang: str, names: dict[str, str]) -> frozenset[str]:
+    """The sides `s` speaks of: those named (in full or by the name's first word), or both for a "both teams"
+    phrase. Empty when it names no team."""
+    s = SCORE_LINE_RE.sub(" ", s)
+    if BOTH_RE.get(lang, BOTH_RE["en"]).search(s):
+        return frozenset(names)
+    return frozenset(side for side, name in names.items()
+                     if re.search(rf"(?<!\w)(?:{re.escape(name)}|{re.escape(name.split()[0])})(?!\w)", s))
+
+
+def language_mismatch(texts: dict[str, str], names: dict[str, str]) -> list[str]:
+    """One part (a headline, or an insight's title and text) in every language, raw: problems when the
+    languages name different teams or use different placeholders. A language that names no team agrees
+    with any."""
+    teams = {lang: teams_named(t, lang, names) for lang, t in texts.items()}
+    keys = {lang: frozenset(PLACEHOLDER_RE.findall(t)) for lang, t in texts.items()}
+
+    def say(sides):
+        return "both teams" if len(sides) == 2 else names[next(iter(sides))] + " only" if sides else "no team"
+
+    problems = []
+    if len({t for t in teams.values() if t}) > 1:
+        problems.append("the languages speak of different teams (" + ", ".join(f"{l}: {say(t)}" for l, t in teams.items())
+                        + "): say the same thing of the same teams in every language")
+    if len(set(keys.values())) > 1:
+        problems.append("the languages use different placeholders (" + ", ".join(
+            f"{l}: " + (" ".join(f"{{{k}}}" for k in sorted(k_)) or "none") for l, k_ in keys.items())
+            + "): use the same numbers in every language")
+    return problems
+
+
 def missing_hedge(text: str, lang: str) -> list[str]:
     """A hedged insight's text that does not hedge."""
     if HEDGE_RE.get(lang, HEDGE_RE["en"]).search(text):

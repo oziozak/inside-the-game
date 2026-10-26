@@ -25,6 +25,7 @@ INFO = json.loads((ROOT / "data/fake/sample_a/match_info.json").read_text("utf-8
 REPORT_SCHEMA = Draft202012Validator(json.loads((ROOT / "schemas/report.schema.json").read_text("utf-8")))
 TACTICS_SCHEMA = Draft202012Validator(json.loads((ROOT / "schemas/tactics.schema.json").read_text("utf-8")))
 LANGS = ["en", "tr", "es"]
+NAMES = {"home": "Bosphorus FC", "away": "Thames United"}
 
 
 def match(events: list[dict] | None = None) -> Match:
@@ -225,6 +226,60 @@ class VerifierLoopTest(unittest.TestCase):
         self.assertTrue(problems("Thames United went long", hedged=True))                   # no hedge
         self.assertEqual(problems("Thames United seem to have gone long", hedged=True), [])
 
+    def test_every_number_reads_with_its_noun(self):
+        """#79, test2: "with 91% and 10 there" joins a share and a count with no noun for either."""
+        c = next(c for c in analyst.candidates(TACTICS, match()) if c.topic == "flanks")
+        item = analyst.insight_request(1, c)
+        s = c.team
+        pct, n = f"{{{s}_flank_pct}}", f"{{{s}_passes_to_flank}}"
+
+        def problems(text, lang="en"):
+            return analyst.check_item("Flank", text, item, lang, match())
+
+        self.assertTrue(problems(f"They went through the middle, with {pct} and {n} there"))
+        self.assertTrue(problems(f"They went through the middle, {n} and {pct}"))
+        self.assertTrue(problems(f"Merkezden girdiler; {pct} ve {n} burada", "tr"))
+        self.assertTrue(problems(f"Atacaron por el centro, con {pct} y {n} allí", "es"))
+        self.assertEqual(problems(f"They went through the middle: {pct} of their final-third passes, {n} passes"), [])
+        self.assertEqual(problems(f"Merkezden girdiler: son üçte birlik bölgeye paslarının {pct} oranı, {n} pas", "tr"), [])
+        self.assertEqual(problems(f"Atacaron por el centro: el {pct} de sus pases al último tercio, {n} pases", "es"), [])
+
+    def test_every_language_says_it_of_the_same_teams_with_the_same_numbers(self):
+        """#79, test2: en and es said both teams attacked through the centre, tr only Thames United."""
+        names = {"home": "Bosphorus FC", "away": "Thames United"}
+        head = "Bosphorus FC {score} Thames United: "
+
+        def mismatch(en, tr, es):
+            return verifier.language_mismatch({"en": head + en, "tr": head + tr, "es": head + es}, names)
+
+        self.assertTrue(mismatch("both teams funneled attacks through the centre",
+                                 "Thames United hücuma merkezden çıktı",
+                                 "ambos equipos cargaron el ataque por el centro"))
+        self.assertTrue(mismatch("Thames United attacked through the middle, {away_flank_pct} of their passes",
+                                 "Thames United hücuma merkezden çıktı",
+                                 "Thames United atacó por el centro, el {away_flank_pct} de sus pases"))
+        self.assertEqual(mismatch("both teams funneled attacks through the centre",
+                                  "takımlar hücuma merkezden çıktı",
+                                  "ambos equipos cargaron el ataque por el centro"), [])
+        self.assertEqual(mismatch("Thames United attacked through the middle",
+                                  "Thames United hücuma merkezden çıktı",
+                                  "Thames atacó por el centro"), [])
+        self.assertEqual(mismatch("Bosphorus FC held a higher line than Thames United",
+                                  "Bosphorus FC, Thames United'dan daha önde savundu",
+                                  "ambos equipos: Bosphorus FC más arriba"), [])
+        self.assertEqual(mismatch("evenly matched back lines", "savunma hatları dengeli",
+                                  "ambas defensas a la par"), [])   # no team named: nothing to disagree on
+
+    def test_the_headline_starts_with_the_score_line(self):
+        """#79, test1: a retried headline began "0-0: ..." without the teams."""
+        head = analyst.build_request(analyst.select(analyst.candidates(TACTICS, match()))[0], match(), LANGS,
+                                     {"home": 0, "away": 0})["headline"]
+        for lang in LANGS:
+            def problems(text):
+                return analyst.check_item("", text, {**head, "hedged": False}, lang, match(), headline=True)
+            self.assertEqual(problems("Bosphorus FC {score} Thames United: Bosphorus FC {home_line_m}"), [])
+            self.assertTrue(problems("{score}: Bosphorus FC {home_line_m}"))
+
     def test_a_formation_is_a_placeholder_and_reads_as_written(self):
         cands = analyst.candidates(TACTICS, match())
         shape = next(c for c in cands if c.topic == "shape")
@@ -249,6 +304,37 @@ class VerifierLoopTest(unittest.TestCase):
         self.assertEqual(list(REPORT_SCHEMA.iter_errors(report)), [])
         self.assertFalse(any("87" in t for i in report["insights"] for t in i["text"].values()))
 
+    def test_a_part_whose_languages_disagree_is_retried_then_templated_in_every_language(self):
+        """#79: test2's tr headline fell back to the template (one team) while en and es kept the model's (both
+        teams). A part is kept only when every language passes and they agree; else retried, then templated."""
+        head = "Bosphorus FC {score} Thames United: "
+        both = {"en": "both teams defended high", "tr": "takımlar önde savundu", "es": "ambos equipos defendieron arriba"}
+        one_tr = {**both, "tr": "Bosphorus FC daha önde savundu"}
+        bad_tr = {**both, "tr": "iki takım önde savundu"}                # a number word: tr alone is rejected
+
+        def answer(headlines):
+            async def make(req):
+                out = await template_answer(req)
+                for lang in out:
+                    out[lang]["headline"] = head + headlines[lang]
+                return out
+            return make
+
+        backend = FixedAnswers(answer(one_tr), answer(both))
+        report, log = run(backend=backend)
+        self.assertIn("different teams", backend.feedback[1])
+        self.assertEqual(report["headline"]["tr"], "Bosphorus FC 0-0 Thames United: takımlar önde savundu")
+        self.assertEqual(log["template_fallbacks"], 0)
+
+        # tr fixed on retry, but now one team where en and es (kept from the first answer) say both: templates.
+        backend = FixedAnswers(answer(bad_tr), answer(one_tr))
+        report, log = run(backend=backend)
+        templated = {l: analyst_templates.headline(analyst.build_request(
+            analyst.select(analyst.candidates(TACTICS, match()))[0], match(), LANGS, {"home": 0, "away": 0})["headline"],
+            l, {"home": "Bosphorus FC", "away": "Thames United"}).replace("{score}", "0-0") for l in LANGS}
+        self.assertEqual(report["headline"], templated)
+        self.assertEqual(log["template_fallbacks"], len(LANGS))
+
     def test_every_template_passes_the_verifier(self):
         """Each topic, every reading of its labels, hedged or not, in every language."""
         m = match()
@@ -265,10 +351,15 @@ class VerifierLoopTest(unittest.TestCase):
                                 analyst.fact(TACTICS, f"whole/{s}/shape.all", "team_sheet", "sheet", f"{s}_sheet_shape")
                                 for s in ("home", "away") if not labels[f"{s}_as_sheet"]]
                         item = analyst.insight_request(1, cand)
+                        texts, heads = {}, {}
                         for lang in LANGS:
-                            t = analyst_templates.render(item, lang, {"home": "Bosphorus FC", "away": "Thames United"})
+                            t = analyst_templates.render(item, lang, NAMES)
                             self.assertEqual(analyst.check_item(t["title"], t["text"], item, lang, m), [],
                                              (c.topic, labels, hedged, lang, t))
+                            texts[lang] = f"{t['title']} {t['text']}"
+                            heads[lang] = analyst_templates.headline({"top": item}, lang, NAMES)
+                        self.assertEqual(verifier.language_mismatch(texts, NAMES), [], (c.topic, labels, texts))
+                        self.assertEqual(verifier.language_mismatch(heads, NAMES), [], (c.topic, labels, heads))
         self.assertTrue({"shape", "defensive_line", "directness"} <= set(base))
 
     @staticmethod
@@ -317,6 +408,7 @@ class FoundryAnalystTest(unittest.TestCase):
         view = json.loads(prompts[0])
         self.assertNotIn("values", view["insights"][0])
         self.assertTrue(all(p.startswith("{") for p in view["insights"][0]["placeholders"]))
+        self.assertIn("(Bosphorus FC: defensive line", view["insights"][0]["placeholders"]["{home_line_m}"])  # its noun
         self.assertIn(view["home"], json.dumps(view["insights"][0]["labels"]) + view["home"])
         self.assertEqual(backend.usage["calls"], len(prompts))
         # The model's words passed only where they were true of the insight; the rest are templates.
@@ -329,6 +421,15 @@ class FoundryAnalystTest(unittest.TestCase):
         run(backend=backend2)
         self.assertEqual(backend2.usage["calls"], 0)
         self.assertEqual(backend2.usage["cached"], calls)
+
+    def test_a_language_nested_in_another_by_a_misplaced_brace_is_still_read(self):
+        """#79, test2: the model left "en" open, so "tr" and "es" sat inside it and read as empty."""
+        req = {"langs": LANGS, "insights": [{"id": "i1"}]}
+        part = {"headline": "h", "insights": {"i1": {"title": "t", "text": "x"}}}
+        raw = json.dumps({"en": {**part, "tr": part, "es": part}})
+        self.assertEqual(analyst.parse_reply(raw, req), {lang: part for lang in LANGS})
+        raw = json.dumps({"en": {**part, "tr": {**part, "es": part}}})
+        self.assertEqual(analyst.parse_reply(raw, req), {lang: part for lang in LANGS})
 
     def test_analyst_and_explainer_answers_never_share_a_cache_entry(self):
         self.assertNotEqual(cache_key("d", "{}", INSTRUCTIONS), cache_key("d", "{}", analyst.ANALYST_INSTRUCTIONS))
