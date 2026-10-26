@@ -143,14 +143,14 @@ goal, the kickoff after it, half-time and the second-half kickoff with the teams
 | Type | Grade |
 | --- | --- |
 | Goal | **1/1 found** (Bosphorus, 43:34), no false goal |
-| Kickoff | **2/2 found**: after the goal (44:23) and the second half's (45:00, ends switched); KICKOFF_TEAMS_PENDING |
+| Kickoff | **2/2 found**: after the goal (44:23) and the second half's (45:00, ends switched); both given to Thames (away), the right team, with the right kicker and receiver |
 | Pass | **P 0.988 / R 0.933** (84/90, 85) |
 | Shot | 3/3 found, P 0.75 (4 detected) |
 | Possession change | P 0.50 / R 0.40 (2/5, 4): the known label limit |
 
 Matched passes: success right 98 %, mean timing error 0.03 s.
 
-**Player-id accuracy on test2: 0.52** (48/92 matched events), split at the 44:23 kickoff: PLAYER_ID_SPLIT_PENDING.
+**Player-id accuracy on test2: 0.52** (48/92 matched events), split at the 44:23 kickoff: **0.00** before it (0/43, every one names nobody) and **0.98** from it (48/49).
 Names are anchored at kickoffs: lineup assignment matches each team's tracks to its starters when
 everyone stands in its own half for a kickoff, and a track has no name until then. test1 starts with
 the opening kickoff, so it is named from the first second; test2 starts at 40:00 in open play, and its
