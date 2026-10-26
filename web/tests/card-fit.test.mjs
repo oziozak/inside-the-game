@@ -55,10 +55,10 @@ test('a short title stays one line at full size; longer text makes the card tall
   const short = card('en', ['H. Koc', '28 m pass']);
   const long = card('en');
   const layoutOf = o => standardCardLayout(ctx, o, overlayIdentity(o, events, info), info, events, 1);
-  const s = layoutOf(short), l = layoutOf(long);
-  assert.deepEqual(s.title.lines, ['H. Koc']); assert.equal(s.title.size, 34);
-  assert.deepEqual(s.body.lines, ['28 m pass']);
-  assert.ok(l.h > s.h);
+  const shortCard = layoutOf(short), longCard = layoutOf(long);
+  assert.deepEqual(shortCard.title.lines, ['H. Koc']); assert.equal(shortCard.title.size, 34);
+  assert.deepEqual(shortCard.body.lines, ['28 m pass']);
+  assert.ok(longCard.h > shortCard.h);
 });
 
 const words = text => text.split(/\s+/).filter(Boolean);
@@ -101,4 +101,20 @@ test('dual-team cards (momentum/stat compare) show the whole title and text, sta
     assert.ok(a.y >= b.y + b.h || b.y >= a.y + a.h, `${width}px ${graphic}: stacked cards overlap`);
     for (const r of regions) assert.ok(r.y >= 0 && r.y + r.h <= width * 9 / 16, `${width}px ${graphic}: card leaves the canvas`);
   }
+});
+
+test('a word wider than the card is ellipsized as a last resort without adding a blank line', () => {
+  const { ctx } = context();
+  const overlay = card('en', ['Supercalifragilisticexpialidociousnessly', 'Short body']);
+  const layout = standardCardLayout(ctx, overlay, overlayIdentity(overlay, events, info), info, events, 1);
+  assert.equal(layout.title.lines.length, 1);
+  assert.ok(layout.title.lines[0].endsWith('…'));
+});
+
+test('a dual-team card without a title still shows its text', () => {
+  const { ctx, drawn } = context();
+  const dual = { ...base, graphic: 'momentum_bar', position: 'top-left', title: undefined, text: 'Thames United keep 67% of the threat', lang: 'en', values: { momentum_home: 33, momentum_away: 67 } };
+  drawOverlays(ctx, 1280, 720, [dual], buildRoster(info), events, { info, frames: [] }, 10);
+  const seen = drawnWords(drawn);
+  for (const word of words(dual.text)) assert.ok(seen.has(word), `"${word}" not drawn`);
 });

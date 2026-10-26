@@ -94,8 +94,10 @@ export interface StandardCardLayout {
   title: TextBlock; body: TextBlock; cells: [string, string, string][]; ruler?: MatchEvent;
 }
 
-const TITLE_SIZE = 34, TITLE_MIN = TITLE_SIZE * 0.75, BODY_SIZE = 14, BODY_MIN = 12;
-const TITLE_TOP = 6, BODY_GAP = 18, NAME_BOTTOM = 8;
+/** A title may shrink to this fraction of its size before it wraps. */
+const TITLE_MIN_SCALE = 0.75;
+const TITLE_SIZE = 34, BODY_SIZE = 14, BODY_MIN = 12;
+const TITLE_TOP = 6, BODY_LINE = 18, NAME_BOTTOM = 8;
 const titleFont = (size: number, s: number) => `800 ${px(size, s)}px ${COLOR_FONT_DISPLAY}`;
 const bodyFont = (size: number, s: number) => `500 ${px(size, s)}px ${COLOR_FONT_DISPLAY}`;
 
@@ -111,11 +113,10 @@ export function standardCardLayout(
   const team = identity.team;
   const titleText = identity.description ? (team ? info[team].name : identity.description) : overlay.title ?? overlay.text;
   const bodyText = identity.description ?? (overlay.title ? overlay.text : '');
-  const oneLine = fitText(ctx, titleText, textW, size => titleFont(size, s), TITLE_SIZE, TITLE_MIN, 1);
-  const titleFit = oneLine.fits ? oneLine : fitText(ctx, titleText, textW, size => titleFont(size, s), TITLE_SIZE, TITLE_MIN, 2);
+  const titleFit = fitTitle(ctx, titleText, textW, size => titleFont(size, s), TITLE_SIZE);
   const bodyFit = fitText(ctx, bodyText, textW, size => bodyFont(size, s), BODY_SIZE, BODY_MIN, 3);
   const title = { size: titleFit.size, lines: titleFit.lines, lineHeight: titleFit.size * 1.05 };
-  const body = { size: bodyFit.size, lines: bodyFit.lines, lineHeight: BODY_GAP * bodyFit.size / BODY_SIZE };
+  const body = { size: bodyFit.size, lines: bodyFit.lines, lineHeight: BODY_LINE * bodyFit.size / BODY_SIZE };
   const cells = cellValueUnits(overlay);
   const ruler = overlay.graphic === 'pass_card' ? citedEventWithPositions(overlay, events) : undefined;
 
@@ -225,21 +226,21 @@ function drawStandardCard(
 }
 
 /** Dual-team card layout: the team row (fixed height) plus a body strip sized to the wrapped text. */
-export interface DualCardLayout { w: number; h: number; rowH: number; title: TextBlock; body: TextBlock }
+interface DualCardLayout { w: number; h: number; rowH: number; title: TextBlock; body: TextBlock }
 
 const DUAL_TITLE_SIZE = 10, DUAL_TITLE_BASELINE = 30;
 const labelFont = (size: number, s: number) => `500 ${px(size, s)}px ${COLOR_FONT_MONO}`;
 
 /** Lay out a dual card: title in the label slot (one line, shrinking to 75%; else 2 lines), text below the row in up to 3 lines. */
-export function dualCardLayout(ctx: CanvasRenderingContext2D, overlay: Overlay, s: number): DualCardLayout {
+function dualCardLayout(ctx: CanvasRenderingContext2D, overlay: Overlay, s: number): DualCardLayout {
   const w = px(420, s), rowH = px(76, s);
   const labelW = w - px(2 * 56 + 2 * 64 + 8, s), textW = w - px(32, s);
   const titleText = (overlay.title ?? overlay.graphic).toUpperCase();
-  const oneLine = fitText(ctx, titleText, labelW, size => labelFont(size, s), DUAL_TITLE_SIZE, DUAL_TITLE_SIZE * 0.75, 1);
-  const titleFit = oneLine.fits ? oneLine : fitText(ctx, titleText, labelW, size => labelFont(size, s), DUAL_TITLE_SIZE, DUAL_TITLE_SIZE * 0.75, 2);
-  const bodyFit = fitText(ctx, overlay.title ? overlay.text : '', textW, size => bodyFont(size, s), BODY_SIZE, BODY_MIN, 3);
+  const titleFit = fitTitle(ctx, titleText, labelW, size => labelFont(size, s), DUAL_TITLE_SIZE);
+  // Without a title the label shows the graphic name, so the text always goes in the body.
+  const bodyFit = fitText(ctx, overlay.text, textW, size => bodyFont(size, s), BODY_SIZE, BODY_MIN, 3);
   const title = { size: titleFit.size, lines: titleFit.lines, lineHeight: titleFit.size * 1.2 };
-  const body = { size: bodyFit.size, lines: bodyFit.lines, lineHeight: BODY_GAP * bodyFit.size / BODY_SIZE };
+  const body = { size: bodyFit.size, lines: bodyFit.lines, lineHeight: BODY_LINE * bodyFit.size / BODY_SIZE };
   const bodyH = body.lines.length ? px(body.lines.length * body.lineHeight + NAME_BOTTOM, s) : 0;
   return { w, h: rowH + bodyH, rowH, title, body };
 }
@@ -320,9 +321,14 @@ function fitText(
   }
   ctx.font = font(min);
   const lines = wrapText(ctx, text, maxWidth);
-  const kept = lines.slice(0, maxLines - 1);
-  kept.push(lines.slice(maxLines - 1).join(' '));
+  const kept = lines.length > maxLines ? [...lines.slice(0, maxLines - 1), lines.slice(maxLines - 1).join(' ')] : lines;
   return { size: min, lines: kept.map(line => truncate(ctx, line, maxWidth)), fits: false };
+}
+
+/** A title: one line at the largest size down to TITLE_MIN_SCALE of `base`; else up to 2 lines. */
+function fitTitle(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, font: (size: number) => string, base: number) {
+  const oneLine = fitText(ctx, text, maxWidth, font, base, base * TITLE_MIN_SCALE, 1);
+  return oneLine.fits ? oneLine : fitText(ctx, text, maxWidth, font, base, base * TITLE_MIN_SCALE, 2);
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
