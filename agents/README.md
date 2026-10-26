@@ -25,7 +25,7 @@ events.json ──► stats.py ──► director.py ──► explainer.py ─�
 | `context.py` | Why a moment matters, as labels with no numbers: goal effect (equaliser, go-ahead...), score situation, how the attack came about (counter, set piece, build-up), momentum, phase | No |
 | `director.py` | Rule table picks moments and graphics; schedules them per mode with slot collisions, a minimum gap and a screen-time budget. Logs every decision with a reason | No |
 | `explainer.py` | Builds the request (facts, `values` and the `placeholders` the model may use), calls the backend, runs the verify / retry / fallback loop. The retry shows the model its rejected text next to each problem; both attempts are logged | Yes |
-| `verifier.py` | Two stages. On the raw model text: rejects any digit outside a placeholder (the problem names the placeholder to use instead), a number in words ("two from two", "ikide iki", "dos de dos"), any placeholder not in this overlay's `values` (or minute/score), any mistyped one (`{ distance_m }`), a unit, `%` or `/10` next to a placeholder that already writes it (`{distance_m} m`, `{momentum_home}%`, tr `%{momentum_home}`), a letter glued to one (`{distance_m}lik`), a Turkish suffix on a number read aloud (`{score}'lik`), `{difficulty}` outside its own clause ("..., difficulty 7/10"), and in Turkish an apostrophe after a common word ("üçte bir'e"). On the filled text: length limits, player names not in the cited event or written without the initial ("finds Kurt"; any player name when `name_players` is false), and numbers not in `values` as a safety net | No |
+| `verifier.py` | Two stages. On the raw model text: rejects any digit outside a placeholder (the problem names the placeholder to use instead), a number in words ("two from two", "ikide iki", "dos de dos"), any placeholder not in this overlay's `values` (or minute/score), any mistyped one (`{ distance_m }`), a unit, `%` or `/10` next to a placeholder that already writes it (`{distance_m} m`, `{momentum_home}%`, tr `%{momentum_home}`), a letter glued to one (`{distance_m}lik`), a Turkish suffix on a number read aloud (`{score}'lik`), `{difficulty}` outside its own clause ("..., difficulty 7/10"), and in Turkish an apostrophe after a common word ("üçte bir'e"). On the filled text: length limits, player names not in the cited event or written without the initial ("finds Kurt"; any player name when `name_players` is false), in Turkish a case suffix on a player name out of vowel harmony or with the wrong buffer or t/d ("P. Rowntree'nun": write "P. Rowntree'nin"), and numbers not in `values` as a safety net | No |
 | `llm.py` | Backends: `mock` (offline templates), `noisy` (invents stats as stray digits to demo the verifier), `foundry` (Microsoft Agent Framework on a Foundry / Azure OpenAI deployment, disk-cached, counts tokens). The model sees `placeholders` mapped to how each reads on screen (`"{distance_m}": "28 m"`), no bare `values`, and no `{minute}` | Yes |
 | `fill.py` | Fills placeholders (`{distance_m}`, `{speed_kmh}`, `{score}`, `{minute}`, any `values` key) with numbers formatted per language (`28 m`; `km/h`, tr `km/sa`; `62%`, tr `%62`, es `62 %`; `2-1`; `7/10`; `34'`), then normalises apostrophes and spacing. Every backend's text goes through it once the verifier passes it: templates and the LLM both write placeholders | No |
 | `templates.py` | Code-written text per graphic, mode and language (en, tr, es), numbers as placeholders. Mock backend + fallback | No |
@@ -159,8 +159,10 @@ types (`scripts/merge_events.py`; none fall in its 2 minutes), with `match_info.
 | 7 | dev1 | 75 | 7 | 15 | 0 (0.0%) | 0 | 0 | 32 | 60k + 4.0k | $0.07 |
 | **8 (final)** | **sample_a** | 282 | 18 | 36 | **3 (1.1%)** | 0 | 0 | 110 | 206k + 14.1k | $0.24 |
 | **8 (final)** | **dev1** | 75 | 3 | 9 | **0 (0.0%)** | 0 | 0 | 28 | 53k + 3.6k | $0.06 |
+| 9 (#60) | sample_a | 264 | 32 | 47 | 7 (2.7%) | 0 | 0 | 113 | 218k + 13.9k | $0.25 |
+| 9 (#60) | dev1 | 75 | 7 | 16 | 0 (0.0%) | 0 | 0 | 32 | 62k + 4.0k | $0.07 |
 
-Total: 994k input + 72k output tokens, about **$1.17**. Cost assumes $0.75 / $4.50 per 1M input / output tokens
+Total: 1,275k input + 90k output tokens, about **$1.49**. Cost assumes $0.75 / $4.50 per 1M input / output tokens
 plus ~10% for Data Zone ($0.825 / $4.95); the Azure pricing page did not show the Data Zone rates, so check the
 bill. Rejected attempts count calls with at least one language rejected (run 1 counted first attempts only);
 fixed on retry counts languages. Low-confidence overlays are 0 because every detected event on these inputs is
@@ -187,6 +189,14 @@ What each round changed, from what the previous one got wrong:
 8. Final. An independent audit of the filled text (double units, glued letters, suffixes on numbers, number
    words, stray braces, `n/10` without its noun, first person, quotes, Turkish apostrophes) found no unit or
    format error in any language; every `player_focus` title is the player's name.
+9. Turkish vowel harmony on suffixed names (#60): the model wrote "P. Rowntree'nun" / "'yu". The verifier
+   checks the suffix against the name's last written vowel and letter (a final consonant + "y" or "-ey" reads
+   "i": "G. Ashby'nin"); one prompt line. 5 first attempts rejected for harmony, 4 fixed on retry; the fifth
+   is the one harmony fallback, "H. Koc'tan": the model reads the roster's ASCII "Koc" as "Koç", the written
+   rule wants "Koc'dan".
+   The other 6 of sample_a's 7 fallbacks are existing checks: surname without its initial (2), `{difficulty}`
+   not its own clause (2), Turkish number words "iki", "beşinci" (2).
+   sample_a has 264 overlays, not 282: pass difficulty (#59) changed which passes are picked.
 
 Reproduce: `python -m agents.run data/fake/sample_a --backend foundry`; for dev1, merge as above into a folder
 and run the same. Answers are cached by instructions + request, so a re-run with the same prompt is free.

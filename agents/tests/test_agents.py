@@ -248,6 +248,47 @@ class VerifierTest(unittest.TestCase):
     def test_turkish_suffix_on_a_real_name_passes(self):
         self.assertEqual(verifier.check("K. Aydin'den harika pas", "", {}, {}, {"K. Aydin"}, {"K. Aydin"}, "tr"), [])
 
+    def test_turkish_suffix_on_a_name_follows_vowel_harmony(self):
+        roster = {"P. Rowntree", "A. Kurt", "C. Hollis"}
+        p = verifier.check("P. Rowntree'nun uzun topu", "", {}, {}, roster, roster, "tr")
+        self.assertEqual(p, ["suffix after 'P. Rowntree' breaks vowel harmony: write P. Rowntree'nin, "
+                             "not P. Rowntree'nun"])
+        self.assertEqual(verifier.check("P. Rowntree'nin uzun topu", "", {}, {}, roster, roster, "tr"), [])
+
+    def test_turkish_buffer_letter_and_vowel_on_accusative_and_dative(self):
+        roster = {"P. Rowntree", "A. Kurt", "C. Hollis"}
+        for wrong, right in (("P. Rowntree'yu", "P. Rowntree'yi"), ("P. Rowntree'e", "P. Rowntree'ye"),
+                             ("C. Hollis'a", "C. Hollis'e"), ("A. Kurt'ya", "A. Kurt'a"),
+                             ("C. Hollis'ı", "C. Hollis'i")):
+            p = verifier.check(f"{wrong} pas", "", {}, {}, roster, roster, "tr")
+            self.assertEqual(len(p), 1, (wrong, p))
+            self.assertIn(f"write {right}, not {wrong}", p[0])
+        for ok in ("P. Rowntree'ye", "P. Rowntree'yi", "A. Kurt'a", "A. Kurt'u", "C. Hollis'e", "C. Hollis'in"):
+            self.assertEqual(verifier.check(f"{ok} pas", "", {}, {}, roster, roster, "tr"), [], ok)
+
+    def test_turkish_t_after_a_hard_consonant_on_locative_and_ablative(self):
+        roster = {"P. Rowntree", "A. Kurt", "C. Hollis", "T. Castell"}
+        for wrong, right in (("A. Kurt'dan", "A. Kurt'tan"), ("C. Hollis'den", "C. Hollis'ten"),
+                             ("P. Rowntree'dan", "P. Rowntree'den"), ("T. Castell'te", "T. Castell'de")):
+            p = verifier.check(f"{wrong} pas", "", {}, {}, roster, roster, "tr")
+            self.assertEqual(len(p), 1, (wrong, p))
+            self.assertIn(f"write {right}, not {wrong}", p[0])
+        for ok in ("A. Kurt'tan", "A. Kurt'ta", "C. Hollis'ten", "P. Rowntree'deki", "T. Castell'den"):
+            self.assertEqual(verifier.check(f"{ok} pas", "", {}, {}, roster, roster, "tr"), [], ok)
+
+    def test_a_final_y_after_a_consonant_reads_as_the_vowel_i(self):
+        roster = {"G. Ashby", "J. Hartley", "R. Aksoy"}
+        for ok in ("G. Ashby'nin", "J. Hartley'ye", "J. Hartley'den", "R. Aksoy'un", "R. Aksoy'a"):
+            self.assertEqual(verifier.check(f"{ok} pas", "", {}, {}, roster, roster, "tr"), [], ok)
+        p = verifier.check("G. Ashby'ın pası", "", {}, {}, roster, roster, "tr")
+        self.assertIn("write G. Ashby'nin, not G. Ashby'ın", p[0])
+
+    def test_other_suffixes_and_languages_are_not_checked(self):
+        roster = {"P. Rowntree", "C. Hollis"}
+        for text, lang in (("P. Rowntree'yle C. Hollis'ler", "tr"), ("P. Rowntree'nun", "en")):
+            self.assertEqual(verifier.check(text, "", {}, {}, roster, roster, lang), [], text)
+        self.assertEqual(verifier.check("X. Ng'nin pası", "", {}, {}, {"X. Ng"}, {"X. Ng"}, "tr"), [])  # no vowel
+
     def test_turkish_letters_are_read_as_one_name(self):
         p = verifier.check("K. Aydın ile hücum", "", {}, {}, {"K. Aydin"}, {"K. Aydin"}, "tr")
         self.assertEqual(p, ["unknown player name 'K. Aydın'"])
