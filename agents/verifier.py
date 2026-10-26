@@ -339,7 +339,7 @@ def uncited_claims(s: str, cited: set[str], lang: str, team_names: set[str]) -> 
 # Every number reads with its noun (#79): not a share and a count joined by a bare "and" ("with 91% and 10
 # there"), nor a count followed only by "there". Same-kind pairs ("22 m and 14 m") read fine.
 PAIR_RE = re.compile(r"\{(\w+)\}\s*(?:and|ve|y|e|,)\s+\{(\w+)\}", re.I)
-COUNT_THERE_RE = re.compile(r"\{(\w+)\}\s+(?:there|here|allí|ahí|aquí|burada|orada)\w*\b", re.I)
+COUNT_THERE_RE = re.compile(r"\{(\w+)\}\s+(?:there|here|allí|ahí|aquí|burada\w*|orada\w*)(?!\w)", re.I)
 
 
 def bare_numbers(raw: str, values: dict) -> list[str]:
@@ -356,10 +356,11 @@ def bare_numbers(raw: str, values: dict) -> list[str]:
 
 
 # The same headline or insight must mean the same in every language (#79): the same teams, the same numbers.
-# A "both teams" phrase names both; a headline's score line ("<home> {score} <away>:") names nobody.
-BOTH_RE = {"en": re.compile(r"\b(?:both|neither)\b|\beach (?:side|team)\b", re.I),
-           "tr": re.compile(r"\btakımlar\w*|\bher (?:iki )?takım\w*|\bikisi\w*|\bhiçbir takım\w*", re.I),
-           "es": re.compile(r"\bamb[oa]s\b|\b(?:cada|ningún) equipo\b|\bninguno\b|\blos dos\b", re.I)}
+# A "both teams" phrase names both ("both flanks" does not); a headline's score line ("<home> {score} <away>:")
+# names nobody.
+BOTH_RE = {"en": re.compile(r"\b(?:both|neither|each)(?: of the)? (?:teams?|sides?)\b", re.I),
+           "tr": re.compile(r"\btakımlar\w*|\b(?:her|hiçbir) (?:iki )?takım\w*|\biki takım da\b", re.I),
+           "es": re.compile(r"\b(?:amb[oa]s|los dos|cada|ningún|ninguno de los) (?:equipos?|conjuntos?)\b", re.I)}
 SCORE_LINE_RE = re.compile(r"^[^:]*\{score\}[^:]*:")
 
 

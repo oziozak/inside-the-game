@@ -453,7 +453,7 @@ def check_item(title: str, text: str, item: dict, lang: str, match: Match, headl
                               max_text=MAX_HEADLINE if headline else MAX_TEXT, max_title=MAX_TITLE)
     problems += verifier.uncited_claims(f"{title} {text}", set(item["cites"]), lang, teams)
     problems += verifier.bare_numbers(text, item["values"])
-    score_line = f"{match.team_name('home')} {{score}} {match.team_name('away')}:"
+    score_line = analyst_templates.score_line({s: match.team_name(s) for s in SIDES})
     if headline and not text.startswith(score_line):
         problems.append(f"the headline starts with the score line '{score_line}', then the finding")
     if item.get("hedged"):
@@ -470,6 +470,7 @@ async def write_report_text(req: dict, match: Match, backend, log: dict) -> dict
     head = {**req["headline"], "hedged": False}
 
     def item_of(part: str) -> dict:
+        """The request item a part is checked against."""
         return head if part == "headline" else items[part]
 
     def raw_of(answer: dict, lang: str, part: str) -> dict:
@@ -485,9 +486,11 @@ async def write_report_text(req: dict, match: Match, backend, log: dict) -> dict
                                  part == "headline") for lang in langs}
 
     def mismatch(raws: dict[str, dict]) -> list[str]:
+        """How the languages of one part disagree (teams, placeholders); empty when they agree."""
         return verifier.language_mismatch({l: f"{r['title']} {r['text']}" for l, r in raws.items()}, names)
 
     def keep(part: str, raws: dict[str, dict]) -> None:
+        """Fill and keep these languages of a part."""
         for lang, raw in raws.items():
             out[lang][part] = {k: fill(raw[k], item_of(part)["values"], lang) for k in ("title", "text")}
 
@@ -515,12 +518,15 @@ async def write_report_text(req: dict, match: Match, backend, log: dict) -> dict
                              + ": " + ", ".join(v) for part, (_, raws, found) in bad.items() for key, v in found.items())
         retry = await backend.write(req, feedback)
         still = {}
-        for part, (p1, raws1, found1) in bad.items():
+        for part, (p1, raws1, _) in bad.items():
             p2, raws2 = problems(retry, part), {l: raw_of(retry, l, part) for l in langs}
-            # The retry as one answer, else each language's first answer that passed, kept if they agree.
-            mix = {l: raws1[l] if not p1[l] else raws2[l] for l in langs if not (p1[l] and p2[l])}
-            for raws in (raws2 if not any(p2.values()) else None, mix if len(mix) == len(langs) else None):
-                if raws and not mismatch(raws):
+            # The retry as one answer, else each language's passing text (first answer first, then the retry
+            # first), kept if they agree.
+            mixes = [{l: (a if not pa[l] else b)[l] for l in langs if not (p1[l] and p2[l])}
+                     for a, pa, b in ((raws1, p1, raws2), (raws2, p2, raws1))]
+            mix = mixes[0]
+            for raws in (raws2 if not any(p2.values()) else None, *mixes):
+                if raws and len(raws) == len(langs) and not mismatch(raws):
                     keep(part, raws)
                     log["fixed_on_retry"] += sum(1 for l in langs if p1[l]) or len(langs)
                     break
@@ -529,18 +535,17 @@ async def write_report_text(req: dict, match: Match, backend, log: dict) -> dict
         if still:
             log["rejected"].append({"attempt": 2, "problems": {k: v for f in still.values() for k, v in f.items()}})
         bad = still
-    for part in bad:
-        for lang in langs:
-            if part == "headline":
-                t = {"title": "", "text": analyst_templates.headline(req["headline"], lang, names)}
-            else:
-                t = analyst_templates.render(items[part], lang, names)
-            p = check_item(t["title"], t["text"], item_of(part), lang, match, part == "headline")
-            if p:
-                log["dropped"].append({"lang": lang, "part": part, "problems": p})
-            else:
-                keep(part, {lang: t})
-                log["template_fallbacks"] += 1
+    for part in bad:  # the template in every language, or the part is dropped in every language
+        ts = {lang: {"title": "", "text": analyst_templates.headline(req["headline"], lang, names)}
+              if part == "headline" else analyst_templates.render(items[part], lang, names) for lang in langs}
+        p = {lang: check_item(t["title"], t["text"], item_of(part), lang, match, part == "headline")
+             for lang, t in ts.items()}
+        if any(p.values()):
+            log["dropped"] += [{"lang": lang, "part": part, "problems": v or ["dropped with the other languages"]}
+                               for lang, v in p.items()]
+        else:
+            keep(part, ts)
+            log["template_fallbacks"] += len(langs)
     return out
 
 

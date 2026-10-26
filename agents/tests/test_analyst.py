@@ -241,16 +241,16 @@ class VerifierLoopTest(unittest.TestCase):
         self.assertTrue(problems(f"Merkezden girdiler; {pct} ve {n} burada", "tr"))
         self.assertTrue(problems(f"Atacaron por el centro, con {pct} y {n} allí", "es"))
         self.assertEqual(problems(f"They went through the middle: {pct} of their final-third passes, {n} passes"), [])
+        self.assertEqual(problems(f"Final-third passes through the middle: {pct} of them, rising to {n} thereafter"), [])
         self.assertEqual(problems(f"Merkezden girdiler: son üçte birlik bölgeye paslarının {pct} oranı, {n} pas", "tr"), [])
         self.assertEqual(problems(f"Atacaron por el centro: el {pct} de sus pases al último tercio, {n} pases", "es"), [])
 
     def test_every_language_says_it_of_the_same_teams_with_the_same_numbers(self):
         """#79, test2: en and es said both teams attacked through the centre, tr only Thames United."""
-        names = {"home": "Bosphorus FC", "away": "Thames United"}
         head = "Bosphorus FC {score} Thames United: "
 
         def mismatch(en, tr, es):
-            return verifier.language_mismatch({"en": head + en, "tr": head + tr, "es": head + es}, names)
+            return verifier.language_mismatch({"en": head + en, "tr": head + tr, "es": head + es}, NAMES)
 
         self.assertTrue(mismatch("both teams funneled attacks through the centre",
                                  "Thames United hücuma merkezden çıktı",
@@ -267,6 +267,8 @@ class VerifierLoopTest(unittest.TestCase):
         self.assertEqual(mismatch("Bosphorus FC held a higher line than Thames United",
                                   "Bosphorus FC, Thames United'dan daha önde savundu",
                                   "ambos equipos: Bosphorus FC más arriba"), [])
+        self.assertEqual(mismatch("Thames United attacked down both flanks", "Thames United her iki kanattan saldırdı",
+                                  "Thames United atacó por ambas bandas"), [])   # both flanks is not both teams
         self.assertEqual(mismatch("evenly matched back lines", "savunma hatları dengeli",
                                   "ambas defensas a la par"), [])   # no team named: nothing to disagree on
 
@@ -331,7 +333,7 @@ class VerifierLoopTest(unittest.TestCase):
         report, log = run(backend=backend)
         templated = {l: analyst_templates.headline(analyst.build_request(
             analyst.select(analyst.candidates(TACTICS, match()))[0], match(), LANGS, {"home": 0, "away": 0})["headline"],
-            l, {"home": "Bosphorus FC", "away": "Thames United"}).replace("{score}", "0-0") for l in LANGS}
+            l, NAMES).replace("{score}", "0-0") for l in LANGS}
         self.assertEqual(report["headline"], templated)
         self.assertEqual(log["template_fallbacks"], len(LANGS))
 

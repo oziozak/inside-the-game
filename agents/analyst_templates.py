@@ -185,6 +185,11 @@ HEADLINE = {
 }
 
 
+def score_line(names: dict[str, str]) -> str:
+    """How every headline starts, in every language: "<home> {score} <away>:"."""
+    return f"{names['home']} {{score}} {names['away']}:"
+
+
 def headline(req: dict, lang: str, names: dict[str, str]) -> str:
     """The headline: the score line, then what the top insight (req["top"]) says, in a phrase."""
     home, away = names["home"], names["away"]
@@ -213,4 +218,4 @@ def headline(req: dict, lang: str, names: dict[str, str]) -> str:
         sides = _sides(top, COMPARE[topic][0])
         side_text, level_text = HEADLINE[topic]
         phrase = pick(lang, *side_text).format(X=names[sides[0]]) if sides else pick(lang, *level_text)
-    return f"{home} {{score}} {away}: {phrase}"
+    return f"{score_line(names)} {phrase}"
