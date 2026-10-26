@@ -46,3 +46,25 @@ export interface ExportManifest {
   rich: boolean; render: { camera: 'cv_full_pitch' | 'broadcast' } & Record<string, unknown>;
   frames: { output_frame: number; t: number; input_frame: number }[];
 }
+
+/** One fact an insight cites: where it is in tactics.json, its value there and how much of the clip it saw. */
+export interface ReportFact {
+  ref: string; field: string; label: string; value: number | string | null; coverage: number | null;
+  key?: string; n_frames?: number; n_events?: number;
+}
+
+export type ReportTopic =
+  | 'shape' | 'defensive_line' | 'compactness' | 'width' | 'flanks' | 'pressing' | 'directness' | 'progression' | 'change';
+
+export interface Insight {
+  id: string; topic: ReportTopic; team: 'home' | 'away' | 'both'; segment: string;
+  coverage: number; hedged: boolean; title: Record<string, string>; text: Record<string, string>;
+  values: Record<string, number | string>; facts: ReportFact[]; event_ids: string[];
+}
+
+/** report.json: the analyst agent's post-match report (schemas/report.schema.json). Optional in a bundle. */
+export interface Report {
+  match_id: string; start: number; end: number; langs: string[]; coverage_min: number;
+  headline: Record<string, string>; insights: Insight[];
+  skipped: { topic: ReportTopic; team: string; segment: string; coverage: number; salience?: number; reason: string }[];
+}

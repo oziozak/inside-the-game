@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "report.schema.json",
+  "title": "Match analysis report",
+  "description": "The post-match tactical report of one clip: a headline and up to 5 insights in every language, written by the analyst agent (agents/analyst.py) from tactics.json and the match stats, shown by the web player's Match analysis panel. Every number on screen is a value computed by code; every insight cites its facts and events.",
+  "type": "object",
+  "required": ["match_id", "start", "end", "langs", "coverage_min", "headline", "insights", "skipped"],
+  "properties": {
+    "match_id": { "type": "string" },
+    "start": { "type": "number", "description": "Seconds since kick-off: the analysed clip's start." },
+    "end": { "type": "number" },
+    "langs": { "type": "array", "items": { "type": "string" }, "examples": [["en", "tr", "es"]] },
+    "coverage_min": {
+      "type": "number", "minimum": 0, "maximum": 1,
+      "description": "Coverage below which an insight is hedged (or skipped)."
+    },
+    "headline": { "$ref": "#/$defs/by_lang" },
+    "insights": { "type": "array", "maxItems": 5, "items": { "$ref": "#/$defs/insight" } },
+    "skipped": {
+      "type": "array",
+      "description": "Insights the facts could support but the report leaves out, with why.",
+      "items": {
+        "type": "object",
+        "required": ["topic", "team", "segment", "coverage", "reason"],
+        "properties": {
+          "topic": { "$ref": "#/$defs/topic" },
+          "team": { "$ref": "#/$defs/team" },
+          "segment": { "type": "string" },
+          "coverage": { "type": "number", "minimum": 0, "maximum": 1 },
+          "salience": { "type": "number" },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "by_lang": {
+      "type": "object",
+      "description": "Text per language code.",
+      "additionalProperties": { "type": "string" }
+    },
+    "topic": { "enum": ["shape", "defensive_line", "compactness", "width", "flanks", "pressing", "directness", "progression", "change"] },
+    "team": { "enum": ["home", "away", "both"] },
+    "insight": {
+      "type": "object",
+      "required": ["id", "topic", "team", "segment", "coverage", "hedged", "title", "text", "values", "facts", "event_ids"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^i[0-9]+$" },
+        "topic": { "$ref": "#/$defs/topic" },
+        "team": { "$ref": "#/$defs/team" },
+        "segment": { "type": "string", "description": "tactics.json segment id ('whole', 'after_e0042')." },
+        "coverage": {
+          "type": "number", "minimum": 0, "maximum": 1,
+          "description": "The lowest coverage among the cited facts."
+        },
+        "hedged": { "type": "boolean", "description": "Coverage below coverage_min: the text says it is unsure." },
+        "title": { "$ref": "#/$defs/by_lang" },
+        "text": { "$ref": "#/$defs/by_lang" },
+        "values": {
+          "type": "object",
+          "description": "Numbers (or formations) the text shows, each from a cited fact, rounded for the screen.",
+          "additionalProperties": { "type": ["number", "string"] }
+        },
+        "facts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["ref", "field", "label", "value", "coverage"],
+            "properties": {
+              "ref": { "type": "string", "description": "'<segment>/<team>/<fact path>' in tactics.json, e.g. 'whole/home/defensive_line_m.out_of_possession'." },
+              "field": { "type": "string", "description": "The value's path inside the fact, e.g. 'value', 'value.high'." },
+              "label": { "type": "string" },
+              "value": { "type": ["number", "string", "null"] },
+              "coverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "key": { "type": "string", "description": "The values key that shows this fact." },
+              "n_frames": { "type": "integer", "minimum": 0 },
+              "n_events": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "event_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

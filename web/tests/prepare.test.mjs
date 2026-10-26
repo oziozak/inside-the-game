@@ -115,6 +115,37 @@ test('rejects overlays citing events from another bundle', async t => {
   await assert.rejects(prepareMatch(f), /cites an event missing/);
 });
 
+/** report.example.json moved to the fixture's match, citing its first events. */
+async function fixtureReport(f) {
+  const info = JSON.parse(await readFile(join(f.selected, 'match_info.json'), 'utf8'));
+  const events = JSON.parse(await readFile(join(f.selected, 'events.json'), 'utf8'));
+  const report = JSON.parse(await readFile(join(ROOT, 'schemas/examples/report.example.json'), 'utf8'));
+  report.match_id = info.match_id;
+  for (const insight of report.insights) insight.event_ids = insight.event_ids.length ? [events[0].id] : [];
+  return report;
+}
+
+test('an optional report.json is published when present, and its absence changes nothing', async t => {
+  const f = await fixture(t);
+  await prepareMatch(f);
+  assert.ok(!(await readdir(f.outputDir)).includes('report.json'));
+  await writeFile(join(f.selected, 'report.json'), JSON.stringify(await fixtureReport(f)));
+  await prepareMatch(f);
+  assert.deepEqual((await readdir(f.outputDir)).sort(), [...prepared, 'report.json'].sort());
+  assert.deepEqual(await readFile(join(f.outputDir, 'report.json')), await readFile(join(f.selected, 'report.json')));
+});
+
+test('rejects a report from another match or citing events this bundle lacks', async t => {
+  const f = await fixture(t);
+  const report = await fixtureReport(f);
+  await writeFile(join(f.selected, 'report.json'), JSON.stringify({ ...report, match_id: 'wrong-match' }));
+  await assert.rejects(prepareMatch(f), /report.json match_id must equal/);
+  report.insights[0].event_ids = ['e9999'];
+  await writeFile(join(f.selected, 'report.json'), JSON.stringify(report));
+  await assert.rejects(prepareMatch(f), /report.json: i1 cites an event missing/);
+  await assert.rejects(access(f.outputDir));
+});
+
 test('invalid explicit paths never fall back, including symlink escapes', async t => {
   const f = await fixture(t);
   for (const match of ['', '../outside', f.selected, 'data/demo/does-not-exist']) {

@@ -1,8 +1,9 @@
-import { loadMatch, loadEvents, loadOverlays, loadManifest } from './data/loadMatch';
+import { loadMatch, loadEvents, loadOverlays, loadManifest, loadReport } from './data/loadMatch';
 import { activeOverlays, clock, languageNotice } from './render/schedule';
 import { buildCamera } from './render/camera';
 import { buildRoster, drawOverlays, type HitRegion } from './render/draw';
 import { renderEvidence } from './ui/evidence';
+import { renderAnalysis, renderInsightEvidence } from './ui/analysis';
 import { renderHero, renderSummary, renderLineups } from './ui/page';
 import { initScrollGlow } from './ui/scrollGlow';
 import { FeedSwitcher, feedsSynchronized } from './playback/feeds';
@@ -32,6 +33,8 @@ const modeTabs = document.querySelector<HTMLElement>('#modeTabs')!;
 const langTabs = document.querySelector<HTMLElement>('#langTabs')!;
 const languageStatus = document.querySelector<HTMLElement>('#overlay-language-status')!;
 const liveBtn = document.querySelector<HTMLButtonElement>('#live')!;
+const analysisPanel = document.querySelector<HTMLElement>('#analysis')!;
+const analysisBtn = document.querySelector<HTMLButtonElement>('#analysis-open')!;
 
 function wireSegmented(group: HTMLElement, onPick: (value: string) => void) {
   group.querySelectorAll<HTMLButtonElement>('button').forEach(btn => {
@@ -45,8 +48,8 @@ function wireSegmented(group: HTMLElement, onPick: (value: string) => void) {
 
 async function main() {
   const base = './sample';
-  const [match, events, overlays] = await Promise.all([
-    loadMatch(base), loadEvents(base), loadOverlays(base),
+  const [match, events, overlays, report] = await Promise.all([
+    loadMatch(base), loadEvents(base), loadOverlays(base), loadReport(base),
   ]);
   const manifest = await loadManifest(`${base}/match.mp4`);
   const roster = buildRoster(match.info);
@@ -228,8 +231,33 @@ async function main() {
     selectedEvidence = undefined;
     evidencePanel.classList.add('hidden');
   }
+  // Match analysis (optional report.json): opens when the clip ends, or from its button at any time.
+  function closeAnalysis() {
+    analysisPanel.classList.add('hidden');
+    analysisBtn.setAttribute('aria-pressed', 'false');
+  }
+  function openAnalysis() {
+    if (!report) return;
+    renderAnalysis(analysisPanel, report, lang, match.info, insight => {
+      selectedEvidence = undefined;  // insight evidence is not an overlay's: the playback-time rule is for cards
+      renderInsightEvidence(evidencePanel, insight, report, eventsById, match.info);
+    }, () => { closeAnalysis(); closeEvidence(); });
+    analysisBtn.setAttribute('aria-pressed', 'true');
+  }
+  if (report) {
+    analysisBtn.hidden = false;
+    analysisBtn.addEventListener('click', () => {
+      if (analysisPanel.classList.contains('hidden')) openAnalysis(); else { closeAnalysis(); closeEvidence(); }
+    });
+    for (const feed of [broadcast, aiVideo]) feed.addEventListener('ended', () => { if (feed === video) openAnalysis(); });
+  }
+
   wireSegmented(modeTabs, value => { mode = value as Mode; closeEvidence(); render(); });
-  wireSegmented(langTabs, value => { lang = value; closeEvidence(); render(); });
+  wireSegmented(langTabs, value => {
+    lang = value; closeEvidence();
+    if (!analysisPanel.classList.contains('hidden')) openAnalysis();
+    render();
+  });
 
   liveBtn.addEventListener('click', () => {
     const isLive = liveBtn.getAttribute('aria-pressed') !== 'true';

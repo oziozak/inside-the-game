@@ -3,13 +3,15 @@ import matchInfoSchema from '../../../schemas/match_info.schema.json';
 import trackingSchema from '../../../schemas/tracking.schema.json';
 import eventSchema from '../../../schemas/event.schema.json';
 import overlaySchema from '../../../schemas/overlay.schema.json';
-import type { Match, MatchInfo, Frame, MatchEvent, Overlay, ExportManifest } from '../types';
+import reportSchema from '../../../schemas/report.schema.json';
+import type { Match, MatchInfo, Frame, MatchEvent, Overlay, ExportManifest, Report } from '../types';
 
 const ajv = new Ajv2020({ strict: false, allErrors: true });
 const validateInfo = ajv.compile(matchInfoSchema);
 const validateFrame = ajv.compile(trackingSchema);
 const validateEvent = ajv.compile(eventSchema);
 const validateOverlay = ajv.compile(overlaySchema);
+const validateReport = ajv.compile(reportSchema);
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path);
@@ -59,6 +61,17 @@ export async function loadOverlays(baseUrl: string): Promise<Overlay[]> {
   const overlays = await fetchJson<Overlay[]>(`${baseUrl}/overlays.json`);
   for (const overlay of overlays) if (!validateOverlay(overlay)) throw new Error(`Overlay ${overlay.id}: ${ajv.errorsText(validateOverlay.errors)}`);
   return overlays;
+}
+
+/** The optional analyst report: undefined when the bundle has none; a malformed one is an error. */
+export async function loadReport(baseUrl: string): Promise<Report | undefined> {
+  // As for tracking, the Accept header keeps Vite's HTML fallback from answering for an absent file.
+  const response = await fetch(`${baseUrl}/report.json`, { headers: { Accept: 'application/json' } });
+  if (response.status === 404) return undefined;
+  if (!response.ok) throw new Error(`Failed to fetch report.json: ${response.status}`);
+  const report = await response.json() as Report;
+  if (!validateReport(report)) throw new Error(`Report: ${ajv.errorsText(validateReport.errors)}`);
+  return report;
 }
 
 export async function loadManifest(videoUrl: string): Promise<ExportManifest | undefined> {

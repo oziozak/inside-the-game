@@ -45,3 +45,11 @@ _Avoid_: Control, ball ownership
 **Regain**:
 A team winning the ball back in play: a possession change, or the other team's failed pass that it then plays on. Where it happens (high, mid or low third) measures how high a team presses.
 _Avoid_: Recovery, turnover (the other team's side of it)
+
+**Coverage**:
+The share (0-1) of a segment a tactical fact could see: frames it was measured on, or with the ball seen for an event fact. An insight below 60% coverage is hedged or skipped.
+_Avoid_: Confidence (that is a detected event's), completeness
+
+**Insight**:
+One finding of the post-match report (`report.json`): a topic, the facts it cites with their values and coverage, the events behind them, and the analyst agent's words in every language.
+_Avoid_: Claim, observation (a frame observation is the vision AI's)

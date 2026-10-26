@@ -19,7 +19,7 @@ function eventTimecode(event: MatchEvent, periods: MatchInfo['periods']): string
   return `${base}.${frac}`;
 }
 
-function eventSection(event: MatchEvent, info: MatchInfo): string {
+export function eventSection(event: MatchEvent, info: MatchInfo): string {
   const kind = event.subtype ? `${event.type} · ${event.subtype}` : event.type;
   const rows: string[] = [];
   const source = event.source === 'cv' ? 'CV · Detected from video' : event.source === 'sim' ? 'SIM · Simulator' : 'Unknown source';

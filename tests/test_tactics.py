@@ -189,16 +189,17 @@ PASSES = [
 
 def test_long_balls_are_the_share_of_passes_over_30_m(sheet):
     teams = tactics([], PASSES, sheet)["segments"][0]["teams"]
-    assert teams["home"]["long_balls"] == {"value_pct": 50.0, "count": 2, "of": 4,
+    assert teams["home"]["long_balls"] == {"value_pct": 50.0, "count": 2, "of": 4, "coverage": None,
                                            "event_ids": ["e0001", "e0002", "e0003", "e0004"],
                                            "long_event_ids": ["e0001", "e0004"]}
-    assert teams["away"]["long_balls"] == {"value_pct": 100.0, "count": 1, "of": 1, "event_ids": ["e0005"],
+    assert teams["away"]["long_balls"] == {"value_pct": 100.0, "count": 1, "of": 1, "coverage": None,
+                                           "event_ids": ["e0005"],
                                            "long_event_ids": ["e0005"]}
 
 
 def test_progressive_passes_are_completed_passes_far_enough_toward_goal(sheet):
     teams = tactics([], PASSES, sheet)["segments"][0]["teams"]
-    assert teams["home"]["progressive_passes"] == {"value": 2, "of": 3, "share_pct": 66.7,
+    assert teams["home"]["progressive_passes"] == {"value": 2, "of": 3, "share_pct": 66.7, "coverage": None,
                                                    "event_ids": ["e0001", "e0002", "e0003"],
                                                    "progressive_event_ids": ["e0001", "e0003"]}
     assert teams["away"]["progressive_passes"]["value"] == 1
@@ -217,9 +218,9 @@ def test_regains_are_counted_by_the_third_they_happen_in(sheet):
         ev(9, 16.0, "throw_in", "away", (40, 68), (45, 60)),             # ... a restart is not a regain
     ]
     teams = tactics([], events, sheet)["segments"][0]["teams"]
-    assert teams["away"]["regains"] == {"value": {"high": 1, "mid": 1, "low": 0},
+    assert teams["away"]["regains"] == {"value": {"high": 1, "mid": 1, "low": 0}, "coverage": None,
                                         "event_ids": {"high": ["e0001", "e0002"], "mid": ["e0005"], "low": []}}
-    assert teams["home"]["regains"] == {"value": {"high": 0, "mid": 0, "low": 1},
+    assert teams["home"]["regains"] == {"value": {"high": 0, "mid": 0, "low": 1}, "coverage": None,
                                         "event_ids": {"high": [], "mid": [], "low": ["e0003"]}}
 
 
@@ -234,6 +235,7 @@ def test_flank_share_of_passes_into_the_final_third_is_seen_from_the_attacking_t
     teams = tactics([], events, sheet)["segments"][0]["teams"]
     assert teams["home"]["final_third_flanks"]["passes"] == {
         "value_pct": {"left": 33.3, "centre": 33.3, "right": 33.3}, "count": {"left": 1, "centre": 1, "right": 1},
+        "coverage": None,
         "event_ids": {"left": ["e0003"], "centre": ["e0002"], "right": ["e0001"]}}
     assert teams["away"]["final_third_flanks"]["passes"]["value_pct"] == {"left": 0.0, "centre": 0.0, "right": 100.0}
 
@@ -333,3 +335,46 @@ def test_per_line_positions_follow_the_team_sheets_own_lines(four_lines):
         ["CB", "CB", "LB", "RB"], ["DM", "DM"], ["AM", "LW", "RW"], ["ST"]]
     depths = [line["depth_m"] for line in shape["lines"]]
     assert depths == sorted(depths)
+
+
+# ---- coverage (#69): how much of its segment each fact could see ----
+def test_a_whole_clip_frame_fact_covers_its_share_of_the_segments_frames(high_v_deep):
+    _, frames, events, info = high_v_deep
+    seg = tactics(frames, events, info)["segments"][0]
+    assert seg["frames"]["n_frames"] == len(frames)
+    for side in ("home", "away"):
+        fact = seg["teams"][side]["defensive_line_m"]["all"]
+        assert fact["coverage"] == round(fact["n_frames"] / len(frames), 3)
+
+
+def test_a_phase_fact_covers_its_phase_times_the_share_of_frames_whose_possession_is_known(high_v_deep):
+    _, frames, events, info = high_v_deep
+    seg = tactics(frames, events, info)["segments"][0]
+    known = seg["frames"]["possession_known"]
+    assert 0.5 < known < 1
+    for side in ("home", "away"):
+        team = seg["teams"][side]
+        for phase in ("in_possession", "out_of_possession"):
+            shape = team["shape"][phase]
+            # Every frame of the phase is measured (all players named), so the phase's own share is 1.
+            assert shape["coverage"] == pytest.approx(known, abs=0.002), (side, phase)
+            assert team["defensive_line_m"][phase]["coverage"] <= shape["coverage"] + 0.001
+
+
+def test_an_event_fact_covers_the_share_of_frames_with_the_ball_seen(high_v_deep):
+    _, frames, events, info = high_v_deep
+    seg = tactics(frames, events, info)["segments"][0]
+    seen = sum(1 for f in frames if f.ball_visible and f.ball is not None)
+    assert seg["frames"]["ball_seen"] == round(seen / len(frames), 3)
+    for side in ("home", "away"):
+        team = seg["teams"][side]
+        for fact in (team["long_balls"], team["progressive_passes"], team["regains"], team["final_third_flanks"]["passes"]):
+            assert fact["coverage"] == seg["frames"]["ball_seen"]
+
+
+def test_tactics_output_passes_its_schema(high_v_deep):
+    import json
+    from jsonschema import Draft202012Validator
+    schema = json.loads((ROOT / "schemas" / "tactics.schema.json").read_text(encoding="utf-8"))
+    assert list(Draft202012Validator(schema).iter_errors(tactics(*high_v_deep[1:]))) == []
+    assert list(Draft202012Validator(schema).iter_errors(tactics([], PASSES, high_v_deep[3]))) == []

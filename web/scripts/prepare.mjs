@@ -78,6 +78,17 @@ async function validateBundle(folder) {
       throw new Error(`overlays.json: ${overlay.id} cites an event missing from events.json`);
     }
   }
+  // The analyst report is optional; when present it must be this match's, citing these events.
+  if (await isFile(join(folder, 'report.json'))) {
+    const report = await readJson(folder, 'report.json');
+    if (report.match_id !== info.match_id) throw new Error('report.json match_id must equal match_info.json match_id');
+    if (!Array.isArray(report.insights)) throw new Error('report.json insights must be an array');
+    for (const insight of report.insights) {
+      if (!Array.isArray(insight.event_ids) || insight.event_ids.some(id => !ids.has(id))) {
+        throw new Error(`report.json: ${insight.id} cites an event missing from events.json`);
+      }
+    }
+  }
 }
 
 /** Copy a complete, validated asset set; never publish a mix of old and new matches. */
@@ -103,7 +114,7 @@ export async function prepareMatch({ repoRoot = ROOT, outputDir = OUTPUT, match 
       if (!inside(repoRoot, folder) || inside(resolve(outputDir), folder)) throw new Error('MATCH must resolve within the repository and outside web/public/sample');
       sources = REQUIRED.map(name => [join(folder, name), name]);
       if (await isFile(join(folder, 'tracking.jsonl'))) sources.push([join(folder, 'tracking.jsonl'), 'tracking.jsonl']);
-      for (const name of ['ai_view.mp4', 'ai_view.mp4.manifest.json']) {
+      for (const name of ['ai_view.mp4', 'ai_view.mp4.manifest.json', 'report.json']) {
         if (await isFile(join(folder, name))) sources.push([join(folder, name), name]);
       }
     } else {

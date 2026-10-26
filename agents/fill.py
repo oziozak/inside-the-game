@@ -29,13 +29,21 @@ OTHER_APOSTROPHES = re.compile("[’‘ʼ′`´]")
 SPACE_BEFORE_PUNCT = re.compile(r"\s+([,.!?:])")
 
 
-# values key -> kind; keys not listed are plain numbers (counts such as shots_home, window_min).
+# values key -> kind; keys not listed are plain numbers (counts such as shots_home, window_min), or by their
+# ending (kind_of). A string value (a formation, "4-3-3") is written as it is.
 KINDS = {
     "distance_m": "distance", "goal_distance_m": "distance", "progress_m": "distance",
     "speed_kmh": "speed",
     "momentum_home": "percentage", "momentum_away": "percentage",
     "score": "score", "difficulty": "difficulty", "minute": "minute",
 }
+SUFFIX_KINDS = {"_m": "distance", "_pct": "percentage"}
+
+
+def kind_of(key: str) -> str:
+    """How a values key is written: KINDS, else by its ending (`home_line_m` meters, `long_pct` a
+    percentage), else a plain number."""
+    return KINDS.get(key) or next((k for end, k in SUFFIX_KINDS.items() if key.endswith(end)), "number")
 
 
 # values keys a placeholder's format already writes ({difficulty} -> "7/10"): never placeholders
@@ -69,7 +77,7 @@ def fill(text: str, values: dict, lang: str, facts: dict | None = None) -> str:
         if key not in nums:
             raise UnknownPlaceholder(f"unknown placeholder {{{key}}} (allowed: "
                                      + ", ".join(f"{{{k}}}" for k in sorted(nums)) + ")")
-        kind = KINDS.get(key, "number")
+        kind = kind_of(key)
         if kind == "score":
             h, a = nums[key]
             return FORMATS["score"][lang].format(h=h, a=a)
