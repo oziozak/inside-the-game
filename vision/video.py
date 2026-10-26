@@ -47,8 +47,15 @@ BALL_TRACKER = dict(track_high_thresh=0.5, track_low_thresh=0.1, new_track_thres
 
 
 def observe(video: Path, match_info: dict, weights: Path | str = DEFAULT_WEIGHTS,
-            start: float = 0.0, max_frames: int | None = None) -> list[FrameObservation]:
-    """Frame observations for every frame of a video (or its first `max_frames`)."""
+            start: float = 0.0, max_frames: int | None = None,
+            pixel_boxes: list[dict] | None = None) -> list[FrameObservation]:
+    """Frame observations for every frame of a video (or its first `max_frames`).
+
+    If `pixel_boxes` is a list, it gets one record per frame with the same
+    players as the observation, in image pixels: each player's box [x1, y1,
+    x2, y2] and the ball's ground point [x, y] (None when not seen). They are
+    for drawing what the AI saw, not part of the observation contract.
+    """
     from ultralytics.trackers.byte_tracker import BYTETracker
 
     capture = cv2.VideoCapture(str(video))
@@ -76,7 +83,7 @@ def observe(video: Path, match_info: dict, weights: Path | str = DEFAULT_WEIGHTS
         t = round(start + index / fps, 3)
 
         boxes = [b for b in detector.detect(image, roi) if _on_pitch(pitch, b.foot, PLAYER_MARGIN_M)]
-        players = []
+        players, drawn = [], []
         for row in _track(player_tracker, boxes, PLAYER_TRACK_SCALE):
             track_id, box = int(row[4]), boxes[int(row[7])]
             kit = kits.classify(image, box)
@@ -88,6 +95,9 @@ def observe(video: Path, match_info: dict, weights: Path | str = DEFAULT_WEIGHTS
             players.append(PlayerObservation(
                 track_id=track_id, team=team, goalkeeper=goalkeeper,
                 pos=_meters(pitch, box.foot), confidence=round(box.confidence, 3)))
+            drawn.append({"track_id": track_id, "team": team, "goalkeeper": goalkeeper,
+                          "box": [round(v, 1) for v in (box.x1, box.y1, box.x2, box.y2)],
+                          "confidence": round(box.confidence, 3)})
 
         candidates = [c for c in find_ball(image, boxes, ball_px)
                       if _on_pitch(pitch, c.point, BALL_MARGIN_M)]
@@ -98,6 +108,10 @@ def observe(video: Path, match_info: dict, weights: Path | str = DEFAULT_WEIGHTS
                                                 confidence=round(ball.score, 3)),
             ball_visible=ball is not None,
             players=sorted(players, key=lambda p: p.track_id)))
+        if pixel_boxes is not None:
+            pixel_boxes.append({"frame": index, "t": t,
+                                "players": sorted(drawn, key=lambda p: p["track_id"]),
+                                "ball": None if ball is None else [round(v, 1) for v in ball.point]})
         index += 1
     capture.release()
     if pitch is None:

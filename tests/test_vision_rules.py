@@ -215,6 +215,29 @@ def test_every_player_is_a_roster_id_or_null_where_the_schema_allows(sim_clips, 
         assert sum(named) / len(named) >= 0.97, (i, sum(named), len(named))
 
 
+def test_names_over_time_follow_the_tracks_without_changing_the_events(sim_clips, sim_detections):
+    """`names` collects, per frame, the roster id each named track stands for
+    (what the AI view draws). Nobody is named before the first kickoff; after
+    it, the names are the right players; the events are the same as without it."""
+    for i, (tracking, team_sheet, _) in enumerate(sim_clips):
+        frames = observations_from_tracking(tracking, team_sheet)
+        names: list[dict[int, int]] = []
+        assert detect_events(frames, team_sheet, names=names) == sim_detections[i], i
+        assert len(names) == len(frames), i
+        roster = roster_of_tracks(tracking, frames)
+        first = next(e["t"] for e in sim_detections[i] if e["type"] == "kickoff")
+        right = total = 0
+        for f, named in zip(frames, names):
+            assert set(named) <= {p.track_id for p in f.players}, (i, f.frame)
+            if f.t < first - 1.0:
+                assert named == {}, (i, f.frame, named)
+            elif f.t > first + 1.0:
+                assert len(named) >= 20, (i, f.frame, len(named))
+                right += sum(roster[tid] == pid for tid, pid in named.items())
+                total += len(named)
+        assert right / total >= 0.95, (i, right, total)
+
+
 def break_tracks(frames, seed=0, every_s=20.0, lost_frames=10, per_break=3):
     """Frames where, every `every_s` from the third minute, `per_break` tracks
     (at times of the same team) vanish for `lost_frames` and come back under
