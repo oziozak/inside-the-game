@@ -283,6 +283,16 @@ class EventRules:
             out += self._stand_won()
         return out
 
+    def team_with_ball(self) -> str | None:
+        """The team in possession as of the last frame pushed: the holder's, or
+        while a kick is in flight the kicker's. None while the ball is dead (out
+        of play, in the net) or loose, or the kicker was unseen."""
+        if self.dead or self.pending_goal:
+            return None
+        if self.holder is not None:
+            return self.holder.team
+        return self.flight.kicker.team if self.flight is not None else None
+
     def finish(self) -> list[dict]:
         """End of input: a goal nobody took back stands; an unfinished kick and a
         possession change that has not stood yet are dropped."""

@@ -17,6 +17,7 @@ import pytest
 
 from agents.tactics import tactics
 from simulator import Match, build_tracking, load_team
+from simulator.config import STYLES
 from vision.harness import observations_from_tracking
 from vision.rules import detect_events
 
@@ -110,10 +111,24 @@ def test_compactness_is_back_line_to_front_line_over_the_cited_frames(high_v_dee
             assert 15 < fact["value"] == pytest.approx(truth, abs=0.5), (side, phase)
 
 
-def test_a_high_line_reads_higher_than_a_deep_one(high_v_deep):
-    teams = tactics(*high_v_deep[1:])["segments"][0]["teams"]
-    line = {side: teams[side]["defensive_line_m"]["out_of_possession"]["value"] for side in ("home", "away")}
-    assert line["home"] > line["away"] + 5, line
+@pytest.fixture(scope="module")
+def lines_set_by_style():
+    """{line meters: the home team's facts}: the same match (Bosphorus v Thames, same seed) with home's
+    block pushed up or dropped by that many meters out of possession and no other style."""
+    out = {}
+    for line in (8.0, -8.0):
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setitem(STYLES, "test_line", {**STYLES["balanced"], "line": line})
+            _, frames, events, info = clip(65, styled("bosphorus", "test_line"), styled("thames", "balanced"))
+        out[line] = tactics(frames, events, info)["segments"][0]["teams"]["home"]
+    return out
+
+
+def test_a_team_placed_in_a_high_line_reads_higher_than_in_a_deep_one(lines_set_by_style):
+    out = {line: facts["defensive_line_m"]["out_of_possession"]["value"] for line, facts in lines_set_by_style.items()}
+    assert out[8.0] > out[-8.0] + 10, out
+    inside = {line: facts["defensive_line_m"]["in_possession"]["value"] for line, facts in lines_set_by_style.items()}
+    assert abs(inside[8.0] - inside[-8.0]) < (out[8.0] - out[-8.0]) / 2, inside   # with the ball: its formation
 
 
 def test_a_team_reads_as_its_team_sheet_when_it_stands_in_it(high_v_deep):
@@ -140,9 +155,10 @@ def test_average_positions_are_each_players_mean_over_the_cited_frames(wing_back
         for pid, where in shape["players"].items():
             truth = recomputed(tracking, shape, lambda fr: line_depth(fr, {int(pid)}, side))
             assert where["depth_m"] == pytest.approx(truth, abs=0.5), (side, pid)
+            assert where["n_frames"] == shape["n_frames"]       # the simulator shows everyone in every frame
         backs = team_of(info, DEFENCE)[side]
-        assert shape["lines"]["defence"]["players"] == sorted(backs)
-        assert shape["lines"]["defence"]["depth_m"] == pytest.approx(
+        assert sorted(shape["lines"][0]["players"]) == sorted(backs)
+        assert shape["lines"][0]["depth_m"] == pytest.approx(
             statistics.fmean(shape["players"][str(pid)]["depth_m"] for pid in backs), abs=0.05)
 
 
@@ -174,14 +190,17 @@ PASSES = [
 def test_long_balls_are_the_share_of_passes_over_30_m(sheet):
     teams = tactics([], PASSES, sheet)["segments"][0]["teams"]
     assert teams["home"]["long_balls"] == {"value_pct": 50.0, "count": 2, "of": 4,
-                                           "event_ids": ["e0001", "e0002", "e0003", "e0004"]}
-    assert teams["away"]["long_balls"] == {"value_pct": 100.0, "count": 1, "of": 1, "event_ids": ["e0005"]}
+                                           "event_ids": ["e0001", "e0002", "e0003", "e0004"],
+                                           "long_event_ids": ["e0001", "e0004"]}
+    assert teams["away"]["long_balls"] == {"value_pct": 100.0, "count": 1, "of": 1, "event_ids": ["e0005"],
+                                           "long_event_ids": ["e0005"]}
 
 
 def test_progressive_passes_are_completed_passes_far_enough_toward_goal(sheet):
     teams = tactics([], PASSES, sheet)["segments"][0]["teams"]
     assert teams["home"]["progressive_passes"] == {"value": 2, "of": 3, "share_pct": 66.7,
-                                                   "event_ids": ["e0001", "e0002", "e0003"]}
+                                                   "event_ids": ["e0001", "e0002", "e0003"],
+                                                   "progressive_event_ids": ["e0001", "e0003"]}
     assert teams["away"]["progressive_passes"]["value"] == 1
 
 
@@ -194,6 +213,8 @@ def test_regains_are_counted_by_the_third_they_happen_in(sheet):
         ev(5, 9.0, "possession_change", "away", (50, 34)),               # away wins it 55 m out: mid (once, not twice)
         ev(6, 11.0, "shot", "away", (12, 34)),
         ev(7, 12.0, "pass", "home", (5, 34), (30, 34)),                  # after a shot: not a regain
+        ev(8, 14.0, "pass", "home", (30, 34), (40, 68), success=False),  # out of play ...
+        ev(9, 16.0, "throw_in", "away", (40, 68), (45, 60)),             # ... a restart is not a regain
     ]
     teams = tactics([], events, sheet)["segments"][0]["teams"]
     assert teams["away"]["regains"] == {"value": {"high": 1, "mid": 1, "low": 0},
@@ -213,7 +234,7 @@ def test_flank_share_of_passes_into_the_final_third_is_seen_from_the_attacking_t
     teams = tactics([], events, sheet)["segments"][0]["teams"]
     assert teams["home"]["final_third_flanks"]["passes"] == {
         "value_pct": {"left": 33.3, "centre": 33.3, "right": 33.3}, "count": {"left": 1, "centre": 1, "right": 1},
-        "event_ids": ["e0001", "e0002", "e0003"]}
+        "event_ids": {"left": ["e0003"], "centre": ["e0002"], "right": ["e0001"]}}
     assert teams["away"]["final_third_flanks"]["passes"]["value_pct"] == {"left": 0.0, "centre": 0.0, "right": 100.0}
 
 
@@ -249,8 +270,11 @@ def test_attacking_width_is_the_outfield_spread_across_the_pitch_in_possession(h
     for side in ("home", "away"):
         fact = teams[side]["attacking_width_m"]
         assert fact["frames"] == teams[side]["shape"]["in_possession"]["frames"]
-        width = recomputed(tracking, fact, lambda fr: (max(p["pos"][1] for p in fr["players"] if p["id"] in outfield[side])
-                                                       - min(p["pos"][1] for p in fr["players"] if p["id"] in outfield[side])))
+        def spread(fr: dict) -> float:
+            ys = [p["pos"][1] for p in fr["players"] if p["id"] in outfield[side]]
+            return max(ys) - min(ys)
+
+        width = recomputed(tracking, fact, spread)
         assert 30 < fact["value"] == pytest.approx(width, abs=0.5), side
 
 
@@ -279,4 +303,33 @@ def test_tactics_import_nothing_that_reads_simulator_data():
     modules = {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
     modules |= {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
     project = {m for m in modules if m.split(".")[0] in {"vision", "simulator", "scripts", "agents"}}
-    assert project == {"agents.stats", "vision.observation", "vision.rules"}
+    assert project == {"agents.stats", "vision.lineup", "vision.observation", "vision.rules"}
+
+
+def test_after_a_goal_nobody_has_the_ball_until_the_kickoff(high_v_deep):
+    _, frames, events, _ = high_v_deep
+    teams = tactics(*high_v_deep[1:])["segments"][0]["teams"]
+    goal = next(e for e in events if e["type"] == "goal")
+    kickoff = next(e for e in events if e["type"] == "kickoff" and e["t"] > goal["t"])
+    dead = {f.frame for f in frames if goal["t"] + 0.5 < f.t < kickoff["t"] - 0.5}
+    assert len(dead) > 100
+    for side in ("home", "away"):
+        for phase in ("in_possession", "out_of_possession"):
+            assert dead.isdisjoint(frame_ids(teams[side]["shape"][phase]["frames"])), (side, phase)
+        assert dead <= set(frame_ids(teams[side]["shape"]["all"]["frames"]))
+
+
+@pytest.fixture(scope="module")
+def four_lines():
+    """A 4-2-3-1 (two DMs, then an AM between two wingers, then a striker) against a 4-4-2."""
+    return clip(64, load_team("caldera"), load_team("thames"))
+
+
+def test_per_line_positions_follow_the_team_sheets_own_lines(four_lines):
+    info = four_lines[3]
+    shape = tactics(*four_lines[1:])["segments"][0]["teams"]["home"]["shape"]["all"]
+    pos = {p["id"]: p["pos"] for p in info["home"]["players"]}
+    assert [sorted(pos[pid] for pid in line["players"]) for line in shape["lines"]] == [
+        ["CB", "CB", "LB", "RB"], ["DM", "DM"], ["AM", "LW", "RW"], ["ST"]]
+    depths = [line["depth_m"] for line in shape["lines"]]
+    assert depths == sorted(depths)

@@ -266,7 +266,8 @@ threshold did not change after this measurement.
 `tactics.py` turns what the vision AI saw into team-level tactical facts, by code only (no LLM), as
 `tactics.json`. Inputs: the tracer's `observations.jsonl`, the detected (or merged) `events.json` and
 `match_info.json`, nothing else; it never opens `truth/` or simulator tracking (the file-open guard in
-`tests/test_vision_pipeline.py` runs it with both beside the clip). Not yet wired into `agents.run`.
+`tests/test_vision_pipeline.py` runs it with both beside the clip). Not yet wired into `agents.run`, and no
+other stage reads it yet, so like `agents_report.json` it has no schema in `schemas/`.
 
 ```bash
 C=dev1
@@ -275,37 +276,38 @@ python -m agents.tactics runs/footage/$C/observations.jsonl --events runs/footag
 ```
 
 - **Who is who.** The vision rules are replayed over the observations, so each track is named by the same
-  lineup assignment that named the events' players; a player's line (defence, midfield, attack) is their
-  team-sheet position. Goalkeepers and unnamed tracks are left out. Before the first kickoff nothing is
-  named, so the shape facts are empty (the calibration clip has no kickoff).
-- **Who has the ball.** Possession spells from the detected events: after a completed pass or a possession
-  change the team keeps the ball until the next event; otherwise the next event says who had it. Frames in
-  no spell count only for `all`.
+  lineup assignment that named the events' players. Goalkeepers and unnamed tracks are left out. Before the
+  first kickoff nothing is named, so the shape facts are empty (the calibration clip has no kickoff).
+- **Who has the ball.** Per frame, from the same replay (`EventRules.team_with_ball`): the team of the track
+  in possession (GLOSSARY), or while a kick is in flight the kicker's. A dead ball (out of play, in the net)
+  or a loose one is neither team's: those frames count only for `all`. On dev1-dev3, 92%, 78% and 40% of
+  frames are in a team's possession; dev3's ball is often not seen.
 - **Team frame.** Depth is meters from the team's own goal line; left, centre and right are thirds of the
   width as the team sees it attacking.
 - **Segments.** The whole clip, then before and after each goal or red card (`split_by` is its event id).
+  Red cards come from the simulator, so those splits need the merged events.
 
 Per team and segment (`all`, `in_possession` and `out_of_possession` where it applies):
 
 | Fact | Value | Evidence |
 | --- | --- | --- |
-| `shape` | actual formation next to the team sheet's: players' mean depths split back to front into as many lines as the sheet has (least squared spread; a 5-3-2 whose wing-backs push up reads 3-5-2), each team-sheet line's mean depth and width, each player's mean position | `frames`, possession `event_ids` |
-| `defensive_line_m` | mean depth of the back line (team-sheet defenders) | `frames`, `event_ids` |
-| `compactness_m` | front line's mean depth minus the back line's | `frames`, `event_ids` |
-| `attacking_width_m` | in possession: outfield spread across the pitch (widest minus narrowest y) | `frames`, `event_ids` |
-| `final_third_flanks` | left / centre / right %: of passes ending in the final third, and of in-possession frames with the ball there | `event_ids`; `frames` per flank |
-| `regains` | ball won back per third (`high` = final third: pressing height): every possession change, and a failed pass the other team plays on | `event_ids` per third |
-| `long_balls` | share of passes longer than 30 m | `event_ids` (all passes counted) |
-| `progressive_passes` | completed passes moving the ball at least 30 m toward goal within the own half, 15 m across halfway, 10 m in the opponent half | `event_ids` (all completed passes) |
+| `shape` | actual formation next to the team sheet's: players' mean depths split back to front into as many lines as the sheet has (least squared spread; a 5-3-2 whose wing-backs push up reads 3-5-2); the sheet's own lines (a 4-2-3-1's AM and wingers make one) with mean depth and width; each player's mean position over the frames they were seen in | `frames`; per player `n_frames` |
+| `defensive_line_m` | mean depth of the back line (team-sheet defenders) | `frames` |
+| `compactness_m` | front line's (team-sheet attackers) mean depth minus the back line's | `frames` |
+| `attacking_width_m` | in possession: outfield spread across the pitch (widest minus narrowest y) | `frames` |
+| `final_third_flanks` | left / centre / right %: of passes ending in the final third (completed or not), and of in-possession frames with the ball there | `event_ids` / `frames` per flank |
+| `regains` | ball won back per third (`high` = final third: pressing height): every possession change, and a failed pass the other team plays on in open play (a restart is not a regain) | `event_ids` per third |
+| `long_balls` | share of passes longer than 30 m (a team's directness; the pass subtype `long` splits at 25 m) | `event_ids` counted, `long_event_ids` |
+| `progressive_passes` | completed passes moving the ball at least 30 m toward the goal line within the own half, 15 m across halfway, 10 m in the opponent half | `event_ids` counted, `progressive_event_ids` |
 
 `frames` are `[first, last]` runs of observation frame indices. Every number is recomputable from its
 cited frames or events: `tests/test_tactics.py` recomputes the frame facts from the simulator's tracking
-over the cited frames (by roster id, which the tactics never see), and a team given a high line by the
-simulator reads higher than a deep one.
+over the cited frames (by roster id, which the tactics never see). The same team given a +8 m and a -8 m
+line by the simulator reads more than 10 m higher out of possession, and much less apart with the ball.
 
-On dev1-dev3 (whole clip, 2 minutes each, under a second per clip) every team sheet's lines are found; the
-4-2-3-1s read 4-2-1-3 (their wingers stand level with the striker) and the 5-3-2 reads 3-5-2. Where lineup
-assignment swaps two players (#56), their mean positions mix, which can change the shape read.
+On dev1-dev3 (whole clip, 2 minutes each, under a second per clip) the 4-3-3s and the 4-4-2 read as their
+sheet, the 4-2-3-1s read 4-2-1-3 (their wingers stand level with the striker) and the 5-3-2 reads 3-5-2.
+Where lineup assignment swaps two players (#56), their mean positions mix, which can change the shape read.
 
 ## Next steps (P3 backlog)
 
