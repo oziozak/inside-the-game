@@ -19,10 +19,11 @@ export type EventType =
   | 'goal' | 'half_time' | 'full_time';
 
 export interface MatchEvent {
-  id: string; match_id: string; t: number; period?: 1 | 2; type: EventType; team?: 'home' | 'away';
+  id: string; match_id: string; t: number; period?: 1 | 2; type: EventType; team?: 'home' | 'away' | 'none';
   from?: number | null; to?: number | null; start?: number[]; end?: number[]; subtype?: string;
   distance_m?: number; speed_kmh?: number; duration_s?: number; success?: boolean;
-  source: 'cv' | 'sim'; confidence: number;
+  score?: { home?: number; away?: number };
+  source: 'cv' | 'sim'; confidence?: number;
 }
 
 export type OverlayGraphic =

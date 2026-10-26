@@ -69,7 +69,8 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 .hero-score-numbers { display: flex; align-items: center; gap: 14px; }
 .hero-score-numbers .num { font-size: clamp(2.5rem, 7vw, 4.5rem); }
 .hero-sep { font-family: var(--mono); color: var(--dust); font-size: clamp(2rem, 5vw, 3rem); }
-.hero-meta { display: flex; gap: 20px; }
+.hero-meta { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 20px; }
+.synthetic-disclosure { font-family: var(--mono); font-size: 11px; line-height: 1.5; color: var(--dust); border: 1px solid var(--line); padding: 3px 8px; border-radius: 3px; }
 
 /* ---------- compare ---------- */
 .compare-section, .lineups-section, .pipeline-section { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 24px; }
@@ -105,6 +106,7 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 
 .stage { position: relative; width: min(100%, 1280px); aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
 .stage video, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage video[hidden], #ai-view[hidden] { display: none; }
 .stage canvas { pointer-events: auto; cursor: default; }
 
 .wordmark { position: absolute; left: 2.5%; top: 3.9%; display: flex; align-items: center; gap: 10px; pointer-events: none; z-index: 2; }
@@ -145,6 +147,7 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 }
 .seg[aria-pressed="true"] { background: var(--chalk); color: var(--ink); border-color: var(--chalk); position: relative; z-index: 1; }
 .seg.live[aria-pressed="true"] { background: var(--red-card); color: var(--ink); border-color: var(--red-card); }
+.overlay-language-status { width: min(100%, 1280px); margin: 8px 0 0; color: var(--dust); font-size: 13px; line-height: 1.5; }
 
 /* ---------- evidence / source panel ---------- */
 .evidence {
@@ -158,15 +161,29 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 .evidence-close { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-left: 1px solid var(--line); font-size: 10px; font-weight: 600; letter-spacing: .12em; }
 
 .evt { padding: 14px 16px 6px; border-bottom: 1px solid var(--line); }
-.evt-row-head { display: flex; justify-content: space-between; align-items: baseline; }
+.evt-row-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; overflow-wrap: anywhere; }
 .evt-id { font-family: var(--mono); font-size: 13px; font-weight: 700; }
 .evt-type { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--dust); }
+.evidence-provenance { padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.evt-source, .evt-confidence, .evidence-provenance { font-family: var(--mono); font-size: 10px; line-height: 1.6; overflow-wrap: anywhere; }
+.evt-source { color: var(--mint); margin-top: 8px; }
+.evt-confidence { color: var(--dust); }
 .evt-time { font-family: var(--mono); font-stretch: 75%; font-weight: 700; font-size: 30px; margin-top: 8px; font-variant-numeric: tabular-nums; }
-.evt-field { display: flex; justify-content: space-between; align-items: center; height: 34px; border-top: 1px solid #1E272D; }
+.evt-field { display: flex; justify-content: space-between; align-items: center; min-height: 34px; gap: 8px; border-top: 1px solid #1E272D; }
 .evt-field:first-of-type { margin-top: 10px; }
 .chip { display: flex; align-items: center; justify-content: center; width: 34px; height: 18px; font-family: var(--mono); font-size: 10px; font-weight: 700; color: #fff; }
 .chip.home { background: var(--home); } .chip.away { background: var(--away); }
+.event-person { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; min-width: 0; }
+.event-person .chip { flex: none; }
+.event-person-name { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; min-width: 0; }
 .evt-derived { padding: 14px 16px 6px; }
 .evt-derived .row { display: flex; justify-content: space-between; align-items: baseline; height: 36px; border-top: 1px solid #1E272D; padding-top: 8px; }
 .evt-derived .row .num { font-size: 20px; letter-spacing: 0; }
 .evt-derived .row .num.mint { color: var(--mint); }
+
+@media (max-width: 720px) {
+  .site-header { flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
+  .site-nav { flex-wrap: wrap; gap: 16px; }
+  .console { padding: 16px 12px; gap: 12px; }
+  .evidence { width: min(100%, 320px); }
+}

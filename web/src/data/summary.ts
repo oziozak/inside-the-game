@@ -2,29 +2,41 @@ import type { MatchEvent } from '../types';
 
 export interface Score { home: number; away: number }
 
-/** Final score from goal events — same rule the agents/director use: numbers come from code, never invented. */
-export function finalScore(events: MatchEvent[]): Score {
-  return events.reduce<Score>((score, e) => {
-    if (e.type !== 'goal' || !e.team) return score;
-    return { ...score, [e.team]: score[e.team] + 1 };
-  }, { home: 0, away: 0 });
+/** Score as of t, including available pre-clip history. Undefined means the opening score is unknown. */
+export function scoreAt(events: MatchEvent[], t: number, clipStart = 0): Score | undefined {
+  const past = events.filter(e => e.t <= t).sort((a, b) => a.t - b.t);
+  let score: Score | undefined = clipStart === 0 || past.some(e => e.type === 'kickoff' && e.t === 0)
+    ? { home: 0, away: 0 } : undefined;
+  for (const e of past) {
+    // A score field is an explicit after-event snapshot, not a guess from a pass/shot's success.
+    const snapshot = e.score;
+    if (snapshot && Number.isInteger(snapshot.home) && Number.isInteger(snapshot.away)
+        && snapshot.home! >= 0 && snapshot.away! >= 0) {
+      score = { home: snapshot.home!, away: snapshot.away! };
+    } else if (score && e.type === 'goal' && (e.team === 'home' || e.team === 'away')) {
+      score = { ...score, [e.team]: score[e.team] + 1 };
+    }
+  }
+  return score;
 }
 
 export interface CompareRow { label: string; home: number; away: number }
 
 function countByTeam(events: MatchEvent[], type: MatchEvent['type']): Score {
   return events.reduce<Score>((acc, e) => {
-    if (e.type !== type || !e.team) return acc;
+    if (e.type !== type || (e.team !== 'home' && e.team !== 'away')) return acc;
     return { ...acc, [e.team]: acc[e.team] + 1 };
   }, { home: 0, away: 0 });
 }
 
-export function compareRows(events: MatchEvent[]): CompareRow[] {
+/** This clip so far: start-inclusive, export-end-exclusive, with no events after playback time. */
+export function compareRows(input: MatchEvent[], start: number, t: number, end: number): CompareRow[] {
+  const events = input.filter(e => e.t >= start && e.t <= t && e.t < end);
   const shots = countByTeam(events, 'shot');
   const goals = countByTeam(events, 'goal');
   const passes = countByTeam(events, 'pass');
   const successfulPasses = events.reduce<Score>((acc, e) => {
-    if (e.type !== 'pass' || !e.team || !e.success) return acc;
+    if (e.type !== 'pass' || (e.team !== 'home' && e.team !== 'away') || !e.success) return acc;
     return { ...acc, [e.team]: acc[e.team] + 1 };
   }, { home: 0, away: 0 });
   const yellows = countByTeam(events, 'yellow_card');

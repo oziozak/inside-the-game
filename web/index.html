@@ -50,7 +50,8 @@
           </div>
         </div>
         <div class="hero-meta">
-          <span class="lab">FULL TIME</span>
+          <span id="synthetic-match" class="synthetic-disclosure">Synthetic match</span>
+          <span id="hero-clock" class="lab">MATCH —</span>
         </div>
       </section>
 
@@ -58,6 +59,7 @@
         <div id="app">
           <div class="stage">
             <video id="broadcast" playsinline></video>
+            <video id="ai-feed" playsinline preload="metadata" hidden></video>
             <canvas id="overlay"></canvas>
             <div class="wordmark" aria-hidden="true">
               <span class="corner"></span>
@@ -94,18 +96,23 @@
             <div class="seg-group" id="langTabs" role="group" aria-label="Language">
               <button class="seg" data-value="en" aria-pressed="true">EN</button>
               <button class="seg" data-value="tr" aria-pressed="false">TR</button>
+              <button class="seg" data-value="es" lang="es" aria-label="Español" aria-pressed="false">ES</button>
             </div>
             <div class="seg-group">
               <button id="live" class="seg live" aria-pressed="false">LIVE</button>
+              <button id="ai-view" class="seg" aria-pressed="false" aria-label="AI VIEW" aria-describedby="feed-status" hidden disabled>AI VIEW</button>
             </div>
           </div>
+          <p id="overlay-language-status" class="overlay-language-status" role="status" aria-live="polite" hidden></p>
+          <p id="feed-status" class="overlay-language-status" role="status" aria-live="polite" hidden></p>
         </div>
       </section>
 
       <section class="compare-section">
         <div class="section-head">
           <span class="lab">HEAD TO HEAD</span>
-          <h2>Full-match numbers</h2>
+          <h2>This clip</h2>
+          <span id="compare-scope" class="lab"></span>
         </div>
         <div id="compare-rows" class="compare-rows"></div>
       </section>

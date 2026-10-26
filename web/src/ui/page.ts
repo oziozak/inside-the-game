@@ -1,22 +1,27 @@
 import type { MatchInfo, MatchEvent } from '../types';
-import { finalScore, compareRows } from '../data/summary';
+import { scoreAt, compareRows } from '../data/summary';
+import { clock } from '../render/schedule';
 
-export function renderHero(info: MatchInfo, events: MatchEvent[]): void {
-  const score = finalScore(events);
+export function renderHero(info: MatchInfo): void {
   document.querySelector('#hero-home-name')!.textContent = info.home.name;
   document.querySelector('#hero-away-name')!.textContent = info.away.name;
   document.querySelector('#hero-home-tab')!.textContent = info.home.short;
   document.querySelector('#hero-away-tab')!.textContent = info.away.short;
   (document.querySelector('#hero-home-tab') as HTMLElement).style.background = info.home.kit.shirt;
   (document.querySelector('#hero-away-tab') as HTMLElement).style.background = info.away.kit.shirt;
-  document.querySelector('#hero-home-score')!.textContent = String(score.home);
-  document.querySelector('#hero-away-score')!.textContent = String(score.away);
   document.querySelector('#hero-home-formation')!.textContent = info.home.formation ?? '—';
   document.querySelector('#hero-away-formation')!.textContent = info.away.formation ?? '—';
 }
 
-export function renderCompare(container: HTMLElement, events: MatchEvent[]): void {
-  const rows = compareRows(events);
+/** Recompute on either playback or seeking; never carry mutable score state between frames. */
+export function renderSummary(info: MatchInfo, events: MatchEvent[], start: number, t: number, end: number): void {
+  const score = scoreAt(events.filter(e => e.t < end), t, start);
+  document.querySelector('#hero-home-score')!.textContent = score ? String(score.home) : '—';
+  document.querySelector('#hero-away-score')!.textContent = score ? String(score.away) : '—';
+  document.querySelector('#hero-clock')!.textContent = `MATCH ${clock(t, info.periods)}${score ? '' : ' · Score unavailable'}`;
+  document.querySelector('#compare-scope')!.textContent = `${clock(start, info.periods)}–${clock(Math.min(t, end), info.periods)} · so far`;
+  const container = document.querySelector<HTMLElement>('#compare-rows')!;
+  const rows = compareRows(events, start, t, end);
   container.innerHTML = rows.map(row => {
     const total = row.home + row.away || 1;
     const homePct = (row.home / total) * 100;
