@@ -8,6 +8,7 @@ import { prepareMatch } from '../scripts/prepare.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const required = ['events.json', 'match.mp4', 'match.mp4.manifest.json', 'match_info.json', 'overlays.json'];
+const prepared = [...required, 'feeds.json'].sort();
 
 /** Reuse the committed calibration match, export, and labels in an isolated repository layout. */
 async function fixture(t) {
@@ -52,7 +53,7 @@ async function fixture(t) {
 test('default uses the existing sample_a paths and retains tracking', async t => {
   const f = await fixture(t);
   await prepareMatch({ repoRoot: f.repoRoot, outputDir: f.outputDir });
-  assert.deepEqual((await readdir(f.outputDir)).sort(), [...required, 'tracking.jsonl'].sort());
+  assert.deepEqual((await readdir(f.outputDir)).sort(), [...prepared, 'tracking.jsonl'].sort());
   assert.deepEqual(await readFile(join(f.outputDir, 'match.mp4')), await readFile(join(f.repoRoot, 'data/renders/sample_a-60s.mp4')));
 });
 
@@ -62,7 +63,7 @@ test('explicit selection needs only five files and replaces stale optional/unrel
   await writeFile(join(f.outputDir, 'stale.json'), '{}');
   await writeFile(join(f.selected, 'unrelated-large-file.bin'), 'do not publish');
   await prepareMatch(f);
-  assert.deepEqual((await readdir(f.outputDir)).sort(), required);
+  assert.deepEqual((await readdir(f.outputDir)).sort(), prepared);
   for (const name of required) assert.deepEqual(await readFile(join(f.outputDir, name)), await readFile(join(f.selected, name)));
 });
 
@@ -122,4 +123,35 @@ test('invalid explicit paths never fall back, including symlink escapes', async 
   }
   await symlink(tmpdir(), join(f.repoRoot, 'outside'));
   await assert.rejects(prepareMatch({ ...f, match: 'outside' }), /within the repository/);
+});
+
+// Duplicated calibration media tests transport, not genuine detector output.
+test('optional AI feed is probed, copied and cleared when switching to one feed', async t => {
+  const f = await fixture(t);
+  await copyFile(join(f.selected, 'match.mp4'), join(f.selected, 'ai_view.mp4'));
+  await copyFile(join(f.selected, 'match.mp4.manifest.json'), join(f.selected, 'ai_view.mp4.manifest.json'));
+  await prepareMatch(f);
+  const descriptor = JSON.parse(await readFile(join(f.outputDir, 'feeds.json')));
+  assert.deepEqual(descriptor, { aiView: true, fps: 25, duration: 12 });
+  assert.deepEqual(await readFile(join(f.outputDir, 'ai_view.mp4')), await readFile(join(f.selected, 'match.mp4')));
+  await prepareMatch({ repoRoot: f.repoRoot, outputDir: f.outputDir });
+  assert.equal(JSON.parse(await readFile(join(f.outputDir, 'feeds.json'))).aiView, false);
+  await assert.rejects(access(join(f.outputDir, 'ai_view.mp4')));
+});
+
+test('corrupt AI media and mismatched source interval/identity fail preparation', async t => {
+  const f = await fixture(t);
+  await writeFile(join(f.selected, 'ai_view.mp4'), 'explicitly corrupt test video');
+  await assert.rejects(prepareMatch(f), /Cannot validate.*ai_view/);
+  await assert.rejects(access(f.outputDir));
+  await copyFile(join(f.selected, 'match.mp4'), join(f.selected, 'ai_view.mp4'));
+  const manifest = JSON.parse(await readFile(join(f.selected, 'match.mp4.manifest.json')));
+  for (const change of [{ match_id: 'different' }, { start: 1 }, { fps: 30 }]) {
+    await writeFile(join(f.selected, 'ai_view.mp4.manifest.json'), JSON.stringify({ ...manifest, ...change }));
+    await assert.rejects(prepareMatch(f), /must match broadcast/);
+    await assert.rejects(access(f.outputDir));
+  }
+  await rm(join(f.selected, 'ai_view.mp4.manifest.json'));
+  await writeFile(join(f.selected, 'match.mp4.manifest.json'), JSON.stringify({ ...manifest, end: 11 }));
+  await assert.rejects(prepareMatch(f), /matching duration, frame rate/);
 });

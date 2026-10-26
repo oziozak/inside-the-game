@@ -32,13 +32,15 @@ data/demo/test1/
   match.mp4
   match.mp4.manifest.json      # original sidecar for this exact video
   tracking.jsonl              # optional; needed only for tags anchored over players
+  ai_view.mp4                 # optional; synchronized full-pitch detection video
+  ai_view.mp4.manifest.json   # optional original AI-feed sidecar, if available
 ```
 
 Metadata, events, video and sidecar must describe the same match and source interval. Preparation checks metadata/manifest/event match IDs and overlay evidence references. It copies the video and sidecar from the same selected folder together; the producer must supply the correct original sidecar (a video's match identity cannot be inferred from its filename). Keep source files unchanged while preparation runs. Browser schema validation still applies to JSON/tracking. When tracking is supplied, its frame match IDs must match the metadata.
 
 The five-file bundle supports video playback, timed cards, language/mode switching, and evidence. Without tracking, `follow-player` overlays appear as ordinary bottom-left cards; no player positions are invented. With tracking, existing projected tags are retained. Include tracking for the video's interval plus camera history if precise projected placement is needed. Changing `MATCH` requires restarting `npm run dev` (or rebuilding); it is a preparation-time selection, not an in-page picker. Run dev/build preparation sequentially: one checkout has one shared `public/sample/` bundle.
 
-Preparation clears the old generated bundle, copies only the five required files and optional tracking into staging, validates them, then publishes the complete directory. Missing required assets stop dev/build with file paths in the error; failures leave no previous match available for accidental reuse. Unrelated videos, detector weights, `truth/`, and other files are never copied.
+Preparation clears the old generated bundle, copies only the five required files, optional tracking and optional AI-feed assets into staging, validates them, then publishes the complete directory. Missing required assets stop dev/build with file paths in the error; failures leave no previous match available for accidental reuse. Unrelated videos, detector weights, `truth/`, and other files are never copied.
 
 With `MATCH` **unset**, the existing sample_a sources remain:
 
@@ -89,6 +91,13 @@ Every card, including dual-team cards and projected tags, labels its cited event
 ## Known gaps
 
 - Director currently emits 7 of the 10 graphic types; `player_tag`, `speed_badge`, `distance_badge` have no sample data to test against yet.
-- Card layout is a simple stack per corner; no collision/priority culling when many overlays land on the same corner at once.
 - Bespoke per-type art from the design (goal-mouth shot placement, score banner, head-to-head stat rows) isn't built — see "Design" above.
 - No deploy step yet (plan: Azure Static Web Apps).
+
+## Optional AI VIEW feed
+
+An explicit MATCH bundle may also contain `ai_view.mp4` and optionally its original `ai_view.mp4.manifest.json`. Preparation copies only these additional named files and creates a small `feeds.json` availability descriptor. One-feed bundles need no new tools; two-feed preparation requires `ffprobe` on PATH. It probes both video streams and rejects corrupt media, different frame rates, duration differences greater than half a frame, or disagreement with the broadcast manifest duration/FPS. An AI sidecar, when present, must also match the broadcast match ID, source start/end and FPS. No AI sidecar is invented. Matching media metadata cannot establish image content or kickoff alignment: the bundle producer must supply the same match and source interval, preferably with both original sidecars. Supply the full-pitch feed without cropping if using projected browser player tags.
+
+Broadcast remains the default. AI VIEW is exposed only after both feeds load synchronized browser metadata. It preserves clip position, play/pause, speed and audio settings, including repeated switches and seeking. A failed AI feed removes the toggle and returns to broadcast. The page explains: "The AI watches the full-pitch feed." Detection boxes must already be in the supplied AI video; browser cards are a separate presentation layer, not vision input. Overlay scheduling still uses the broadcast manifest's source start, and tracked tags use full-pitch projection only while AI VIEW is selected.
+
+Fixed cards are limited to two per effective position (including bottom-center), highest priority first. Equal priorities retain input order. Follow-player fallbacks compete in bottom-left; genuinely anchored player tags remain independent. Retained cards keep their evidence and provenance.

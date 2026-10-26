@@ -1,10 +1,50 @@
-import { mkdir, copyFile, rename, rm, stat, readFile, realpath, mkdtemp } from 'node:fs/promises';
+import { mkdir, copyFile, rename, rm, stat, readFile, realpath, mkdtemp, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { dirname, resolve, relative, isAbsolute, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const OUTPUT = fileURLToPath(new URL('../public/sample/', import.meta.url));
 const REQUIRED = ['match_info.json', 'events.json', 'overlays.json', 'match.mp4', 'match.mp4.manifest.json'];
+const run = promisify(execFile);
+
+/** Probe actual media rather than assuming that similarly named files share a timeline. */
+async function probe(path) {
+  try {
+    const { stdout } = await run('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries',
+      'stream=duration,avg_frame_rate,r_frame_rate', '-of', 'json', path]);
+    const stream = JSON.parse(stdout).streams[0];
+    const rate = value => { const [n, d] = value.split('/').map(Number); return n / d; };
+    const fps = rate(stream.avg_frame_rate), nominal = rate(stream.r_frame_rate), duration = Number(stream.duration);
+    if (!(fps > 0 && duration > 0) || !Number.isFinite(fps + duration) || Math.abs(fps - nominal) > 0.000001) {
+      throw new Error('expected finite duration and constant frame rate');
+    }
+    return { fps, duration };
+  } catch (error) { throw new Error(`Cannot validate ${path}: ${error.message}. Two-feed bundles require FFprobe and readable constant-frame-rate video.`); }
+}
+
+/** Publish only feeds validated together; an optional sidecar additionally verifies source interval/identity. */
+async function prepareFeeds(folder) {
+  if (!await isFile(join(folder, 'ai_view.mp4'))) return { aiView: false };
+  const broadcast = await probe(join(folder, 'match.mp4'));
+  const ai = await probe(join(folder, 'ai_view.mp4'));
+  const manifest = await readJson(folder, 'match.mp4.manifest.json');
+  const tolerance = 0.5 / broadcast.fps + 0.000001;
+  if (![manifest.start, manifest.end, manifest.fps].every(Number.isFinite)
+      || Math.abs(ai.fps - broadcast.fps) > 0.000001 || Math.abs(ai.duration - broadcast.duration) > tolerance
+      || Math.abs(manifest.fps - broadcast.fps) > 0.000001
+      || Math.abs(manifest.end - manifest.start - broadcast.duration) > tolerance) {
+    throw new Error('ai_view.mp4 and match.mp4 must have matching duration, frame rate and broadcast manifest interval');
+  }
+  if (await isFile(join(folder, 'ai_view.mp4.manifest.json'))) {
+    const sidecar = await readJson(folder, 'ai_view.mp4.manifest.json');
+    if (sidecar.match_id !== manifest.match_id || ['start', 'end', 'fps'].some(key => sidecar[key] !== manifest[key])) {
+      throw new Error('ai_view.mp4.manifest.json must match broadcast match_id, start, end and fps');
+    }
+  }
+  return { aiView: true, ...broadcast };
+}
 
 function inside(parent, child) {
   const path = relative(parent, child);
@@ -63,6 +103,9 @@ export async function prepareMatch({ repoRoot = ROOT, outputDir = OUTPUT, match 
       if (!inside(repoRoot, folder) || inside(resolve(outputDir), folder)) throw new Error('MATCH must resolve within the repository and outside web/public/sample');
       sources = REQUIRED.map(name => [join(folder, name), name]);
       if (await isFile(join(folder, 'tracking.jsonl'))) sources.push([join(folder, 'tracking.jsonl'), 'tracking.jsonl']);
+      for (const name of ['ai_view.mp4', 'ai_view.mp4.manifest.json']) {
+        if (await isFile(join(folder, name))) sources.push([join(folder, name), name]);
+      }
     } else {
       sources = [
         ['data/fake/sample_a/match_info.json', 'match_info.json'],
@@ -80,6 +123,7 @@ export async function prepareMatch({ repoRoot = ROOT, outputDir = OUTPUT, match 
     staging = await mkdtemp(`${outputDir}.tmp-`);
     for (const [source, name] of sources) await copyFile(source, join(staging, name));
     await validateBundle(staging);
+    await writeFile(join(staging, 'feeds.json'), JSON.stringify(await prepareFeeds(staging)));
     await rename(staging, outputDir);
     console.log(`Prepared ${selected ? `MATCH=${match}` : 'default sample_a'} (${sources.length} assets)`);
   } finally {

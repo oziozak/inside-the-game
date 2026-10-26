@@ -262,7 +262,11 @@ export function drawOverlays(
   const stackCursor: Record<string, number> = {};
   const periods = match.info.periods;
 
-  for (const overlay of overlays) {
+  const fixedCounts: Record<string, number> = {};
+  // Stable input order breaks equal-priority ties. Resolve anchors before counting.
+  const ordered = overlays.map((overlay, index) => ({ overlay, index }))
+    .sort((a, b) => (b.overlay.priority ?? 0) - (a.overlay.priority ?? 0) || a.index - b.index);
+  for (const { overlay } of ordered) {
     const identity = overlayIdentity(overlay, events, match.info);
     let point: { x: number; y: number } | undefined;
     if (overlay.position === 'follow-player' && overlay.player != null && identity.player && camera && match.frames.length) {
@@ -274,11 +278,11 @@ export function drawOverlays(
       }
     }
     // Missing actors, frames or visible anchors all use the same stable fixed-card fallback.
-    const position = overlay.position === 'follow-player' && !point ? 'bottom-left' : overlay.position ?? 'bottom-left';
+    const playerInfo = identity.player ? roster.get(identity.player.id) : undefined;
+    const position = overlay.position === 'follow-player' && (!point || !playerInfo) ? 'bottom-left' : overlay.position ?? 'bottom-left';
     const reveal = Math.min(1, Math.max(0, (t - overlay.start) / 0.35));
     const isDual = overlay.graphic === 'momentum_bar' || overlay.graphic === 'stat_compare';
 
-    const playerInfo = identity.player ? roster.get(identity.player.id) : undefined;
     if (position === 'follow-player' && point && playerInfo) {
       const info = playerInfo;
       const w = px(180, s), h = px(52, s), numW = px(28, s);
@@ -300,6 +304,9 @@ export function drawOverlays(
       regions.push({ overlay, x: left, y: top, w, h });
       continue;
     }
+
+    if ((fixedCounts[position] ?? 0) >= 2) continue;
+    fixedCounts[position] = (fixedCounts[position] ?? 0) + 1;
 
     const corner = CORNERS[position as Exclude<OverlayPosition, 'follow-player'>] ?? CORNERS['bottom-left'];
     const baseX = corner.align === 'center' ? canvasWidth / 2 : corner.x >= 0 ? px(corner.x, s) : canvasWidth + px(corner.x, s);
