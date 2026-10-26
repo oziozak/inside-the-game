@@ -237,6 +237,15 @@ class VerifierTest(unittest.TestCase):
         p = verifier.check(text, "", v, {}, set(), set(), "tr")
         self.assertEqual(p, [f"text too long ({verifier.MAX_TEXT_CHARS + 1} > {verifier.MAX_TEXT_CHARS} chars)"])
 
+    def test_text_that_is_only_a_name_is_rejected(self):
+        # dev1: the model answered tr {"title": "T. Castell", "text": "T. Castell"}.
+        roster = {"T. Castell", "C. Hollis"}
+        for text, title in [("T. Castell", "T. Castell"), ("T. Castell.", "Pas"), ("Thames United", "Thames United")]:
+            p = verifier.check(text, title, {}, {}, roster, roster, "tr")
+            self.assertEqual(len(p), 1, p)
+            self.assertIn("only repeats the title or a name", p[0])
+        self.assertEqual(verifier.check("T. Castell'den pas", "T. Castell", {}, {}, roster, roster, "tr"), [])
+
     def test_rejects_wrong_player(self):
         p = verifier.check("E. Demir with the pass", "", {}, {}, {"K. Aydin"}, {"K. Aydin", "E. Demir"}, "en")
         self.assertTrue(any("not part of" in x for x in p))
