@@ -7,7 +7,10 @@ the simulator's true events and tracking sit beside it in truth/, and as a
 simulator output folder would hold them. The same run is graded (one
 successful pass at 2 s, a shot at 8 s, a goal right after, nothing else) and
 guarded (it opened none of the simulator files). The clip has two players and
-no kickoff, so roster ids are not asserted. The run takes about a minute.
+no kickoff, so roster ids are not asserted. The same run is then carried
+through the merge and the agents stage (mock backend) to overlays.json, so
+the chain is proven on real detected events without a second decode. The
+run takes about a minute.
 
 The audit hook sees every open made from Python (the team sheet, the weights,
 modules); the video itself is read by OpenCV's native code, which it does not see.
@@ -16,6 +19,7 @@ modules); the video itself is read by OpenCV's native code, which it does not se
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -24,6 +28,7 @@ from pathlib import Path
 
 import pytest
 
+from agents.verifier import names_in
 from vision.grader import grade
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -156,6 +161,37 @@ def test_tracer_opens_only_the_video_and_team_sheet(run):
     assert forbidden(done.opened, video, out) == []
     loaded = [m for m in done.modules if any(m == s or m.startswith(s + ".") for s in SIMULATOR_SIDE)]
     assert loaded == []
+
+
+def test_calibration_chain_gives_valid_overlays_about_the_team(run, tmp_path):
+    """The same run carried on, as the commands chain it: merge with the clip's true
+    events, the agents stage on the mock backend (no network), then the schema check.
+    The clip has no kickoff, so no detected event has a player and no overlay names one."""
+    _, video, detected = run
+    match = tmp_path / "calibration_cv"
+    match.mkdir()
+    shutil.copy(video.with_name("match_info.json"), match / "match_info.json")
+    for args in ([ROOT / "scripts" / "merge_events.py", detected, FIXTURE / "ground_truth.events.json",
+                  "--out", match / "events.json"],
+                 ["-m", "agents.run", match, "--backend", "mock", "--out", match],
+                 [ROOT / "scripts" / "validate.py", match]):
+        done = subprocess.run([sys.executable, *map(str, args)], cwd=ROOT, capture_output=True, text=True,
+                              timeout=120)
+        assert done.returncode == 0, done.stdout + done.stderr
+    events = json.loads((match / "events.json").read_text())
+    overlays = json.loads((match / "overlays.json").read_text())
+    assert json.loads((match / "agents_report.json").read_text())["backend"] == "mock"
+    assert [e["from"] for e in events] == [None] * len(events)
+    assert overlays and {i for o in overlays for i in o["event_ids"]} <= {e["id"] for e in events}
+    assert "goal_banner" in {o["graphic"] for o in overlays}
+    roster = {p["name"] for side in ("home", "away")
+              for p in json.loads((match / "match_info.json").read_text())[side]["players"]}
+    surnames = {name.split(". ")[-1] for name in roster}
+    for o in overlays:
+        words = f"{o['title']} {o['text']}"
+        assert o["player"] is None and o["mode"] != "player_focus", o
+        assert names_in(words, roster) == set(), o
+        assert surnames.isdisjoint(re.findall(r"\w+", words)), o
 
 
 @pytest.mark.parametrize("target", ["truth/events.json", "truth/tracking.jsonl", "truth/clip.json",
