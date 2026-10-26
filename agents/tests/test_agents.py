@@ -18,8 +18,8 @@ from agents.context import goal_effect, lead_in, scoring_side
 from agents.data_io import load_match
 from agents.director import GRAPHIC_LAYOUT, MODES, NAME_MIN_CONFIDENCE, direct, propose
 from agents.explainer import build_request, explain_all, involved_names
-from agents.llm import (RATE_LIMIT_DELAYS_S, FoundryBackend, MockBackend, NoisyBackend, cache_key,
-                        is_rate_limit, parse_json_reply)
+from agents.llm import (INSTRUCTIONS, RATE_LIMIT_DELAYS_S, FoundryBackend, MockBackend, NoisyBackend, cache_key,
+                        is_rate_limit, parse_json_reply, prompt_view)
 from agents.stats import (MOMENTUM_WINDOW_S, MatchState, attacks_positive_x, display_minute, event_facts,
                           pass_difficulty, threat_share, threat_weight)
 
@@ -98,6 +98,86 @@ class VerifierTest(unittest.TestCase):
             p = verifier.check(text, "", {"distance_m": 23}, {}, set(), set(), "en")
             self.assertEqual(len(p), 1, (text, p))
             self.assertIn("{distance_m}", p[0])
+
+    def test_a_unit_next_to_a_placeholder_is_rejected(self):
+        # The placeholder's format already writes the unit: "{distance_m} m" would read "23 m m".
+        v = {"distance_m": 23, "speed_kmh": 112, "momentum_home": 62, "difficulty": 7, "difficulty_max": 10}
+        f = {"minute": 34, "score_home": 2, "score_away": 1}
+        for text, lang in (("{distance_m} m pass", "en"), ("{distance_m}m pass", "en"),
+                           ("{distance_m} metrelik pas", "tr"), ("pase de {distance_m} metros", "es"),
+                           ("{speed_kmh} km/h", "en"), ("{speed_kmh} km/sa hızla", "tr"),
+                           ("{momentum_home}% of the threat", "en"), ("baskı %{momentum_home}", "tr"),
+                           ("yüzde {momentum_home} baskı", "tr"), ("{momentum_home} por ciento", "es"),
+                           ("difficulty {difficulty}/10", "en"), ("{minute}. dakikada gol", "tr"),
+                           ("{minute} min", "en")):
+            p = verifier.check(text, "", v, f, set(), set(), lang)
+            self.assertEqual(len(p), 2 if "/10" in text else 1, (text, p))  # + "digit 10 outside a placeholder"
+            self.assertRegex(p[0], r"next to \{\w+\}: code writes the unit", text)
+        p = verifier.check("{momentum_home}% baskı", "", v, f, set(), set(), "tr")
+        self.assertIn("already reads '%62'", p[0])
+
+    def test_a_placeholder_followed_by_a_word_or_name_is_not_a_unit(self):
+        v = {"distance_m": 23, "window_min": 5, "speed_kmh": 112}
+        f = {"minute": 34, "score_home": 2, "score_away": 1}
+        for text, lang in (("{distance_m} más lejos", "es"), ("{score} M. Aydin", "en"),
+                           ("last {window_min} min", "en"), ("son {window_min} dakikada", "tr"),
+                           ("{distance_m}'lik pas", "tr"), ("{speed_kmh}'lik şut", "tr"),
+                           ("{distance_m} midfield ball", "en")):
+            self.assertEqual(verifier.check(text, "", v, f, {"M. Aydin"}, {"M. Aydin"}, lang), [], text)
+
+    def test_no_suffix_after_a_number_read_aloud(self):
+        # Turkish vowel harmony depends on the number, which the model never sees; {minute} ends in '.
+        f = {"minute": 34, "score_home": 2, "score_away": 1}
+        p = verifier.check("{minute}'te gol", "", {}, f, set(), set(), "tr")
+        self.assertEqual(p, ["apostrophe after {minute}: it already reads '34'', write nothing after it"])
+        p = verifier.check("{score}'lik skor", "", {}, f, set(), set(), "tr")
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("suffix after {score}", p[0])
+
+    def test_a_letter_right_after_a_placeholder_is_rejected(self):
+        p = verifier.check("{distance_m}lik pas", "", {"distance_m": 23}, {}, set(), set(), "tr")
+        self.assertEqual(p, ["letter right after {distance_m}: it reads '23 m', put a space after it, "
+                             "or an apostrophe before a suffix ({distance_m}'lik)"])
+
+    def test_numbers_in_words_are_rejected(self):
+        # An LLM-written number the digit check cannot see; "one"/"bir"/"un" are also articles.
+        v = {"player_passes": 2, "player_passes_completed": 2}
+        for text, lang in (("Two from two", "en"), ("İkide iki", "tr"), ("Dos de dos", "es")):
+            p = verifier.check(text, "", v, {}, set(), set(), lang)
+            self.assertTrue(p and all(x.startswith("number word") for x in p), (text, p))
+        for text, lang in (("This one goes into the final third", "en"), ("Son üçte birlik bölgeye bir pas", "tr"),
+                           ("Un robo en tres cuartos", "es"), ("Şut blok yedi", "tr"), ("A neat one-two", "en")):
+            self.assertEqual(verifier.check(text, "", v, {}, set(), set(), lang), [], text)
+
+    def test_difficulty_needs_its_noun(self):
+        v = {"difficulty": 7, "difficulty_max": 10, "distance_m": 26}
+        # A stat tag in its own clause: "a difficulty {difficulty} long pass" satisfied a noun-only rule.
+        for text in ("a difficult {difficulty} {distance_m} pass", "a difficulty {difficulty} long pass"):
+            p = verifier.check(text, "", v, {}, set(), set(), "en")
+            self.assertEqual(len(p), 1, p)
+            self.assertIn("its own clause", p[0])
+        for text, lang in (("{distance_m} pass, difficulty {difficulty}", "en"), ("zorluk derecesi {difficulty}", "tr"),
+                           ("Uzun pas. Zorluk: {difficulty}", "tr"), ("un pase de dificultad {difficulty}", "es")):
+            self.assertEqual(verifier.check(text, "", v, {}, set(), set(), lang), [], text)
+
+    def test_turkish_apostrophe_only_after_a_name_or_number(self):
+        roster = {"A. Kurt"}
+        p = verifier.check("son üçte bir'e uzun top", "", {}, {}, roster, roster, "tr")
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("common word 'bir'", p[0])
+        self.assertEqual(verifier.check("A. Kurt'a {distance_m}'lik pas, Bosphorus FC'yi taşıdı", "",
+                                        {"distance_m": 23}, {}, roster, roster, "tr"), [])
+
+    def test_a_surname_needs_its_initial(self):
+        roster = {"A. Kurt", "S. Polat", "E. Demir"}
+        p = verifier.check("Long ball", "S. Polat finds Kurt", {}, {}, {"S. Polat", "A. Kurt"}, roster, "en")
+        self.assertEqual(p, ["surname 'Kurt' without its initial: write 'A. Kurt'"])
+        self.assertEqual(verifier.check("Pas: A. Kurt'a", "S. Polat", {}, {}, {"S. Polat", "A. Kurt"}, roster,
+                                        "tr"), [])
+        p = verifier.check("Demir'e uzun top", "", {}, {}, {"S. Polat"}, roster, "tr")
+        self.assertEqual(p, ["player 'Demir' is not part of the cited event"])
+        p = verifier.check("Pase para Kurt", "Bosphorus FC", {}, {}, set(), roster, "es", name_players=False)
+        self.assertIn("name the team", p[0])
 
     def test_length_is_checked_on_the_filled_text(self):
         # "{speed_kmh}" is 11 characters raw, "112 km/h" 8 in en and "112 km/sa" 9 in tr.
@@ -283,6 +363,17 @@ class ContextTest(unittest.TestCase):
             self.assertEqual(share, {"home": c.values["momentum_home"], "away": c.values["momentum_away"]})
 
 
+class AlwaysDigits(MockBackend):
+    """An LLM that never learns: writes a digit every time, so every text falls back to the template."""
+
+    def __init__(self) -> None:
+        self.feedback = []
+
+    async def explain(self, req: dict, feedback: str | None = None) -> dict:
+        self.feedback.append(feedback)
+        return {l: {"title": "x", "text": "a 99 m pass"} for l in req["langs"]}
+
+
 class PipelineTest(unittest.TestCase):
     def run_pipeline(self, backend):
         match = load_match(SAMPLE_A)
@@ -328,6 +419,51 @@ class PipelineTest(unittest.TestCase):
         self.assertGreater(report["fixed_on_retry"], 0)
         self.assertEqual(report["template_fallbacks"], 0)
         self.assertFalse(any("87" in o["text"] for o in overlays))
+
+    def test_the_model_sees_each_placeholder_with_how_it_reads(self):
+        # Next to its placeholder, with the unit: the model copied bare `values` numbers as digits.
+        match = load_match(SAMPLE_A)
+        candidates, _ = direct(match)
+        c = next(c for c in candidates if c.graphic == "pass_card" and "difficulty" in c.values)
+        req = build_request(c, "analyst", match, ["en"])
+        view = prompt_view(req)
+        self.assertNotIn("values", view)
+        self.assertEqual(view["placeholders"]["{distance_m}"], f"{req['values']['distance_m']} m")
+        self.assertEqual(view["placeholders"]["{difficulty}"], f"{req['values']['difficulty']}/10")
+        self.assertNotIn("{minute}", view["placeholders"])  # the broadcast clock shows it
+        self.assertIn("{minute}", req["placeholders"])  # still accepted by the verifier
+
+    def test_prompt_length_limits_are_the_verifiers(self):
+        self.assertIn(f"`text` at most {verifier.MAX_TEXT_CHARS} characters", INSTRUCTIONS)
+        self.assertIn(f"`title` at most {verifier.MAX_TITLE_CHARS}", INSTRUCTIONS)
+
+    def test_retry_shows_the_rejected_text_and_both_attempts_are_logged(self):
+        backend = AlwaysDigits()
+        match = load_match(SAMPLE_A)
+        candidates, _ = direct(match)
+        overlays, report = asyncio.run(explain_all(candidates[:1], match, backend, ["en"]))
+        self.assertIn('"text": "a 99 m pass"', backend.feedback[1])
+        self.assertEqual([r["attempt"] for r in report["rejected"]][:2], [1, 2])
+        self.assertEqual(report["template_fallbacks"], len(overlays))
+
+    def test_player_focus_templates_are_titled_with_the_players_name(self):
+        overlays, _ = self.run_pipeline(MockBackend())
+        match = load_match(SAMPLE_A)
+        focus = [o for o in overlays if o["mode"] == "player_focus" and o["player"] is not None]
+        self.assertGreater(len(focus), 0)
+        for o in focus:
+            self.assertEqual(o["title"], match.player_name(o["player"]), o)
+
+    def test_report_gives_the_template_fallback_share(self):
+        from agents import run
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch("sys.argv", ["run", str(SAMPLE_A), "--out", tmp]), \
+                mock.patch("agents.run.make_backend", return_value=AlwaysDigits()), mock.patch("builtins.print"):
+            run.main()
+            report = json.loads((Path(tmp) / "agents_report.json").read_text("utf-8"))
+        v = report["verifier"]
+        self.assertEqual(v["template_fallbacks"], report["overlays_out"])  # every text is the template
+        self.assertEqual(v["template_fallback_pct"], 100.0)
 
     def test_mock_run_needs_no_fallback_and_drops_nothing(self):
         overlays, report = self.run_pipeline(MockBackend())
@@ -595,7 +731,8 @@ class FoundryRetryTest(unittest.TestCase):
     def explain(self, agent):
         backend = FoundryBackend(self.cache_path, agent=agent, deployment="fake")
         with mock.patch("agents.llm.asyncio.sleep", new=mock.AsyncMock()) as sleep:
-            out = asyncio.run(backend.explain({"langs": ["en"], "event_type": "goal"}))
+            out = asyncio.run(backend.explain({"langs": ["en"], "event_type": "goal", "values": {}, "facts": {},
+                                               "placeholders": []}))
         return out, sleep
 
     def test_retries_429_then_succeeds_and_saves_cache(self):

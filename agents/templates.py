@@ -59,7 +59,15 @@ def _fit(req: dict, lang: str, *options: str) -> str:
 def render(req: dict, lang: str) -> dict:
     """Return {'title', 'text'} for one explain request in one language, numbers as placeholders.
 
-    A request with no `actor` (a team-only event) gets the team-only wording: no player is named."""
+    A request with no `actor` (a team-only event) gets the team-only wording: no player is named.
+    A `player_focus` graphic with an `actor` is titled with the player's name (third-person voice)."""
+    out = _render(req, lang)
+    if req["mode"] == "player_focus" and req.get("actor"):
+        out["title"] = req["actor"]
+    return out
+
+
+def _render(req: dict, lang: str) -> dict:
     g, mode, v = req["graphic"], req["mode"], req["values"]
     actor, target = req.get("actor") or "", req.get("target") or ""
     team, home, away = req.get("actor_team") or "", req["home"], req["away"]
@@ -97,12 +105,12 @@ def render(req: dict, lang: str) -> dict:
         title = pick(lang, "Red card" if red else "Yellow card", "Kırmızı kart" if red else "Sarı kart",
                      "Tarjeta roja" if red else "Tarjeta amarilla")
         if not actor:
-            text = (pick(lang, f"{team} down to ten men", f"{team} bir kişi eksik kaldı", f"{team} se queda con diez")
+            text = (pick(lang, f"{team} are a man down", f"{team} bir kişi eksik kaldı", f"{team} se queda con uno menos")
                     if red else pick(lang, f"Booking for {team}", f"{team} oyuncusuna sarı kart", f"Amarilla para {team}"))
         elif red:
-            text = pick(lang, f"{actor} is sent off, {team} down to ten men",
+            text = pick(lang, f"{actor} is sent off, {team} are a man down",
                         f"{actor} oyundan atıldı, {team} bir kişi eksik",
-                        f"{actor} expulsado, {team} se queda con diez")
+                        f"{actor} expulsado, {team} se queda con uno menos")
         else:
             text = pick(lang, f"{actor} is booked", f"{actor} sarı kart gördü", f"Amarilla para {actor}")
         return {"title": title, "text": text}

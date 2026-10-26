@@ -11,6 +11,7 @@ For each accepted (candidate, mode):
 from __future__ import annotations
 
 import asyncio
+import json
 
 from . import templates, verifier
 from .fill import fill, known
@@ -107,14 +108,22 @@ async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: lis
     if bad:
         report["rejected"].append({"event_id": c.event.get("id"), "mode": mode, "attempt": 1,
                                    "problems": dict(bad), "text": {l: answer.get(l) for l in bad}})
-        feedback = "; ".join(f"[{l}] " + ", ".join(p) for l, p in bad.items())
+        # The model does not remember its answer: show it each rejected text with its problems.
+        feedback = "; ".join(f"[{l}] {json.dumps(answer.get(l), ensure_ascii=False)}: " + ", ".join(p)
+                             for l, p in bad.items())
         retry = await backend.explain(req, feedback)
+        still = {}
         for lang in list(bad):
             t, p = finish(retry, lang)
             if not p:
                 out[lang] = t
                 report["fixed_on_retry"] += 1
                 del bad[lang]
+            else:
+                still[lang] = p
+        if still:
+            report["rejected"].append({"event_id": c.event.get("id"), "mode": mode, "attempt": 2,
+                                       "problems": still, "text": {l: retry.get(l) for l in still}})
     dropped = set()
     for lang in bad:
         t, p = finish({lang: templates.render(req, lang)}, lang)

@@ -24,9 +24,9 @@ events.json ──► stats.py ──► director.py ──► explainer.py ─�
 | `stats.py` | Running match state (score, shots, pass accuracy, momentum, per-player counts) and per-event facts (distance, progress, difficulty 1-10, key pass, into the box) | No |
 | `context.py` | Why a moment matters, as labels with no numbers: goal effect (equaliser, go-ahead...), score situation, how the attack came about (counter, set piece, build-up), momentum, phase | No |
 | `director.py` | Rule table picks moments and graphics; schedules them per mode with slot collisions, a minimum gap and a screen-time budget. Logs every decision with a reason | No |
-| `explainer.py` | Builds the request (facts, `values` and the `placeholders` the model may use), calls the backend, runs the verify / retry / fallback loop | Yes |
-| `verifier.py` | Two stages. On the raw model text: rejects any digit outside a placeholder (the problem names the placeholder to use instead), any placeholder not in this overlay's `values` (or minute/score), and any mistyped one (`{ distance_m }`). On the filled text: length limits, player names not in the cited event (any player name when `name_players` is false), and numbers not in `values` as a safety net | No |
-| `llm.py` | Backends: `mock` (offline templates), `noisy` (invents stats as stray digits to demo the verifier), `foundry` (Microsoft Agent Framework on a Foundry / Azure OpenAI deployment, disk-cached) | Yes |
+| `explainer.py` | Builds the request (facts, `values` and the `placeholders` the model may use), calls the backend, runs the verify / retry / fallback loop. The retry shows the model its rejected text next to each problem; both attempts are logged | Yes |
+| `verifier.py` | Two stages. On the raw model text: rejects any digit outside a placeholder (the problem names the placeholder to use instead), a number in words ("two from two", "ikide iki", "dos de dos"), any placeholder not in this overlay's `values` (or minute/score), any mistyped one (`{ distance_m }`), a unit, `%` or `/10` next to a placeholder that already writes it (`{distance_m} m`, `{momentum_home}%`, tr `%{momentum_home}`), a letter glued to one (`{distance_m}lik`), a Turkish suffix on a number read aloud (`{score}'lik`), `{difficulty}` outside its own clause ("..., difficulty 7/10"), and in Turkish an apostrophe after a common word ("üçte bir'e"). On the filled text: length limits, player names not in the cited event or written without the initial ("finds Kurt"; any player name when `name_players` is false), and numbers not in `values` as a safety net | No |
+| `llm.py` | Backends: `mock` (offline templates), `noisy` (invents stats as stray digits to demo the verifier), `foundry` (Microsoft Agent Framework on a Foundry / Azure OpenAI deployment, disk-cached, counts tokens). The model sees `placeholders` mapped to how each reads on screen (`"{distance_m}": "28 m"`), no bare `values`, and no `{minute}` | Yes |
 | `fill.py` | Fills placeholders (`{distance_m}`, `{speed_kmh}`, `{score}`, `{minute}`, any `values` key) with numbers formatted per language (`28 m`; `km/h`, tr `km/sa`; `62%`, tr `%62`, es `62 %`; `2-1`; `7/10`; `34'`), then normalises apostrophes and spacing. Every backend's text goes through it once the verifier passes it: templates and the LLM both write placeholders | No |
 | `templates.py` | Code-written text per graphic, mode and language (en, tr, es), numbers as placeholders. Mock backend + fallback | No |
 | `run.py` | CLI | |
@@ -43,6 +43,11 @@ so code owns both. The LLM only writes words, and the verifier checks those word
 | `player_focus` | 0.4 | 40% per player | adds the player's running pass count |
 
 `player_focus` overlays carry `player`; the web player shows only the ones for the viewer's chosen player.
+
+**`player_focus` voice (decided in #46; keep it in future prompt changes):** third person about the player,
+with the player's name as the title (title "K. Aydin", text "Completes 14/16, this one 28 m"). Never the first
+person and never quotes: the players are fictional, so a first-person line puts invented words in their mouth.
+The prompt says so, and the templates title every `player_focus` graphic that has a player with the name.
 Every overlay is written once per language (`--langs`, default `en,tr,es`), so switching mode or language in the
 player is instant: no LLM call at playback time.
 
@@ -117,7 +122,8 @@ Output goes to `data/generated/<match>/` (git-ignored): `overlays.json` and `age
 
 ### Foundry setup
 
-1. In Microsoft Foundry, create a project and deploy a chat model (e.g. `gpt-4o-mini`).
+1. In Microsoft Foundry, create a project and deploy a chat model (we use `gpt-5.4-mini`, Data Zone Standard,
+   Sweden Central).
 2. In `.env`: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION=2025-04-01-preview`,
    and `AZURE_OPENAI_API_KEY` (or leave the key empty and run `az login`).
 3. `python -m agents.run data/fake/sample_a --backend foundry`. Answers are cached in
@@ -125,9 +131,65 @@ Output goes to `data/generated/<match>/` (git-ignored): `overlays.json` and `age
    what was already paid for. Rate limits (HTTP 429) are retried up to 6 times with exponential
    backoff (2, 4, 8, 16, 32, 60 s plus jitter); at most 4 requests run at once.
 
+### Prompt tuning (#46)
+
+`INSTRUCTIONS` in `llm.py` and the request shape (`prompt_view`) were tuned on **sample_a and the dev1 footage
+clip only** (test1 is held out; no 90-minute match was run). Deployment: `gpt-5.4-mini`, Data Zone Standard,
+Sweden Central. Every run is all three languages (en, tr, es), one call per moment and mode.
+`agents_report.json` gives `verifier.template_fallback_pct` (fallback overlays / overlays) and `llm_usage`
+(paid calls, cache hits, input and output tokens).
+
+dev1 is the clip's detected events (`runs/footage/dev1/events.json`) merged with the simulator's invisible
+types (`scripts/merge_events.py`; none fall in its 2 minutes), with `match_info.json` from the render.
+
+| Run | Input | Overlays | Rejected attempts | Fixed on retry | Template fallbacks | Dropped | Low-confidence overlays | Paid calls | Tokens (in + out) | Cost |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | dev1 | 75 | 7 | 7 | 12 (16.0%) | 0 | 0 | 32 | 40k + 3.6k | $0.05 |
+| 2 | dev1 | 75 | 9 | 23 | 0 (0.0%) | 0 | 0 | 34 | 45k + 4.0k | $0.06 |
+| 3 | dev1 | 75 | 6 | 18 | 0 (0.0%) | 0 | 0 | 31 | 52k + 3.7k | $0.06 |
+| 4 | dev1 | 75 | 7 | 11 | 3 (4.0%) | 0 | 0 | 31 | 54k + 3.8k | $0.06 |
+| 5 | dev1 | 75 | 2 | 5 | 0 (0.0%) | 0 | 0 | 27 | 46k + 3.5k | $0.06 |
+| 6 | sample_a | 282 | 17 | 37 | 0 (0.0%) | 0 | 0 | 111 | 194k + 14.1k | $0.23 |
+| 6 | dev1 | 75 | 4 | 6 | 0 (0.0%) | 0 | 0 | 29 | 51k + 3.8k | $0.06 |
+| 7 | sample_a | 282 | 14 | 30 | 1 (0.4%) | 0 | 0 | 107 | 196k + 13.4k | $0.23 |
+| 7 | dev1 | 75 | 7 | 15 | 0 (0.0%) | 0 | 0 | 32 | 60k + 4.0k | $0.07 |
+| **8 (final)** | **sample_a** | 282 | 18 | 36 | **3 (1.1%)** | 0 | 0 | 110 | 206k + 14.1k | $0.24 |
+| **8 (final)** | **dev1** | 75 | 3 | 9 | **0 (0.0%)** | 0 | 0 | 28 | 53k + 3.6k | $0.06 |
+
+Total: 994k input + 72k output tokens, about **$1.17**. Cost assumes $0.75 / $4.50 per 1M input / output tokens
+plus ~10% for Data Zone ($0.825 / $4.95); the Azure pricing page did not show the Data Zone rates, so check the
+bill. Rejected attempts count calls with at least one language rejected (run 1 counted first attempts only);
+fixed on retry counts languages. Low-confidence overlays are 0 because every detected event on these inputs is
+above `NAME_MIN_CONFIDENCE`.
+
+What each round changed, from what the previous one got wrong:
+
+1. Rewrite: limits taken from `verifier.MAX_TEXT_CHARS` / `MAX_TITLE_CHARS` (110 / 40, the prompt said 100 / 35),
+   the unit rule, the third-person `player_focus` voice. Fallbacks 16%: the model copied the numbers it saw in
+   `values` as digits ("1/1, a 29 m pass"), and the retry failed because it never saw its own answer.
+2. The model sees each placeholder with how it reads (`"{distance_m}": "29 m"`) instead of `values`; the retry
+   shows the rejected text. New checks after reading the output: surnames without the initial, glued letters
+   ("23 mlik").
+3. Worked example in the prompt; `{difficulty}` with its noun. Read: numbers in words ("Two from two"), Turkish
+   apostrophes on common words ("son üçte bir'e"), "a difficult 8/10 switch". Checks added for all three.
+4. Fallbacks 4%: stage-2 problems (surname-only titles) were hidden while stage 1 failed, so the retry fixed one
+   set and hit the other. Name problems are now reported together; `{difficulty}` must be its own clause
+   ("A difficulty 7/10 long pass" passed the noun-only rule); `{minute}` hidden on pass cards; a length target.
+5. Glossary: "ceza sahası", not "kutu" (a literal box); "{distance_m}'lik" needs a noun after it.
+6. First sample_a run (goals, cards, recaps, casual): `{score}` forced into sentences ("wide of 1-0"),
+   "must settle down at 4'", lowercase titles. `{minute}` is no longer offered at all (the clock shows it).
+7. Remaining first-attempt rejections were mostly correct catches: "down to ten" after a red card (a count:
+   after a second red it is nine), surname-only titles. Glossary: "a man down" / "eksik kaldı" / "con uno menos".
+8. Final. An independent audit of the filled text (double units, glued letters, suffixes on numbers, number
+   words, stray braces, `n/10` without its noun, first person, quotes, Turkish apostrophes) found no unit or
+   format error in any language; every `player_focus` title is the player's name.
+
+Reproduce: `python -m agents.run data/fake/sample_a --backend foundry`; for dev1, merge as above into a folder
+and run the same. Answers are cached by instructions + request, so a re-run with the same prompt is free.
+
 ## Next steps (P3 backlog)
 
-- [ ] Run `--backend foundry` on sample_a, tune `INSTRUCTIONS` in `llm.py` until the verifier rarely rejects.
+- [x] Run `--backend foundry` on sample_a, tune `INSTRUCTIONS` in `llm.py` until the verifier rarely rejects (#46).
 - [x] Richer "why it matters": `context.py` labels (goal effect, score situation, lead-in, momentum, phase).
 - [ ] Turn the pipeline into an Agent Framework workflow (director → explainer → verifier as executors) for the multi-agent category; keep the same functions inside.
 - [ ] Live mode: consume events one by one (Event Hubs) and emit overlays with a measured latency.
