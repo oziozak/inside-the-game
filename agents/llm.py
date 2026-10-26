@@ -29,8 +29,9 @@ Hard rules:
 - Mention only the players named in `actor`, `target`, `setup_by` (the passer who set up a
   shot) and `key_moments` (goals and red cards so far, for half-time and full-time recaps). Copy each name exactly as given, initial included ("K. Aydin", never "Aydin" or "K. Aydın").
   In Turkish, add case suffixes after an apostrophe ("K. Aydin'den"). All clubs and players are fictional.
-- If there is no `actor`, the player is unknown: `subject` (the team) is who the text is about.
-  Name no player, write about the team ("Bosphorus FC pass").
+  A `key_moments` entry with no `player` is credited to the team only.
+- If `name_players` is false, we are not sure who played the ball: name the team, not a player.
+  There is no `actor`; `subject` (the team) is who the text is about ("Bosphorus FC pass").
 - `text` at most 100 characters, `title` at most 35.
 - mode "analyst": precise and tactical, may use the numbers. Explain WHY the moment matters.
   `context` says why, in labels computed by code: `goal_effect` (opener, equaliser, go_ahead,

@@ -3,7 +3,8 @@
 Rules (AGENTS.md: numbers come from code, every claim cites evidence):
 1. Every number in the text must equal a number in the overlay's `values` or facts
    (minute, score). No invented stats.
-2. Every player name in the text must be a player involved in the cited event.
+2. Every player name in the text must be a player involved in the cited event. When naming is
+   off (the vision AI is not sure who played the ball), no player name at all.
 3. Text must be non-empty and short enough for a broadcast graphic.
 
 Returns a list of problems; an empty list means the text passed.
@@ -47,7 +48,7 @@ def allowed_numbers(values: dict, facts: dict) -> set[float]:
 
 
 def check(text: str, title: str, values: dict, facts: dict, involved_names: set[str],
-          roster_names: set[str]) -> list[str]:
+          roster_names: set[str], name_players: bool = True) -> list[str]:
     problems = []
     if not text.strip():
         problems.append("empty text")
@@ -63,7 +64,9 @@ def check(text: str, title: str, values: dict, facts: dict, involved_names: set[
             problems.append(f"number {raw} is not backed by the event data (allowed: {sorted(ok_nums)})")
 
     for name in names_in(f"{title} {text}", roster_names):
-        if name not in roster_names:
+        if not name_players:
+            problems.append(f"player '{name}' is named, but who played the ball is uncertain: name the team")
+        elif name not in roster_names:
             problems.append(f"unknown player name '{name}'")
         elif name not in involved_names:
             problems.append(f"player '{name}' is not part of the cited event")

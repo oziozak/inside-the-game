@@ -16,7 +16,7 @@ from agents import templates, verifier
 from agents.fill import UnknownPlaceholder, fill
 from agents.context import goal_effect, lead_in, scoring_side
 from agents.data_io import load_match
-from agents.director import GRAPHIC_LAYOUT, MODES, direct, propose
+from agents.director import GRAPHIC_LAYOUT, MODES, NAME_MIN_CONFIDENCE, direct, propose
 from agents.explainer import build_request, explain_all, involved_names
 from agents.llm import (RATE_LIMIT_DELAYS_S, FoundryBackend, MockBackend, NoisyBackend, cache_key,
                         is_rate_limit, parse_json_reply)
@@ -84,6 +84,17 @@ class VerifierTest(unittest.TestCase):
     def test_invented_name_with_turkish_initial_is_rejected(self):
         p = verifier.check("Ç. Uydurma'dan gol", "", {}, {}, {"K. Aydin"}, {"K. Aydin"})
         self.assertEqual(p, ["unknown player name 'Ç. Uydurma'"])
+
+    def test_no_player_may_be_named_when_naming_is_off(self):
+        # Low-confidence event: even a roster player who is "involved" must not be named, in any language.
+        roster = {"K. Aydin", "E. Demir"}
+        for text in ("Great pass from K. Aydin", "K. Aydin'den harika pas", "E. Demir'in şutu",
+                     "¡Qué disparo de K. Aydin!", "Ç. Uydurma'dan gol"):
+            p = verifier.check(text, "Bosphorus FC", {}, {}, {"K. Aydin"}, roster, name_players=False)
+            self.assertEqual(len(p), 1, (text, p))
+            self.assertIn("name the team", p[0])
+        self.assertEqual(verifier.check("Bosphorus FC'den harika pas", "Bosphorus FC", {}, {}, set(), roster,
+                                        name_players=False), [])
 
     def test_parse_fenced_json(self):
         out = parse_json_reply('```json\n{"en": {"title": "a", "text": "b"}}\n```', ["en", "tr"])
@@ -263,19 +274,21 @@ class PipelineTest(unittest.TestCase):
 
 DETECTED_TYPES = {"kickoff", "pass", "possession_change", "shot", "goal"}  # what the vision AI detects
 MERGED_SIM_TYPES = {"foul", "yellow_card", "red_card", "offside", "substitution"}  # scripts/merge_events.py
+UNSURE, SURE = round(NAME_MIN_CONFIDENCE / 2, 3), round((NAME_MIN_CONFIDENCE + 0.99) / 2, 3)
 
 
 def as_detected(match):
     """sample_a as the vision AI + merge_events.py would deliver it: only detected types
-    (plus the merged simulator ones), confidences below 1, no player on every other
-    detected event and on the goal, some optional fields missing, no half_time/full_time."""
+    (plus the merged simulator ones), confidences below 1 on both sides of NAME_MIN_CONFIDENCE,
+    no player on every other detected event and on the goal, some optional fields missing,
+    no half_time/full_time."""
     events = []
     for i, e in enumerate(match.events):
         if e["type"] not in DETECTED_TYPES | MERGED_SIM_TYPES:
             continue
         e = dict(e)
         if e["type"] in DETECTED_TYPES:
-            e.update(source="cv", confidence=0.62)
+            e.update(source="cv", confidence=UNSURE if i % 4 == 0 else SURE)
             if i % 2 or e["type"] == "goal":
                 e["from"] = e["to"] = None
             if i % 5 == 0:
@@ -286,9 +299,20 @@ def as_detected(match):
     return match
 
 
+class NamesAnyone(MockBackend):
+    """A careless LLM: names the first roster player in every text."""
+
+    def __init__(self, name: str) -> None:
+        self.player_name = name
+
+    async def explain(self, req: dict, feedback: str | None = None) -> dict:
+        out = await super().explain(req, feedback)
+        return {l: {**t, "text": f"{self.player_name}: {t['text']}"[:100]} for l, t in out.items()}
+
+
 class DetectedEventsTest(unittest.TestCase):
     """The agents stage on detected events: nothing branches on `source`, only null players
-    (and, later, confidence) change what is shown."""
+    and low confidence change what is shown."""
 
     def setUp(self):
         self.match = as_detected(load_match(SAMPLE_A))
@@ -301,6 +325,10 @@ class DetectedEventsTest(unittest.TestCase):
     def subject(self, o):
         """The event an overlay is about: the last id it cites."""
         return self.by_id[o["event_ids"][-1]]
+
+    def detected_with_player(self, e, confidence):
+        """Whether `e` is a detected event with a player, at this confidence."""
+        return e["from"] is not None and e["confidence"] == confidence
 
     def test_overlays_pass_the_schema_and_nothing_is_dropped(self):
         self.assertGreater(len(self.overlays), 0)
@@ -320,6 +348,35 @@ class DetectedEventsTest(unittest.TestCase):
             self.assertEqual(verifier.names_in(f"{o['title']} {o['text']}", self.roster), set(), o)
             self.assertIn(self.match.team_name(self.subject(o)["team"]), o["title"] + o["text"], o)
         self.assertTrue({"analyst", "casual"} <= {o["mode"] for o in affected})
+
+    def test_low_confidence_events_are_worded_about_the_team(self):
+        unsure = [o for o in self.overlays if self.detected_with_player(self.subject(o), UNSURE)]
+        self.assertTrue({"shot_card", "pass_card"} <= {o["graphic"] for o in unsure}, unsure)
+        for o in unsure:
+            self.assertNotEqual(o["mode"], "player_focus", o)
+            self.assertIsNone(o["player"], o)
+            self.assertEqual(verifier.names_in(f"{o['title']} {o['text']}", self.roster), set(), o)
+            self.assertIn(self.match.team_name(self.subject(o)["team"]), o["title"] + o["text"], o)
+        self.assertEqual(self.report["low_confidence_overlays"], len(unsure))
+
+    def test_confident_detected_events_keep_the_players_name(self):
+        sure = [o for o in self.overlays if o["graphic"] in ("shot_card", "pass_card")
+                and self.detected_with_player(self.subject(o), SURE)]
+        self.assertIn("player_focus", {o["mode"] for o in sure})
+        for o in sure:
+            self.assertEqual(o["player"], self.subject(o)["from"])
+            self.assertIn(self.match.player_name(self.subject(o)["from"]), o["title"], o)
+
+    def test_verifier_rejects_a_name_on_a_low_confidence_graphic(self):
+        candidates, _ = direct(self.match)
+        overlays, report = asyncio.run(explain_all(candidates, self.match, NamesAnyone(min(self.roster)),
+                                                   list(templates.LANGS)))
+        uncertain = [r for r in report["rejected"]
+                     if self.detected_with_player(self.by_id[r["event_id"]], UNSURE)]
+        self.assertGreater(len(uncertain), 0)
+        for r in uncertain:
+            self.assertTrue(all("name the team" in " ".join(p) for p in r["problems"].values()), r)
+        self.assertEqual(report["dropped"], [])
 
     def test_merged_card_still_names_the_booked_player(self):
         cards = [o for o in self.overlays if o["graphic"] == "card_banner"]
@@ -344,7 +401,8 @@ class DetectedEventsTest(unittest.TestCase):
                             where = (c.graphic, c.event["id"], mode, lang, form, raw)
                             self.assertNotRegex(raw["title"] + raw["text"], r"\d", where)  # numbers only via placeholders
                             self.assertEqual(verifier.check(out["text"], out["title"], req["values"], cand.facts,
-                                                            involved_names(req), roster), [], where)
+                                                            involved_names(req), roster, req["name_players"]),
+                                             [], where)
                             self.assertTrue(out["title"].strip() and out["text"].strip(), where)
                             if cand.team_only:
                                 self.assertNotIn("actor", req)
@@ -354,6 +412,29 @@ class DetectedEventsTest(unittest.TestCase):
         self.assertEqual({g for g, _ in covered}, set(GRAPHIC_LAYOUT))
         self.assertTrue({(g, "team-only") for g in ("goal_banner", "card_banner", "shot_card", "pass_card",
                                                     "insight_text")} <= covered)
+
+    def test_low_confidence_requests_name_no_player(self):
+        match = load_match(SAMPLE_B)
+        candidates, _ = direct(match)
+        shot = next(c for c in candidates if c.graphic == "shot_card" and c.setup)
+        at, below = NAME_MIN_CONFIDENCE, round(NAME_MIN_CONFIDENCE - 0.01, 3)
+        sure = replace(shot, event={**shot.event, "confidence": at}, setup={**shot.setup, "confidence": at})
+        unsure = replace(shot, event={**shot.event, "confidence": below})
+        unsure_setup = replace(sure, setup={**shot.setup, "confidence": below})
+        for mode in ("analyst", "casual"):
+            req = build_request(sure, mode, match, ["en"])
+            self.assertTrue(req["name_players"])
+            self.assertEqual((req["actor"], req["setup_by"]),
+                             (match.player_name(shot.event["from"]), match.player_name(shot.setup["from"])))
+            req = build_request(unsure, mode, match, ["en"])
+            self.assertFalse(req["name_players"])
+            self.assertFalse({"actor", "target", "setup_by"} & set(req), req)
+            self.assertEqual(req["subject"], match.team_name(shot.event["team"]))
+            # A confident shot set up by an unsure pass names the shooter, not the passer.
+            req = build_request(unsure_setup, mode, match, ["en"])
+            self.assertTrue(req["name_players"])
+            self.assertIsNone(req["setup_by"])
+        self.assertIsNone(unsure.player)
 
     def test_no_recap_without_clock_events(self):
         self.assertNotIn("stat_compare", {o["graphic"] for o in self.overlays})
