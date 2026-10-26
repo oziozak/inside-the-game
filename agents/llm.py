@@ -50,7 +50,9 @@ Players:
 - Mention only the players named in `actor`, `target`, `setup_by` (the passer who set up a shot) and
   `key_moments` (goals and red cards so far, for half-time and full-time recaps). Copy each name exactly
   as given, initial included, every time, titles too ("K. Aydin", never "Aydin" or "K. Aydın"). In
-  Turkish, add case suffixes after an apostrophe ("K. Aydin'den"). All clubs and players are fictional.
+  Turkish, add case suffixes after an apostrophe ("K. Aydin'den"), in harmony with the name's last written
+  vowel and letter: "P. Rowntree'nin", "P. Rowntree'ye" (never "'nun", "'yu"), "A. Kurt'tan", "C. Hollis'e".
+  All clubs and players are fictional.
   A `key_moments` entry with no `player` is credited to the team only.
 - If `name_players` is false, we are not sure who played the ball: name the team, not a player.
   There is no `actor`; `subject` (the team) is who the text is about ("Bosphorus FC pass").

@@ -14,6 +14,8 @@ Stage 2, on the text after fill.py (what the viewer would see):
 4. Every player name in the text must be a player involved in the cited event, written in full
    ("A. Kurt", never "Kurt"). When naming is off (the vision AI is not sure who played the ball),
    no player name at all, bare surnames included.
+5. Turkish only: a case suffix on a player name follows the name's last written vowel and letter
+   ("P. Rowntree'nin", never "P. Rowntree'nun"; "A. Kurt'tan", never "A. Kurt'dan").
 
 Returns a list of problems; an empty list means the text passed.
 """
@@ -58,6 +60,15 @@ MALFORMED_RE = re.compile(r"\{[^{}]*\}?|\}")
 # Roster names look like "K. Aydin". Any script's letters, so "Ç. Uydurma" and "K. Aydın" are seen too.
 NAME_RE = re.compile(r"\b([^\W\d_])\. ([^\W\d_][\w'’-]*)")
 APOSTROPHES = "'’"
+# Turkish case suffixes on a name follow its last written vowel (front e/i/ö/ü or back a/ı/o/u; for
+# 4-way suffixes also rounded o/ö/u/ü or not) and its last letter (a buffer n/y after a vowel).
+# Each case: the shape of its first letters, any vowel or buffer, so a wrong one is still recognised, and its
+# right form: {n}/{y} the buffer after a vowel, {i} the 4-way vowel, {e} the 2-way one, {d} d or t.
+TR_VOWELS = "aeıioöuü"
+TR_HARD = "fstkçşhp"  # -da/-dan become -ta/-tan after these
+TR_CASES = {"genitive": (re.compile(r"n?[iıuü]n"), "{n}{i}n"), "accusative": (re.compile(r"y?[iıuü]"), "{y}{i}"),
+            "dative": (re.compile(r"y?[ae]"), "{y}{e}"), "ablative": (re.compile(r"[dt][ae]n"), "{d}{e}n"),
+            "locative": (re.compile(r"[dt][ae]"), "{d}{e}")}
 
 
 def names_in(s: str, roster_names: set[str]) -> set[str]:
@@ -164,7 +175,7 @@ def check_raw(text: str, title: str, values: dict, facts: dict, lang: str = "en"
 
 
 def check_filled(text: str, title: str, values: dict, facts: dict, involved_names: set[str],
-                 roster_names: set[str], name_players: bool = True) -> list[str]:
+                 roster_names: set[str], name_players: bool = True, lang: str = "en") -> list[str]:
     """Stage 2: the text as the viewer would see it."""
     problems = []
     if not text.strip():
@@ -180,13 +191,14 @@ def check_filled(text: str, title: str, values: dict, facts: dict, involved_name
         if n not in ok_nums:
             problems.append(f"number {raw} is not backed by the event data (allowed: {sorted(ok_nums)})")
 
-    return problems + name_problems(f"{title} {text}", involved_names, roster_names, name_players)
+    return problems + name_problems(f"{title} {text}", involved_names, roster_names, name_players, lang)
 
 
-def name_problems(s: str, involved_names: set[str], roster_names: set[str], name_players: bool = True) -> list[str]:
+def name_problems(s: str, involved_names: set[str], roster_names: set[str], name_players: bool = True,
+                  lang: str = "en") -> list[str]:
     """Player names in `s` that are not allowed: not involved, not on the roster, written without the
-    initial, or any name at all when naming is off. Placeholders do not change names, so this runs on
-    raw or filled text alike."""
+    initial, or any name at all when naming is off; in Turkish, a suffix out of harmony with the name.
+    Placeholders do not change names, so this runs on raw or filled text alike."""
     problems = []
     for name in names_in(s, roster_names):
         if not name_players:
@@ -203,6 +215,38 @@ def name_problems(s: str, involved_names: set[str], roster_names: set[str], name
                             + " or ".join(f"'{n}'" for n in sorted(fulls & involved_names)))
         else:
             problems.append(f"player '{surname}' is not part of the cited event")
+    return problems + (harmony_problems(s, roster_names) if lang == "tr" else [])
+
+
+def tr_suffix(name: str, case: str) -> str | None:
+    """The case suffix Turkish puts on `name` after the apostrophe ("P. Rowntree" genitive -> "nin");
+    None for a name with no vowel to follow."""
+    letters = name.lower()
+    if letters.endswith("y") and letters[-2] not in "aıoöuü":  # a final "y" after a consonant or "e" reads "i":
+        letters = letters[:-1] + "i"                           # "Ashby'nin", "Hartley'ye"; "Aksoy'un" keeps its y
+    vowel = next((c for c in reversed(letters) if c in TR_VOWELS), None)
+    if vowel is None:
+        return None
+    after_vowel, last = letters[-1] in TR_VOWELS, letters[-1]
+    return TR_CASES[case][1].format(
+        n="n" if after_vowel else "", y="y" if after_vowel else "",
+        i="i" if vowel in "ei" else "ü" if vowel in "öü" else "ı" if vowel in "aı" else "u",
+        e="e" if vowel in "eiöü" else "a", d="t" if last in TR_HARD else "d")
+
+
+def harmony_problems(s: str, roster_names: set[str]) -> list[str]:
+    """Turkish case suffixes on roster names that break vowel harmony, the buffer letter or t/d:
+    "P. Rowntree'nun" -> write "P. Rowntree'nin"."""
+    problems = []
+    for name in roster_names:
+        for m in re.finditer(rf"(?<!\w){re.escape(name)}([{APOSTROPHES}])([^\W\d_]+)", s):
+            apostrophe, suffix = m.groups()
+            case, written = next(((c, w.group(0)) for c, (shape, _) in TR_CASES.items()
+                                  if (w := shape.match(suffix))), (None, None))
+            right = case and tr_suffix(name, case)
+            if right and written != right:
+                problems.append(f"suffix after '{name}' breaks vowel harmony: write "
+                                f"{name}{apostrophe}{right}{suffix[len(written):]}, not {name}{apostrophe}{suffix}")
     return problems
 
 
@@ -211,6 +255,6 @@ def check(text: str, title: str, values: dict, facts: dict, involved_names: set[
     """Both stages on one language of the model's raw (placeholder) text."""
     problems = check_raw(text, title, values, facts, lang)
     if problems:  # cannot fill yet; name problems are reported now so one retry can fix everything
-        return problems + name_problems(f"{title} {text}", involved_names, roster_names, name_players)
+        return problems + name_problems(f"{title} {text}", involved_names, roster_names, name_players, lang)
     text, title = fill(text, values, lang, facts), fill(title, values, lang, facts)
-    return check_filled(text, title, values, facts, involved_names, roster_names, name_players)
+    return check_filled(text, title, values, facts, involved_names, roster_names, name_players, lang)
