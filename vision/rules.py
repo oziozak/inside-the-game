@@ -706,10 +706,20 @@ def _confidence(event_type: str, detection_confidence: float) -> float:
     return round(min(0.99, max(0.01, RULE_CONFIDENCE[event_type] * detection_confidence)), 3)
 
 
-def detect_events(frames: Iterable[FrameObservation], team_sheet: dict) -> list[dict]:
-    """Detected events for a run of frame observations, sorted by t, ids e0001..."""
+def detect_events(frames: Iterable[FrameObservation], team_sheet: dict,
+                  names: list[dict[int, int]] | None = None) -> list[dict]:
+    """Detected events for a run of frame observations, sorted by t, ids e0001...
+
+    If `names` is a list, it gets one entry per frame: track id -> roster id
+    for that frame's named tracks, after the frame (see Lineup.names).
+    """
     rules = EventRules(team_sheet)
-    events = [e for frame in frames for e in rules.push(frame)] + rules.finish()
+    events = []
+    for frame in frames:
+        events += rules.push(frame)
+        if names is not None:
+            names.append(rules.lineup.names(frame.players))
+    events += rules.finish()
     events.sort(key=lambda e: e["t"])
     return [{"id": f"e{i:04d}", **e} for i, e in enumerate(events, start=1)]
 
