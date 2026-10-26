@@ -201,6 +201,65 @@ What each round changed, from what the previous one got wrong:
 Reproduce: `python -m agents.run data/fake/sample_a --backend foundry`; for dev1, merge as above into a folder
 and run the same. Answers are cached by instructions + request, so a re-run with the same prompt is free.
 
+## Demo runs (#47)
+
+The full chain on video, for dev1 (2 min) and test1 (10 min, held out). Each clip ends in a web-player folder,
+`data/demo/<clip>/` (git-ignored), in the layout of `web/README.md`: `match_info.json`, the merged `events.json`,
+`overlays.json` (+ `agents_report.json`), and the full-pitch clip as `match.mp4` with its `match.mp4.manifest.json`.
+No `tracking.jsonl`: that is simulator truth.
+
+```bash
+C=dev1   # then C=test1
+python -m vision.footage render $C              # footage (not in git): video, manifest, team sheet, truth/
+python -m vision data/renders/footage/$C/$C.mp4 --out runs/footage/$C/events.json   # detected events (cv)
+mkdir -p data/demo/$C
+python scripts/merge_events.py runs/footage/$C/events.json data/renders/footage/$C/truth/events.json \
+    --out data/demo/$C/events.json             # + the simulator's foul / cards / offside / subs (sim)
+cp data/renders/footage/$C/match_info.json data/demo/$C/
+cp data/renders/footage/$C/$C.mp4 data/demo/$C/match.mp4
+cp data/renders/footage/$C/$C.mp4.manifest.json data/demo/$C/match.mp4.manifest.json
+python -m agents.run data/demo/$C --backend foundry --out data/demo/$C
+python scripts/validate.py data/demo/$C
+(cd web && MATCH=data/demo/$C npm run build)
+```
+
+`python -m vision.grade_footage $C` writes the same `runs/footage/$C/events.json` (it runs `python -m vision` as a
+child process) and grades it; test1's events are the ones saved by its single vision grade (#22). The merge adds
+3 fouls to test1 and nothing to dev1. Final code: commit `bada623`.
+
+| Run | Input | Overlays | Rejected attempts | Fixed on retry | Template fallbacks | Dropped | Low-confidence overlays | Paid calls | Tokens (in + out) | Cost | Deployment |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| final | dev1 | 75 | 4 | 6 | 0 (0.0%) | 0 | 0 | 29 | 56k + 3.6k | $0.06 | gpt-5.4-mini |
+| final | calibration | 12 | 0 | 0 | 0 (0.0%) | 0 | 0 | 4 | 7k + 0.4k | $0.01 | gpt-5.4-mini |
+| **final (held out)** | **test1** | 270 | 25 | 51 | **2 (0.7%)** | 0 | 0 | 113 | 220k + 13.9k | $0.25 | gpt-5.4-mini |
+
+Total for #47: 283k input + 18k output tokens, about **$0.32** (rates as above). dev1's row adds the one paid
+call made after its first run: the model answered tr `{"title": "T. Castell", "text": "T. Castell"}`, the verifier
+passed it, and the check for text that only repeats the title or a name was added; the retry fixed it. test1's
+2 fallbacks are existing checks: `{difficulty}` not its own clause (en) and a Turkish suffix out of harmony
+("S. Marsh'e"). Low-confidence overlays are 0 on both: no detected event is below `NAME_MIN_CONFIDENCE`.
+
+**Goal banner on detected events.** Neither clip has one: dev1's 2 minutes hold one shot and no goal, and the
+tracer missed the shot; test1 has no goals. The banner is shown on the calibration clip instead, whose 3 events
+(pass, shot, goal) are all `cv`: "Bosphorus FC lead / ... set the tone at 1-0" (en, tr, es; analyst and casual).
+It names the team, not the scorer: the clip has no kickoff, so the lineup is never assigned and `from` is null.
+Reproduce: `python -m vision vision/fixtures/calibration/calibration.mp4 --out runs/calibration/events.json`,
+merge with `renderer/fixtures/calibration/ground_truth.events.json` into `runs/calibration/merged/`, copy
+`vision/fixtures/calibration/match_info.json` there and run the agents on it as above.
+
+**Held-out naming result (test1, measured once).** `python scripts/name_threshold.py --held-out test1` with
+`NAME_MIN_CONFIDENCE = 0.55` fixed on dev1-dev3, on the saved tracer events the demo shows:
+
+| Clip | Detected events | Named (player shown) | Below the threshold | Player-id accuracy of the named (matched) |
+| --- | --- | --- | --- | --- |
+| dev1-dev3 (chosen on) | 87 | not measured | 3.4% | 0.853 (75 events) |
+| **test1 (held out)** | **147** | **94.6%** (139) | **0.0%** | **0.910** (121 of 133) |
+
+The other 8 test1 events have no player (`from` null), so they are team-named. Of the 139 named, 133 match a true
+event and 121 of them name the right player(s); 6 are unmatched and cannot be graded. About 1 in 11 named
+graphics on test1 names the wrong player, which is the lineup-assignment limit described above (#56). The
+threshold did not change after this measurement.
+
 ## Next steps (P3 backlog)
 
 - [x] Run `--backend foundry` on sample_a, tune `INSTRUCTIONS` in `llm.py` until the verifier rarely rejects (#46).
