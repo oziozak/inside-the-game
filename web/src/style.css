@@ -18,17 +18,18 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--ink); color: var(--chalk); font-family: var(--display); }
-body { position: relative; }
+html { margin: 0; background: var(--ink); }
+body { margin: 0; color: var(--chalk); font-family: var(--display); position: relative; background: transparent; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
 
-/* Floodlight that tracks scroll position — set via --glow-y by main.ts; a fixed 20% with no JS is a fine static fallback. */
+/* Floodlight that tracks scroll position — set via --glow-y by main.ts; a fixed 20% with no JS is a fine static fallback.
+   z-index: 0 (not negative) because `body` has no background of its own to paint over a negative-z-index layer with. */
 .scroll-glow {
-  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(640px 640px at 50% var(--glow-y, 20%), rgba(84, 240, 190, 0.10), transparent 70%),
-    radial-gradient(520px 520px at 85% calc(var(--glow-y, 20%) + 38%), rgba(200, 16, 46, 0.06), transparent 72%),
-    radial-gradient(520px 520px at 15% calc(var(--glow-y, 20%) + 58%), rgba(27, 77, 155, 0.06), transparent 72%);
+    radial-gradient(760px 760px at 50% var(--glow-y, 20%), rgba(84, 240, 190, 0.22), transparent 68%),
+    radial-gradient(620px 620px at 85% calc(var(--glow-y, 20%) + 38%), rgba(200, 16, 46, 0.14), transparent 70%),
+    radial-gradient(620px 620px at 15% calc(var(--glow-y, 20%) + 58%), rgba(27, 77, 155, 0.14), transparent 70%);
 }
 
 button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
