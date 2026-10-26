@@ -1,7 +1,7 @@
 """LLM backends for the explainer.
 
 - `mock`:    no network. Text comes from templates.py. Lets the whole pipeline run offline.
-- `noisy`:   mock, but every 4th answer invents a number. Used to demo and test the verifier.
+- `noisy`:   mock, but every 4th answer invents a number as a stray digit. Used to demo and test the verifier.
 - `foundry`: Microsoft Agent Framework agent on a Microsoft Foundry (Azure OpenAI) deployment.
 
 Every backend implements `async explain(req, feedback) -> {lang: {"title", "text"}}`.
@@ -24,20 +24,23 @@ You get one moment as JSON: what happened, who did it, the score, and `values` (
 the graphic shows). Write a short title and text for every language in `langs`.
 
 Hard rules:
-- Use ONLY numbers that appear in `values`, `minute`, `score_home` or `score_away`. Never invent,
-  round differently, or convert a number. If unsure, write no number.
+- Never write a digit. Write a number only as one of the `placeholders` given, exactly as listed
+  ("{distance_m}", "{speed_kmh}", "{score}", "{minute}"...). Code replaces each with the number
+  and its unit in the right form for the language: "{distance_m}" becomes "28 m", "{speed_kmh}"
+  "112 km/h", "{score}" "2-1", "{minute}" "34'". So never write a unit, % or /10 next to a
+  placeholder. If no placeholder fits, write no number.
 - Mention only the players named in `actor`, `target`, `setup_by` (the passer who set up a
   shot) and `key_moments` (goals and red cards so far, for half-time and full-time recaps). Copy each name exactly as given, initial included ("K. Aydin", never "Aydin" or "K. Aydın").
   In Turkish, add case suffixes after an apostrophe ("K. Aydin'den"). All clubs and players are fictional.
   A `key_moments` entry with no `player` is credited to the team only.
 - If `name_players` is false, we are not sure who played the ball: name the team, not a player.
   There is no `actor`; `subject` (the team) is who the text is about ("Bosphorus FC pass").
-- `text` at most 100 characters, `title` at most 35.
-- mode "analyst": precise and tactical, may use the numbers. Explain WHY the moment matters.
+- `text` at most 100 characters, `title` at most 35, counted with the numbers filled in.
+- mode "analyst": precise and tactical, may use every placeholder. Explain WHY the moment matters.
   `context` says why, in labels computed by code: `goal_effect` (opener, equaliser, go_ahead,
   extends_lead, pulls_one_back), `score_situation` of the acting team, `lead_in` (how the attack
   came about), `momentum` over the last minutes, `phase` of the match. Use them; do not contradict them.
-- mode "casual": warm and simple, like talking to a friend new to football; avoid numbers except the score.
+- mode "casual": warm and simple, like talking to a friend new to football; avoid numbers except "{score}".
 - mode "player_focus": everything from the point of view of `actor`.
 - Write natural, native text in each language (not a word-by-word translation).
 
@@ -55,7 +58,7 @@ class MockBackend:
 
 
 class NoisyBackend(MockBackend):
-    """Behaves like a careless LLM: sometimes invents a statistic."""
+    """Behaves like a careless LLM: sometimes invents a statistic, written as digits instead of a placeholder."""
 
     name = "noisy"
 
@@ -67,7 +70,7 @@ class NoisyBackend(MockBackend):
         out = await super().explain(req, feedback)
         if feedback is None and self.calls % 4 == 0:
             for lang in out:
-                out[lang]["text"] = (out[lang]["text"] + " (87% xG)")[:100]
+                out[lang]["text"] += " (87% xG)"
         return out
 
 

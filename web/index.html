@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Inside the Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Martian+Mono:wdth,wght@75..112,300..800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div class="scroll-glow" aria-hidden="true"></div>
+    <header class="site-header">
+      <a class="wordmark-link" href="#top">
+        <span class="corner"></span>
+        <span class="name">INSIDE THE GAME</span>
+      </a>
+      <nav class="site-nav" aria-label="Page sections">
+        <a href="#player">Match</a>
+        <a href="#lineups">Lineups</a>
+        <a href="#pipeline">How it works</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-score">
+          <div class="hero-team">
+            <span class="hero-tab home" id="hero-home-tab">BOS</span>
+            <div class="hero-team-info">
+              <span class="hero-team-name" id="hero-home-name">Bosphorus FC</span>
+              <span class="hero-formation lab" id="hero-home-formation">4-3-3</span>
+            </div>
+          </div>
+          <div class="hero-score-numbers">
+            <span class="num" id="hero-home-score">&ndash;</span>
+            <span class="hero-sep">&ndash;</span>
+            <span class="num" id="hero-away-score">&ndash;</span>
+          </div>
+          <div class="hero-team right">
+            <div class="hero-team-info">
+              <span class="hero-team-name" id="hero-away-name">Thames United</span>
+              <span class="hero-formation lab" id="hero-away-formation">4-4-2</span>
+            </div>
+            <span class="hero-tab away" id="hero-away-tab">THU</span>
+          </div>
+        </div>
+        <div class="hero-meta">
+          <span class="lab">FULL TIME</span>
+        </div>
+      </section>
+
+      <section id="player" class="player-section">
+        <div id="app">
+          <div class="stage">
+            <video id="broadcast" playsinline></video>
+            <canvas id="overlay"></canvas>
+            <div class="wordmark" aria-hidden="true">
+              <span class="corner"></span>
+              <span class="name">INSIDE THE GAME</span>
+            </div>
+            <aside id="evidence" class="evidence hidden"></aside>
+          </div>
+          <div class="console">
+            <button id="play-pause" class="play-btn" aria-label="Play">
+              <svg id="icon-play" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><polygon points="4,2 16,9 4,16" fill="currentColor" /></svg>
+              <svg id="icon-pause" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" style="display: none"><rect x="3" y="2" width="4" height="14" fill="currentColor" /><rect x="11" y="2" width="4" height="14" fill="currentColor" /></svg>
+            </button>
+
+            <div class="timecode-block">
+              <div id="clock" class="num">00:00</div>
+              <div class="lab">OF <span id="total-clock">00:00</span></div>
+            </div>
+
+            <div class="scrubwrap">
+              <div class="scrub-track"></div>
+              <div id="scrub-fill" class="scrub-fill"></div>
+              <div id="scrub-ticks" class="scrub-ticks"></div>
+              <div class="scrub-ruler"></div>
+              <div id="scrub-minutes" class="scrub-minutes"></div>
+              <div id="scrub-ph" class="scrub-ph"></div>
+              <input id="seek" class="scrub-input" type="range" min="0" max="1" step="0.0005" value="0" aria-label="Match time" />
+            </div>
+
+            <div class="seg-group" id="modeTabs" role="group" aria-label="Mode">
+              <button class="seg" data-value="analyst" aria-pressed="true">ANALYST</button>
+              <button class="seg" data-value="casual" aria-pressed="false">CASUAL</button>
+              <button class="seg" data-value="player_focus" aria-pressed="false">PLAYER</button>
+            </div>
+            <div class="seg-group" id="langTabs" role="group" aria-label="Language">
+              <button class="seg" data-value="en" aria-pressed="true">EN</button>
+              <button class="seg" data-value="tr" aria-pressed="false">TR</button>
+            </div>
+            <div class="seg-group">
+              <button id="live" class="seg live" aria-pressed="false">LIVE</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="compare-section">
+        <div class="section-head">
+          <span class="lab">HEAD TO HEAD</span>
+          <h2>Full-match numbers</h2>
+        </div>
+        <div id="compare-rows" class="compare-rows"></div>
+      </section>
+
+      <section id="lineups" class="lineups-section">
+        <div class="section-head">
+          <span class="lab">STARTING XI</span>
+          <h2>Lineups</h2>
+        </div>
+        <div class="lineups-grid">
+          <div class="lineup" id="lineup-home"></div>
+          <div class="lineup" id="lineup-away"></div>
+        </div>
+      </section>
+
+      <section id="pipeline" class="pipeline-section">
+        <div class="section-head">
+          <span class="lab">THE PIPELINE</span>
+          <h2>How the broadcast gets made</h2>
+        </div>
+        <ol class="pipeline-steps">
+          <li><span class="step-n num">01</span><span class="step-k lab">SIMULATOR</span><p>Generates a fictional match: true events and per-frame player positions.</p></li>
+          <li><span class="step-n num">02</span><span class="step-k lab">RENDERER</span><p>Turns positions into broadcast-style video at 25 fps.</p></li>
+          <li><span class="step-n num">03</span><span class="step-k lab">VISION AI</span><p>Watches the video only &mdash; detects, tracks, and derives events frame by frame.</p></li>
+          <li><span class="step-n num">04</span><span class="step-k lab">STATS</span><p>Plain code computes the exact numbers: distance, speed, possession.</p></li>
+          <li><span class="step-n num">05</span><span class="step-k lab">AGENTS</span><p>Explain why a moment matters, verify every number, direct which graphic airs.</p></li>
+          <li><span class="step-n num">06</span><span class="step-k lab">OVERLAYS</span><p>Timed JSON: what to show, for how long, in which mode and language.</p></li>
+          <li><span class="step-n num">07</span><span class="step-k lab">WEB PLAYER</span><p>This page &mdash; plays the video, draws the overlays, switches mode and language live.</p></li>
+        </ol>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

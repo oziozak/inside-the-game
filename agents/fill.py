@@ -38,15 +38,20 @@ KINDS = {
 }
 
 
+# values keys a placeholder's format already writes ({difficulty} -> "7/10"): never placeholders
+# themselves, or "{difficulty}/{difficulty_max}" would read "7/10/10".
+SHOWN_BY_FORMAT = {"difficulty_max"}
+
+
 class UnknownPlaceholder(ValueError):
     """A placeholder that is not a key of this overlay's `values` (nor minute or score)."""
 
 
 def known(values: dict, facts: dict | None = None) -> dict:
     """Every placeholder this overlay may use -> its number: the `values` keys, plus `minute`
-    and `score` (as (home, away)). `values` wins over the moment's facts."""
+    and `score` (as (home, away)), less SHOWN_BY_FORMAT. `values` wins over the moment's facts."""
     pool = {**{k: (facts or {})[k] for k in ("minute", "score_home", "score_away") if k in (facts or {})}, **values}
-    out = dict(values)
+    out = {k: v for k, v in values.items() if k not in SHOWN_BY_FORMAT}
     if "minute" in pool:
         out["minute"] = pool["minute"]
     if "score_home" in pool and "score_away" in pool:
