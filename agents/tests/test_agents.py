@@ -61,7 +61,8 @@ class StatsTest(unittest.TestCase):
     def test_raw_difficulty_is_not_capped(self):
         # The ranking key keeps growing past 10: a 49 m switch and a 60 m through ball stay apart.
         self.assertAlmostEqual(pass_difficulty_raw(5, 30, 0, "short"), 1.625)
-        self.assertGreater(pass_difficulty_raw(60, 90, 50, "through"), pass_difficulty_raw(49, 70, 10, "long") > 10)
+        self.assertAlmostEqual(pass_difficulty_raw(49, 80, 10, "long"), 10.458, places=3)  # the 49 m switch in #59
+        self.assertAlmostEqual(pass_difficulty_raw(60, 90, 50, "through"), 17.167, places=3)
 
     def test_difficulty_falls_back_to_clamped_raw_early(self):
         few = [3.0] * (PERCENTILE_MIN_PASSES - 1)
@@ -82,8 +83,8 @@ class StatsTest(unittest.TestCase):
 
         def play(d, success=True):
             n = state.teams["home"].passes + 1
-            e = {"id": f"e{n:04d}", "t": float(n), "type": "pass", "subtype": "short", "team": "home", "from": 7, "start": [30.0, 34.0],
-                 "end": [30.0 + d, 34.0], "distance_m": d, "speed_kmh": 40.0, "success": success}
+            e = {"id": f"e{n:04d}", "t": float(n), "type": "pass", "subtype": "short", "team": "home", "from": 7,
+                 "start": [30.0, 34.0], "end": [30.0 + d, 34.0], "distance_m": d, "speed_kmh": 40.0, "success": success}
             state.update(e)
             return event_facts(e, state)["difficulty"]
 
@@ -106,8 +107,7 @@ class StatsTest(unittest.TestCase):
                     shown.append(f["difficulty"])
             with self.subTest(folder.name):
                 self.assertEqual(set(shown), set(range(1, 11)))
-                # ~10% at 10: 12% on both samples, because passes get slightly harder as a match goes on
-                # and a past-only rank counts that as harder (sample_b's passes shuffled: 9.9%).
+                # ~10% at 10: a past-only rank reads 12% on both samples (sample_b's passes shuffled: 9-12%).
                 self.assertLessEqual(shown.count(10) / len(shown), 0.13)
 
 

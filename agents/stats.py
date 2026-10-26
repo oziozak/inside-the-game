@@ -211,7 +211,7 @@ def event_facts(e: dict, state: MatchState) -> dict:
     if typ in PASS_TYPES and "end" in e:
         ex, ey = e["end"]
         end_fx = forward_x(ex, side, period, info)
-        f["progress_m"] = round(end_fx - fx)
+        f["progress_m"] = round(pass_progress(e, info))
         f["difficulty"] = state.pass_ratings[e["id"]]
         f["into_final_third"] = bool(e.get("success")) and fx < 70 <= end_fx
         f["into_box"] = bool(e.get("success")) and in_box(end_fx, ey)
