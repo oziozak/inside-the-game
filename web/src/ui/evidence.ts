@@ -1,25 +1,15 @@
 import type { MatchEvent, MatchInfo, Overlay } from '../types';
 import { clock } from '../render/schedule';
 import { confidencePercent, overlayProvenance, provenanceText } from '../data/provenance';
-
-interface PlayerRef { name: string; number: number; team: 'home' | 'away' }
-
-function findPlayer(info: MatchInfo, id: number | null | undefined): PlayerRef | undefined {
-  if (id == null) return undefined;
-  for (const team of ['home', 'away'] as const) {
-    const player = info[team].players.find(p => p.id === id);
-    if (player) return { name: player.name, number: player.number, team };
-  }
-  return undefined;
-}
+import { findPlayer } from '../data/identity';
 
 function chip(info: MatchInfo, id: number | null | undefined): string {
   const p = findPlayer(info, id);
-  if (!p) return '<span class="lab">—</span>';
+  if (!p) return '';
   const teamLabel = p.team === 'home' ? info.home.short : info.away.short;
-  return `<span style="display:flex;align-items:center;gap:8px">
-    <span class="chip ${p.team}">${teamLabel}</span>
-    <span class="mono" style="font-size:12px">${p.number} ${p.name}</span>
+  return `<span class="event-person">
+    <span class="chip ${p.team}" style="background:${info[p.team].kit.shirt}">${teamLabel}</span>
+    <span class="event-person-name">${p.number} ${p.name}</span>
   </span>`;
 }
 
@@ -34,8 +24,12 @@ function eventSection(event: MatchEvent, info: MatchInfo): string {
   const rows: string[] = [];
   const source = event.source === 'cv' ? 'CV · Detected from video' : event.source === 'sim' ? 'SIM · Simulator' : 'Unknown source';
   const confidence = event.source === 'cv' ? confidencePercent(event.confidence) ?? 'Not available' : undefined;
-  if (event.from != null) rows.push(`<div class="evt-field"><span class="lab">FROM</span>${chip(info, event.from)}</div>`);
-  if (event.to != null) rows.push(`<div class="evt-field"><span class="lab">TO</span>${chip(info, event.to)}</div>`);
+  const actor = chip(info, event.from), recipient = chip(info, event.to);
+  if (actor) rows.push(`<div class="evt-field"><span class="lab">FROM</span>${actor}</div>`);
+  else if (event.team === 'home' || event.team === 'away') {
+    rows.push(`<div class="evt-field"><span class="lab">TEAM</span><span class="event-person-name">${info[event.team].name}</span></div>`);
+  }
+  if (recipient) rows.push(`<div class="evt-field"><span class="lab">TO</span>${recipient}</div>`);
   if (event.start) rows.push(`<div class="evt-field"><span class="lab">START</span><span class="mono" style="font-size:12px">${event.start[0].toFixed(1)}, ${event.start[1].toFixed(1)} <span style="color:var(--dust)">m</span></span></div>`);
   if (event.end) rows.push(`<div class="evt-field"><span class="lab">END</span><span class="mono" style="font-size:12px">${event.end[0].toFixed(1)}, ${event.end[1].toFixed(1)} <span style="color:var(--dust)">m</span></span></div>`);
   return `

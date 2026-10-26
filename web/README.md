@@ -72,7 +72,11 @@ The visual language (floodlight-black ground, team tabs in fixed club colors, mi
 
 ## Modes, language, live
 
-Mode (`analyst` / `casual` / `player_focus`) and language are segmented button groups — switching either just changes which overlays pass the filter in `schedule.ts`, no reload. "Live" disables the seek bar and keeps the video playing, simulating a broadcast feed with no scrubbing into the future.
+Mode (`analyst` / `casual` / `player_focus`) and language (`EN` / `TR` / `ES`) are segmented button groups — switching either just changes which overlays pass the filter in `schedule.ts`, no reload. Language remains selected across seeking, pause/play and mode changes. ES uses only supplied `lang: "es"` overlays; there is no English fallback or automatic agent-text translation. If that language is absent from the match or selected mode, a visible status explains why there are no cards. A normal gap between scheduled cards does not show an unavailable-language warning. Changing language or mode closes old evidence so it does not appear to belong to the new selection. "Live" disables the seek bar and keeps the video playing, simulating a broadcast feed with no scrubbing into the future.
+
+The hero always displays a small "Synthetic match" disclosure alongside its clock. Team formations remain visible.
+
+When a cited pass/shot has no identified actor (null, omitted, or out-of-roster ID), the card uses the event's team name/abbreviation and a deterministic description such as "Bosphorus FC pass, 28 m". The small action labels are localized UI text (`pass`/`pas`/`pase`, `shot`/`şut`/`tiro`), not fabricated agent explanations. Actual team names, abbreviations and kits come from match metadata. Follow-player graphics fall back to bottom-left cards if the actor, tracking sample or visible anchor is unavailable; valid projected tags still work. Evidence shows the known team and only genuinely identified player chips, preserving each event's CV/SIM attribution and confidence. Short clips do not need halftime/fulltime recap events. Without an identified team either, the fallback stays generic rather than inventing a club or player.
 
 ## Playback time, scores and evidence
 

@@ -5,6 +5,7 @@ import { sample } from '../data/loadMatch';
 import { COLOR, REF_WIDTH } from './theme';
 import { clock } from './schedule';
 import { overlayProvenance, provenanceText } from '../data/provenance';
+import { overlayIdentity, type OverlayIdentity } from '../data/identity';
 
 export interface HitRegion { overlay: Overlay; x: number; y: number; w: number; h: number }
 
@@ -38,11 +39,6 @@ const CELL_KEYS: [key: string, label: string, unit: string][] = [
   ['difficulty', 'DIFFICULTY', '/10'],
   ['xg', 'XG', ''],
 ];
-
-function teamOf(overlay: Overlay, roster: Map<number, PlayerInfo>): 'home' | 'away' | null {
-  if (overlay.player == null) return null;
-  return roster.get(overlay.player)?.team ?? null;
-}
 
 function px(ref: number, scale: number): number { return ref * scale; }
 
@@ -90,14 +86,14 @@ function citedEventWithPositions(overlay: Overlay, events: Map<string, MatchEven
 interface CardLayout { x: number; y: number; w: number; h: number }
 
 function drawStandardCard(
-  ctx: CanvasRenderingContext2D, overlay: Overlay, roster: Map<number, PlayerInfo>,
+  ctx: CanvasRenderingContext2D, overlay: Overlay, identity: OverlayIdentity, info: MatchInfo,
   events: Map<string, MatchEvent>, periods: { period: number; start: number; end: number }[] | undefined,
   x: number, y: number, align: 'left' | 'right' | 'center', s: number, reveal: number,
 ): CardLayout {
   const w = px(360, s);
-  const team = teamOf(overlay, roster);
-  const tabColor = team ? COLOR[team] : COLOR.mint;
-  const tabLabel = team ? (team === 'home' ? 'BOS' : 'THU') : 'INFO';
+  const team = identity.team;
+  const tabColor = team ? info[team].kit.shirt : COLOR.mint;
+  const tabLabel = team ? info[team].short : 'INFO';
   const kind = KIND[overlay.graphic] ?? overlay.graphic.replace(/_/g, ' ').toUpperCase();
   const cells = cellValueUnits(overlay);
   const ruler = overlay.graphic === 'pass_card' ? citedEventWithPositions(overlay, events) : undefined;
@@ -138,9 +134,10 @@ function drawStandardCard(
 
   // name / title
   ctx.fillStyle = COLOR.chalk; ctx.font = `800 ${px(34, s)}px ${COLOR_FONT_DISPLAY}`; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  ctx.fillText(truncate(ctx, overlay.title ?? overlay.text, w - px(32, s)), left + px(16, s), y + headH + px(40, s));
+  const title = identity.description ? (team ? info[team].name : identity.description) : overlay.title ?? overlay.text;
+  ctx.fillText(truncate(ctx, title, w - px(32, s)), left + px(16, s), y + headH + px(40, s));
   ctx.font = `500 ${px(14, s)}px ${COLOR_FONT_DISPLAY}`; ctx.fillStyle = 'rgba(237,240,234,0.75)';
-  wrapText(ctx, overlay.title ? overlay.text : '', w - px(32, s)).slice(0, 1).forEach(line => {
+  wrapText(ctx, identity.description ?? (overlay.title ? overlay.text : ''), w - px(32, s)).slice(0, 1).forEach(line => {
     ctx.fillText(truncate(ctx, line, w - px(32, s)), left + px(16, s), y + headH + px(58, s));
   });
 
@@ -191,7 +188,7 @@ function drawStandardCard(
 
 /** Dual-team row: momentum_bar and stat_compare both flank a shared body with home/away tabs. */
 function drawDualCard(
-  ctx: CanvasRenderingContext2D, overlay: Overlay, events: Map<string, MatchEvent>, x: number, y: number, align: 'left' | 'right' | 'center', s: number, reveal: number,
+  ctx: CanvasRenderingContext2D, overlay: Overlay, events: Map<string, MatchEvent>, info: MatchInfo, x: number, y: number, align: 'left' | 'right' | 'center', s: number, reveal: number,
 ): CardLayout {
   const w = px(420, s), h = px(76, s);
   const left = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x;
@@ -207,8 +204,8 @@ function drawDualCard(
   ctx.strokeStyle = 'rgba(237,240,234,0.22)'; ctx.strokeRect(left + 0.5, y + 0.5, w - 1, h - 1);
 
   const tabW = px(56, s);
-  teamTab(ctx, left, y, tabW, h, COLOR.home, 'BOS', s);
-  teamTab(ctx, left + w - tabW, y, tabW, h, COLOR.away, 'THU', s);
+  teamTab(ctx, left, y, tabW, h, info.home.kit.shirt, info.home.short, s);
+  teamTab(ctx, left + w - tabW, y, tabW, h, info.away.kit.shirt, info.away.short, s);
 
   const numW = px(64, s);
   ctx.fillStyle = COLOR.chalk; ctx.font = `700 ${px(32, s)}px ${COLOR_FONT_MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -221,8 +218,8 @@ function drawDualCard(
   if (homeVal != null && awayVal != null) {
     const total = Number(homeVal) + Number(awayVal) || 1;
     const homeW = bodyW * (Number(homeVal) / total);
-    ctx.fillStyle = COLOR.home; ctx.fillRect(bodyX0, y + px(42, s), homeW, px(8, s));
-    ctx.fillStyle = COLOR.away; ctx.fillRect(bodyX0 + homeW, y + px(42, s), bodyW - homeW, px(8, s));
+    ctx.fillStyle = info.home.kit.shirt; ctx.fillRect(bodyX0, y + px(42, s), homeW, px(8, s));
+    ctx.fillStyle = info.away.kit.shirt; ctx.fillRect(bodyX0 + homeW, y + px(42, s), bodyW - homeW, px(8, s));
   }
 
   ctx.font = `500 ${px(9, s)}px ${COLOR_FONT_MONO}`; ctx.fillStyle = COLOR.dust; ctx.textAlign = 'left';
@@ -266,18 +263,24 @@ export function drawOverlays(
   const periods = match.info.periods;
 
   for (const overlay of overlays) {
-    // A five-file bundle has no player projection data; keep its overlay as a normal card.
-    const position = overlay.position === 'follow-player' && !camera ? 'bottom-left' : overlay.position ?? 'bottom-left';
+    const identity = overlayIdentity(overlay, events, match.info);
+    let point: { x: number; y: number } | undefined;
+    if (overlay.position === 'follow-player' && overlay.player != null && identity.player && camera && match.frames.length) {
+      const tracked = sample(match, t).players.find(p => p.id === identity.player!.id);
+      if (tracked) {
+        const projected = projectToCanvas(camera, tracked.pos, canvasWidth, canvasHeight);
+        if (Number.isFinite(projected.x) && Number.isFinite(projected.y)
+            && projected.x >= 0 && projected.x <= canvasWidth && projected.y >= 0 && projected.y <= canvasHeight) point = projected;
+      }
+    }
+    // Missing actors, frames or visible anchors all use the same stable fixed-card fallback.
+    const position = overlay.position === 'follow-player' && !point ? 'bottom-left' : overlay.position ?? 'bottom-left';
     const reveal = Math.min(1, Math.max(0, (t - overlay.start) / 0.35));
     const isDual = overlay.graphic === 'momentum_bar' || overlay.graphic === 'stat_compare';
 
-    if (position === 'follow-player' && overlay.player != null && camera) {
-      const frame = sample(match, t);
-      const tracked = frame.players.find(p => p.id === overlay.player);
-      const info = roster.get(overlay.player);
-      if (!tracked || !info) continue;
-      const point = projectToCanvas(camera, tracked.pos, canvasWidth, canvasHeight);
-      if (point.x < -80 || point.x > canvasWidth + 80 || point.y < -80 || point.y > canvasHeight + 80) continue;
+    const playerInfo = identity.player ? roster.get(identity.player.id) : undefined;
+    if (position === 'follow-player' && point && playerInfo) {
+      const info = playerInfo;
       const w = px(180, s), h = px(52, s), numW = px(28, s);
       const left = point.x - w / 2, top = point.y - px(100, s);
       ctx.save();
@@ -306,14 +309,14 @@ export function drawOverlays(
     if (isDual) {
       const h = px(76, s);
       const topY = corner.grow === 1 ? baseY + offset : baseY - offset - h;
-      const layout = drawDualCard(ctx, overlay, events, baseX, topY, corner.align, s, reveal);
+      const layout = drawDualCard(ctx, overlay, events, match.info, baseX, topY, corner.align, s, reveal);
       stackCursor[position] = offset + layout.h + px(10, s);
       regions.push({ overlay, ...layout });
     } else {
       // Pre-measure height with a throwaway pass so top-anchored growth can be computed without double-drawing visuals.
       const probe = measureStandardCard(ctx, overlay, events, s);
       const topY = corner.grow === 1 ? baseY + offset : baseY - offset - probe.h;
-      const layout = drawStandardCard(ctx, overlay, roster, events, periods, baseX, topY, corner.align, s, reveal);
+      const layout = drawStandardCard(ctx, overlay, identity, match.info, events, periods, baseX, topY, corner.align, s, reveal);
       stackCursor[position] = offset + layout.h + px(10, s);
       regions.push({ overlay, ...layout });
     }

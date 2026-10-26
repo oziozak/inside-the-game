@@ -1,5 +1,5 @@
 import { loadMatch, loadEvents, loadOverlays, loadManifest } from './data/loadMatch';
-import { activeOverlays, clock } from './render/schedule';
+import { activeOverlays, clock, languageNotice } from './render/schedule';
 import { buildCamera } from './render/camera';
 import { buildRoster, drawOverlays, type HitRegion } from './render/draw';
 import { renderEvidence } from './ui/evidence';
@@ -25,6 +25,7 @@ const scrubTicks = document.querySelector<HTMLElement>('#scrub-ticks')!;
 const scrubMinutes = document.querySelector<HTMLElement>('#scrub-minutes')!;
 const modeTabs = document.querySelector<HTMLElement>('#modeTabs')!;
 const langTabs = document.querySelector<HTMLElement>('#langTabs')!;
+const languageStatus = document.querySelector<HTMLElement>('#overlay-language-status')!;
 const liveBtn = document.querySelector<HTMLButtonElement>('#live')!;
 
 function wireSegmented(group: HTMLElement, onPick: (value: string) => void) {
@@ -111,6 +112,9 @@ async function main() {
     const width = canvas.width, height = canvas.height;
     if (width === 0 || height === 0) return;
     const t = matchTime();
+    const notice = languageNotice(overlays, lang, mode);
+    if (languageStatus.textContent !== notice) languageStatus.textContent = notice;
+    languageStatus.hidden = !notice;
     const visible = activeOverlays(overlays, t, mode, lang)
       .filter(o => o.event_ids.every(id => (eventsById.get(id)?.t ?? Infinity) <= t));
     const end = manifest?.end ?? videoStart + (Number.isFinite(video.duration) ? video.duration : 0);
@@ -168,8 +172,12 @@ async function main() {
   });
   seek.addEventListener('change', () => { seeking = false; });
 
-  wireSegmented(modeTabs, value => { mode = value as Mode; });
-  wireSegmented(langTabs, value => { lang = value; });
+  function closeEvidence() {
+    selectedEvidence = undefined;
+    evidencePanel.classList.add('hidden');
+  }
+  wireSegmented(modeTabs, value => { mode = value as Mode; closeEvidence(); render(); });
+  wireSegmented(langTabs, value => { lang = value; closeEvidence(); render(); });
 
   liveBtn.addEventListener('click', () => {
     const isLive = liveBtn.getAttribute('aria-pressed') !== 'true';
