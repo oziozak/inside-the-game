@@ -1,5 +1,6 @@
 import type { MatchEvent, MatchInfo, Overlay } from '../types';
 import { clock } from '../render/schedule';
+import { confidencePercent, overlayProvenance, provenanceText } from '../data/provenance';
 
 interface PlayerRef { name: string; number: number; team: 'home' | 'away' }
 
@@ -31,6 +32,8 @@ function eventTimecode(event: MatchEvent, periods: MatchInfo['periods']): string
 function eventSection(event: MatchEvent, info: MatchInfo): string {
   const kind = event.subtype ? `${event.type} · ${event.subtype}` : event.type;
   const rows: string[] = [];
+  const source = event.source === 'cv' ? 'CV · Detected from video' : event.source === 'sim' ? 'SIM · Simulator' : 'Unknown source';
+  const confidence = event.source === 'cv' ? confidencePercent(event.confidence) ?? 'Not available' : undefined;
   if (event.from != null) rows.push(`<div class="evt-field"><span class="lab">FROM</span>${chip(info, event.from)}</div>`);
   if (event.to != null) rows.push(`<div class="evt-field"><span class="lab">TO</span>${chip(info, event.to)}</div>`);
   if (event.start) rows.push(`<div class="evt-field"><span class="lab">START</span><span class="mono" style="font-size:12px">${event.start[0].toFixed(1)}, ${event.start[1].toFixed(1)} <span style="color:var(--dust)">m</span></span></div>`);
@@ -41,6 +44,8 @@ function eventSection(event: MatchEvent, info: MatchInfo): string {
         <span class="evt-id">${event.id.toUpperCase()}</span>
         <span class="evt-type">${kind.toUpperCase()}</span>
       </div>
+      <div class="evt-source">${source}</div>
+      ${confidence ? `<div class="evt-confidence">CV confidence: ${confidence}</div>` : ''}
       <div class="evt-time">${eventTimecode(event, info.periods)}</div>
       ${rows.join('')}
     </div>`;
@@ -68,6 +73,7 @@ export function renderEvidence(panel: HTMLElement, overlay: Overlay, events: Map
         <span>CLOSE</span>
       </button>
     </div>
+    <div class="evidence-provenance">${provenanceText(overlayProvenance(overlay, events))}</div>
     ${cited.map(e => eventSection(e, info)).join('')}
     ${derivedSection(overlay)}`;
   panel.classList.remove('hidden');

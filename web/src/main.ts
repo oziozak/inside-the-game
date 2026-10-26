@@ -3,9 +3,9 @@ import { activeOverlays, clock } from './render/schedule';
 import { buildCamera } from './render/camera';
 import { buildRoster, drawOverlays, type HitRegion } from './render/draw';
 import { renderEvidence } from './ui/evidence';
-import { renderHero, renderCompare, renderLineups } from './ui/page';
+import { renderHero, renderSummary, renderLineups } from './ui/page';
 import { initScrollGlow } from './ui/scrollGlow';
-import type { Mode, MatchEvent } from './types';
+import type { Mode, MatchEvent, Overlay } from './types';
 
 initScrollGlow();
 
@@ -46,8 +46,7 @@ async function main() {
   const roster = buildRoster(match.info);
   const eventsById = new Map<string, MatchEvent>(events.map(e => [e.id, e]));
 
-  renderHero(match.info, events);
-  renderCompare(document.querySelector<HTMLElement>('#compare-rows')!, events);
+  renderHero(match.info);
   renderLineups(
     document.querySelector<HTMLElement>('#lineup-home')!,
     document.querySelector<HTMLElement>('#lineup-away')!,
@@ -62,20 +61,20 @@ async function main() {
   let lang = 'en';
   let hitRegions: HitRegion[] = [];
   let seeking = false;
-  let ticksBuilt = false;
+  let lastSummaryKey = '';
+  let selectedEvidence: Overlay | undefined;
 
   function matchTime(): number {
     return videoStart + video.currentTime;
   }
 
-  function buildTicks() {
-    if (ticksBuilt || !video.duration) return;
-    ticksBuilt = true;
+  function buildTicks(t: number) {
+    if (!Number.isFinite(video.duration) || !video.duration) return;
     const duration = video.duration;
     scrubTicks.innerHTML = '';
     for (const event of events) {
       const relT = event.t - videoStart;
-      if (relT < 0 || relT > duration) continue;
+      if (relT < 0 || relT >= duration || event.t > t) continue;
       const pct = (relT / duration) * 100;
       if (event.type === 'goal') {
         const mark = document.createElement('div');
@@ -112,7 +111,20 @@ async function main() {
     const width = canvas.width, height = canvas.height;
     if (width === 0 || height === 0) return;
     const t = matchTime();
-    const visible = activeOverlays(overlays, t, mode, lang);
+    const visible = activeOverlays(overlays, t, mode, lang)
+      .filter(o => o.event_ids.every(id => (eventsById.get(id)?.t ?? Infinity) <= t));
+    const end = manifest?.end ?? videoStart + (Number.isFinite(video.duration) ? video.duration : 0);
+    // Refresh at event boundaries (including fractional seconds), clock ticks, and metadata load.
+    const summaryKey = `${clock(t, match.info.periods)}:${events.filter(e => e.t <= t).length}:${video.duration}`;
+    if (summaryKey !== lastSummaryKey) {
+      renderSummary(match.info, events, videoStart, t, end);
+      buildTicks(t);
+      lastSummaryKey = summaryKey;
+    }
+    if (selectedEvidence?.event_ids.some(id => (eventsById.get(id)?.t ?? Infinity) > t)) {
+      evidencePanel.classList.add('hidden');
+      selectedEvidence = undefined;
+    }
     const camera = match.frames.length ? buildCamera(cameraPreset, match, t, width / height) : undefined;
     hitRegions = drawOverlays(ctx, width, height, visible, roster, eventsById, match, t, camera);
     clockEl.textContent = clock(t, match.info.periods);
@@ -137,7 +149,7 @@ async function main() {
   }
   requestAnimationFrame(loop);
 
-  video.addEventListener('loadedmetadata', buildTicks);
+  video.addEventListener('loadedmetadata', render);
 
   function setPlaying(playing: boolean) {
     iconPlay.style.display = playing ? 'none' : '';
@@ -171,7 +183,10 @@ async function main() {
     const x = (event.clientX - rect.left) * (canvas.width / rect.width);
     const y = (event.clientY - rect.top) * (canvas.height / rect.height);
     const hit = hitRegions.find(r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
-    if (hit) renderEvidence(evidencePanel, hit.overlay, eventsById, match.info);
+    if (hit) {
+      selectedEvidence = hit.overlay;
+      renderEvidence(evidencePanel, hit.overlay, eventsById, match.info);
+    }
   });
 }
 

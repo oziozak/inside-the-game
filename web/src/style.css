@@ -158,9 +158,13 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 .evidence-close { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-left: 1px solid var(--line); font-size: 10px; font-weight: 600; letter-spacing: .12em; }
 
 .evt { padding: 14px 16px 6px; border-bottom: 1px solid var(--line); }
-.evt-row-head { display: flex; justify-content: space-between; align-items: baseline; }
+.evt-row-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; overflow-wrap: anywhere; }
 .evt-id { font-family: var(--mono); font-size: 13px; font-weight: 700; }
 .evt-type { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--dust); }
+.evidence-provenance { padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.evt-source, .evt-confidence, .evidence-provenance { font-family: var(--mono); font-size: 10px; line-height: 1.6; overflow-wrap: anywhere; }
+.evt-source { color: var(--mint); margin-top: 8px; }
+.evt-confidence { color: var(--dust); }
 .evt-time { font-family: var(--mono); font-stretch: 75%; font-weight: 700; font-size: 30px; margin-top: 8px; font-variant-numeric: tabular-nums; }
 .evt-field { display: flex; justify-content: space-between; align-items: center; height: 34px; border-top: 1px solid #1E272D; }
 .evt-field:first-of-type { margin-top: 10px; }

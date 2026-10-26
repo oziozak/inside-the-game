@@ -4,6 +4,7 @@ import { projectToCanvas } from './camera';
 import { sample } from '../data/loadMatch';
 import { COLOR, REF_WIDTH } from './theme';
 import { clock } from './schedule';
+import { overlayProvenance, provenanceText } from '../data/provenance';
 
 export interface HitRegion { overlay: Overlay; x: number; y: number; w: number; h: number }
 
@@ -119,12 +120,17 @@ function drawStandardCard(
   labText(ctx, kind, left + px(68, s), y + headH / 2 + px(4, s), s, COLOR.chalk);
   const tcText = clock(overlay.start, periods);
   ctx.font = `700 ${px(13, s)}px ${COLOR_FONT_MONO}`; ctx.fillStyle = COLOR.chalk; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-  const sourceW = overlay.event_ids.length ? px(70, s) : 0;
+  const sourceW = px(124, s);
   ctx.fillText(tcText, left + w - sourceW - px(12, s), y + headH / 2 + px(1, s));
   if (sourceW) {
     ctx.strokeStyle = COLOR.line; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(left + w - sourceW, y); ctx.lineTo(left + w - sourceW, y + headH); ctx.stroke();
-    labText(ctx, 'SOURCE', left + w - sourceW + px(12, s), y + headH / 2 + px(4, s), s, COLOR.chalk);
+    const source = overlayProvenance(overlay, events);
+    const sourceX = left + w - sourceW + px(8, s), sourceTextW = sourceW - px(28, s);
+    ctx.font = `600 ${px(9, s)}px ${COLOR_FONT_MONO}`; ctx.fillStyle = COLOR.chalk; ctx.textAlign = 'left';
+    ctx.fillText(truncate(ctx, `SOURCE ${source.label}`, sourceTextW), sourceX, y + px(10, s));
+    ctx.fillStyle = COLOR.dust;
+    ctx.fillText(truncate(ctx, source.confidence ?? (source.label === 'SIM' ? 'SIMULATOR' : 'EVENT EVIDENCE'), sourceTextW), sourceX, y + px(23, s));
     ctx.fillStyle = COLOR.mint;
     const ax = left + w - px(16, s), ay = y + headH / 2;
     ctx.beginPath(); ctx.moveTo(ax, ay - px(5, s)); ctx.lineTo(ax + px(4, s), ay); ctx.lineTo(ax, ay + px(5, s)); ctx.fill();
@@ -135,7 +141,7 @@ function drawStandardCard(
   ctx.fillText(truncate(ctx, overlay.title ?? overlay.text, w - px(32, s)), left + px(16, s), y + headH + px(40, s));
   ctx.font = `500 ${px(14, s)}px ${COLOR_FONT_DISPLAY}`; ctx.fillStyle = 'rgba(237,240,234,0.75)';
   wrapText(ctx, overlay.title ? overlay.text : '', w - px(32, s)).slice(0, 1).forEach(line => {
-    ctx.fillText(line, left + px(16, s), y + headH + px(58, s));
+    ctx.fillText(truncate(ctx, line, w - px(32, s)), left + px(16, s), y + headH + px(58, s));
   });
 
   // data cells
@@ -185,7 +191,7 @@ function drawStandardCard(
 
 /** Dual-team row: momentum_bar and stat_compare both flank a shared body with home/away tabs. */
 function drawDualCard(
-  ctx: CanvasRenderingContext2D, overlay: Overlay, x: number, y: number, align: 'left' | 'right' | 'center', s: number, reveal: number,
+  ctx: CanvasRenderingContext2D, overlay: Overlay, events: Map<string, MatchEvent>, x: number, y: number, align: 'left' | 'right' | 'center', s: number, reveal: number,
 ): CardLayout {
   const w = px(420, s), h = px(76, s);
   const left = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x;
@@ -210,13 +216,17 @@ function drawDualCard(
   if (awayVal != null) ctx.fillText(String(awayVal), left + w - tabW - numW / 2, y + h / 2);
 
   const bodyX0 = left + tabW + numW, bodyX1 = left + w - tabW - numW, bodyW = bodyX1 - bodyX0;
-  labText(ctx, overlay.title ?? overlay.graphic, bodyX0 + px(4, s), y + px(30, s), s);
+  ctx.font = `500 ${px(10, s)}px ${COLOR_FONT_MONO}`;
+  labText(ctx, truncate(ctx, overlay.title ?? overlay.graphic, bodyW - px(8, s)), bodyX0 + px(4, s), y + px(30, s), s);
   if (homeVal != null && awayVal != null) {
     const total = Number(homeVal) + Number(awayVal) || 1;
     const homeW = bodyW * (Number(homeVal) / total);
     ctx.fillStyle = COLOR.home; ctx.fillRect(bodyX0, y + px(42, s), homeW, px(8, s));
     ctx.fillStyle = COLOR.away; ctx.fillRect(bodyX0 + homeW, y + px(42, s), bodyW - homeW, px(8, s));
   }
+
+  ctx.font = `500 ${px(9, s)}px ${COLOR_FONT_MONO}`; ctx.fillStyle = COLOR.dust; ctx.textAlign = 'left';
+  ctx.fillText(truncate(ctx, `SOURCE ${provenanceText(overlayProvenance(overlay, events))}`, bodyW - px(8, s)), bodyX0 + px(4, s), y + px(67, s));
 
   drawCornerMarks(ctx, left, y, w, h, s);
   ctx.restore();
@@ -268,7 +278,7 @@ export function drawOverlays(
       if (!tracked || !info) continue;
       const point = projectToCanvas(camera, tracked.pos, canvasWidth, canvasHeight);
       if (point.x < -80 || point.x > canvasWidth + 80 || point.y < -80 || point.y > canvasHeight + 80) continue;
-      const w = px(180, s), h = px(30, s), numW = px(28, s);
+      const w = px(180, s), h = px(52, s), numW = px(28, s);
       const left = point.x - w / 2, top = point.y - px(100, s);
       ctx.save();
       ctx.strokeStyle = COLOR.mint; ctx.lineWidth = Math.max(1, px(2, s));
@@ -280,7 +290,9 @@ export function drawOverlays(
       ctx.fillStyle = '#fff'; ctx.font = `700 ${px(13, s)}px ${COLOR_FONT_MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(info.number), left + numW / 2, top + h / 2 + px(1, s));
       ctx.fillStyle = COLOR.chalk; ctx.font = `800 ${px(16, s)}px ${COLOR_FONT_DISPLAY}`; ctx.textAlign = 'left';
-      ctx.fillText(info.name.split(' ').pop() ?? info.name, left + numW + px(10, s), top + h / 2 + px(5, s));
+      ctx.fillText(truncate(ctx, info.name.split(' ').pop() ?? info.name, w - numW - px(20, s)), left + numW + px(10, s), top + px(23, s));
+      ctx.font = `500 ${px(8, s)}px ${COLOR_FONT_MONO}`; ctx.fillStyle = COLOR.dust;
+      ctx.fillText(truncate(ctx, `SOURCE ${provenanceText(overlayProvenance(overlay, events))}`, w - numW - px(16, s)), left + numW + px(8, s), top + px(43, s));
       ctx.restore();
       regions.push({ overlay, x: left, y: top, w, h });
       continue;
@@ -294,7 +306,7 @@ export function drawOverlays(
     if (isDual) {
       const h = px(76, s);
       const topY = corner.grow === 1 ? baseY + offset : baseY - offset - h;
-      const layout = drawDualCard(ctx, overlay, baseX, topY, corner.align, s, reveal);
+      const layout = drawDualCard(ctx, overlay, events, baseX, topY, corner.align, s, reveal);
       stackCursor[position] = offset + layout.h + px(10, s);
       regions.push({ overlay, ...layout });
     } else {

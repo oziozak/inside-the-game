@@ -74,6 +74,14 @@ The visual language (floodlight-black ground, team tabs in fixed club colors, mi
 
 Mode (`analyst` / `casual` / `player_focus`) and language are segmented button groups — switching either just changes which overlays pass the filter in `schedule.ts`, no reload. "Live" disables the seek bar and keeps the video playing, simulating a broadcast feed with no scrubbing into the future.
 
+## Playback time, scores and evidence
+
+The hero clock uses original match time: `manifest.start + video.currentTime`. Score is recomputed on playback and backward/forward seeking from goal events and explicit `score` snapshots at or before that time. It never treats a successful pass or shot as a goal. Include kickoff-to-current event history (including the initial kickoff), or a known score snapshot, in a later-starting bundle to preserve the opening score; if neither is available, the hero displays `—` and "Score unavailable" until an explicit snapshot arrives. No future snapshot is used to fill that gap.
+
+"This clip" statistics cover the clip start through the current playback timestamp, excluding the export's end boundary and all future events. They are labelled "so far" and count the supplied event feed, not assumed complete match truth. Score can therefore include a pre-clip goal while this clip's goal count remains zero. Event ticks and opened evidence also respect playback time.
+
+Every card, including dual-team cards and projected tags, labels its cited events as `CV`, `SIM`, or `CV+SIM`. Only CV citations show confidence; multiple CV confidences use their range rather than an invented aggregate. Missing confidence is `n/a`; a `?` marks unresolved evidence or partially unavailable CV confidence. The evidence panel shows each event's individual source and CV confidence. The schema permits omitted confidence; out-of-range or nonnumeric values remain schema errors when loading a bundle, while display helpers safely handle them as unavailable. Source labels do not certify detector accuracy: synthetic test fixtures with `source: cv` are used only for verification, not as reported vision results.
+
 ## Known gaps
 
 - Director currently emits 7 of the 10 graphic types; `player_tag`, `speed_badge`, `distance_badge` have no sample data to test against yet.
