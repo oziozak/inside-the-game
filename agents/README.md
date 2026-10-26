@@ -29,6 +29,7 @@ events.json ──► stats.py ──► director.py ──► explainer.py ─�
 | `llm.py` | Backends: `mock` (offline templates), `noisy` (invents stats as stray digits to demo the verifier), `foundry` (Microsoft Agent Framework on a Foundry / Azure OpenAI deployment, disk-cached, counts tokens). The model sees `placeholders` mapped to how each reads on screen (`"{distance_m}": "28 m"`), no bare `values`, and no `{minute}` | Yes |
 | `fill.py` | Fills placeholders (`{distance_m}`, `{speed_kmh}`, `{score}`, `{minute}`, any `values` key) with numbers formatted per language (`28 m`; `km/h`, tr `km/sa`; `62%`, tr `%62`, es `62 %`; `2-1`; `7/10`; `34'`), then normalises apostrophes and spacing. Every backend's text goes through it once the verifier passes it: templates and the LLM both write placeholders | No |
 | `templates.py` | Code-written text per graphic, mode and language (en, tr, es), numbers as placeholders. Mock backend + fallback | No |
+| `tactics.py` | Tactical facts from frame observations + detected events: shape vs team sheet, line height, compactness, width, flanks, regains by third, long balls, progressive passes, each with its frames / event ids ([Tactical facts](#tactical-facts-67)) | No |
 | `run.py` | CLI | |
 
 **Pass difficulty** (1-10) is a completed pass's percentile among this match's earlier completed passes, ranked by
@@ -259,6 +260,52 @@ The other 8 test1 events have no player (`from` null), so they are team-named. O
 event and 121 of them name the right player(s); 6 are unmatched and cannot be graded. About 1 in 11 named
 graphics on test1 names the wrong player, which is the lineup-assignment limit described above (#56). The
 threshold did not change after this measurement.
+
+## Tactical facts (#67)
+
+`tactics.py` turns what the vision AI saw into team-level tactical facts, by code only (no LLM), as
+`tactics.json`. Inputs: the tracer's `observations.jsonl`, the detected (or merged) `events.json` and
+`match_info.json`, nothing else; it never opens `truth/` or simulator tracking (the file-open guard in
+`tests/test_vision_pipeline.py` runs it with both beside the clip). Not yet wired into `agents.run`.
+
+```bash
+C=dev1
+python -m agents.tactics runs/footage/$C/observations.jsonl --events runs/footage/$C/events.json \
+    --match-info data/renders/footage/$C/match_info.json --out runs/footage/$C/tactics.json
+```
+
+- **Who is who.** The vision rules are replayed over the observations, so each track is named by the same
+  lineup assignment that named the events' players; a player's line (defence, midfield, attack) is their
+  team-sheet position. Goalkeepers and unnamed tracks are left out. Before the first kickoff nothing is
+  named, so the shape facts are empty (the calibration clip has no kickoff).
+- **Who has the ball.** Possession spells from the detected events: after a completed pass or a possession
+  change the team keeps the ball until the next event; otherwise the next event says who had it. Frames in
+  no spell count only for `all`.
+- **Team frame.** Depth is meters from the team's own goal line; left, centre and right are thirds of the
+  width as the team sees it attacking.
+- **Segments.** The whole clip, then before and after each goal or red card (`split_by` is its event id).
+
+Per team and segment (`all`, `in_possession` and `out_of_possession` where it applies):
+
+| Fact | Value | Evidence |
+| --- | --- | --- |
+| `shape` | actual formation next to the team sheet's: players' mean depths split back to front into as many lines as the sheet has (least squared spread; a 5-3-2 whose wing-backs push up reads 3-5-2), each team-sheet line's mean depth and width, each player's mean position | `frames`, possession `event_ids` |
+| `defensive_line_m` | mean depth of the back line (team-sheet defenders) | `frames`, `event_ids` |
+| `compactness_m` | front line's mean depth minus the back line's | `frames`, `event_ids` |
+| `attacking_width_m` | in possession: outfield spread across the pitch (widest minus narrowest y) | `frames`, `event_ids` |
+| `final_third_flanks` | left / centre / right %: of passes ending in the final third, and of in-possession frames with the ball there | `event_ids`; `frames` per flank |
+| `regains` | ball won back per third (`high` = final third: pressing height): every possession change, and a failed pass the other team plays on | `event_ids` per third |
+| `long_balls` | share of passes longer than 30 m | `event_ids` (all passes counted) |
+| `progressive_passes` | completed passes moving the ball at least 30 m toward goal within the own half, 15 m across halfway, 10 m in the opponent half | `event_ids` (all completed passes) |
+
+`frames` are `[first, last]` runs of observation frame indices. Every number is recomputable from its
+cited frames or events: `tests/test_tactics.py` recomputes the frame facts from the simulator's tracking
+over the cited frames (by roster id, which the tactics never see), and a team given a high line by the
+simulator reads higher than a deep one.
+
+On dev1-dev3 (whole clip, 2 minutes each, under a second per clip) every team sheet's lines are found; the
+4-2-3-1s read 4-2-1-3 (their wingers stand level with the striker) and the 5-3-2 reads 3-5-2. Where lineup
+assignment swaps two players (#56), their mean positions mix, which can change the shape read.
 
 ## Next steps (P3 backlog)
 

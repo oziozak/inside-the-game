@@ -78,6 +78,7 @@ python -m vision.grade_footage --role dev               # tracer on rendered foo
 python -m vision.annotate CLIP_DIR RUN_DIR --out ai_view.mp4   # the clip with what the AI saw drawn on it (tracer run with --frame-boxes)
 python scripts/merge_events.py DETECTED TRUTH --out OUT  # detected (cv) + sim's foul/card/offside/sub -> events.json
 python scripts/name_threshold.py                        # choose the agents' NAME_MIN_CONFIDENCE on dev1-dev3 (never test1)
+python -m agents.tactics OBS.jsonl --events EVENTS --match-info MI --out tactics.json   # tactical facts (code only)
 pytest                                                  # tests
 ```
 
