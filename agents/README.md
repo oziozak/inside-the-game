@@ -29,7 +29,9 @@ events.json ──► stats.py ──► director.py ──► explainer.py ─�
 | `llm.py` | Backends: `mock` (offline templates), `noisy` (invents stats as stray digits to demo the verifier), `foundry` (Microsoft Agent Framework on a Foundry / Azure OpenAI deployment, disk-cached, counts tokens). The model sees `placeholders` mapped to how each reads on screen (`"{distance_m}": "28 m"`), no bare `values`, and no `{minute}` | Yes |
 | `fill.py` | Fills placeholders (`{distance_m}`, `{speed_kmh}`, `{score}`, `{minute}`, any `values` key) with numbers formatted per language (`28 m`; `km/h`, tr `km/sa`; `62%`, tr `%62`, es `62 %`; `2-1`; `7/10`; `34'`), then normalises apostrophes and spacing. Every backend's text goes through it once the verifier passes it: templates and the LLM both write placeholders | No |
 | `templates.py` | Code-written text per graphic, mode and language (en, tr, es), numbers as placeholders. Mock backend + fallback | No |
-| `tactics.py` | Tactical facts from frame observations + detected events: shape vs team sheet, line height, compactness, width, flanks, regains by third, long balls, progressive passes, each with its frames / event ids ([Tactical facts](#tactical-facts-67)) | No |
+| `tactics.py` | Tactical facts from frame observations + detected events: shape vs team sheet, line height, compactness, width, flanks, regains by third, long balls, progressive passes, each with its coverage and frames / event ids ([Tactical facts](#tactical-facts-67)) | No |
+| `analyst.py` | Post-match report: insight candidates from `tactics.json` (code), selection by salience and coverage, the analyst agent's headline + insights in every language, the same verifier plus uncited claims and missing hedges, every number read back from `tactics.json` ([Analyst report](#analyst-report-69)) | Yes |
+| `analyst_templates.py` | Code-written report text per topic and language: mock backend + fallback | No |
 | `run.py` | CLI | |
 
 **Pass difficulty** (1-10) is a completed pass's percentile among this match's earlier completed passes, ranked by
@@ -264,10 +266,9 @@ threshold did not change after this measurement.
 ## Tactical facts (#67)
 
 `tactics.py` turns what the vision AI saw into team-level tactical facts, by code only (no LLM), as
-`tactics.json`. Inputs: the tracer's `observations.jsonl`, the detected (or merged) `events.json` and
-`match_info.json`, nothing else; it never opens `truth/` or simulator tracking (the file-open guard in
-`tests/test_vision_pipeline.py` runs it with both beside the clip). Not yet wired into `agents.run`, and no
-other stage reads it yet, so like `agents_report.json` it has no schema in `schemas/`.
+`tactics.json` (`schemas/tactics.schema.json`). Inputs: the tracer's `observations.jsonl`, the detected (or merged)
+`events.json` and `match_info.json`, nothing else; it never opens `truth/` or simulator tracking (the file-open
+guard in `tests/test_vision_pipeline.py` runs it with both beside the clip). The analyst (`analyst.py`) reads it.
 
 ```bash
 C=dev1
@@ -300,6 +301,19 @@ Per team and segment (`all`, `in_possession` and `out_of_possession` where it ap
 | `long_balls` | share of passes longer than 30 m (a team's directness; the pass subtype `long` splits at 25 m) | `event_ids` counted, `long_event_ids` |
 | `progressive_passes` | completed passes moving the ball at least 30 m toward the goal line within the own half, 15 m across halfway, 10 m in the opponent half | `event_ids` counted, `progressive_event_ids` |
 
+**Coverage** (#69). Every fact has `coverage`, the share (0-1) of its segment it could see, and each segment has
+`frames`: `n_frames`, `possession_known`, `ball_seen`. A whole-clip frame fact: its frames over the segment's.
+An in- or out-of-possession one: its frames over the team's frames in that phase, times the share of frames whose
+possession is known (in the others the phase is unknown). An event fact: the share of frames with the ball seen,
+as an event can only be detected while it is (dev3: possession known in 40% of frames, ball seen in 89%; its pass
+recall is 0.80). `null` with no frames.
+
+| Clip | possession known | ball seen | in/out-of-possession facts | event facts |
+| --- | --- | --- | --- | --- |
+| dev1 | 0.916 | 0.922 | 0.916 | 0.922 |
+| dev2 | 0.782 | 0.893 | 0.782 | 0.893 |
+| dev3 | 0.402 | 0.892 | 0.40 | 0.892 |
+
 `frames` are `[first, last]` runs of observation frame indices. Every number is recomputable from its
 cited frames or events: `tests/test_tactics.py` recomputes the frame facts from the simulator's tracking
 over the cited frames (by roster id, which the tactics never see). The same team given a +8 m and a -8 m
@@ -308,6 +322,60 @@ line by the simulator reads more than 10 m higher out of possession, and much le
 On dev1-dev3 (whole clip, 2 minutes each, under a second per clip) the 4-3-3s and the 4-4-2 read as their
 sheet, the 4-2-3-1s read 4-2-1-3 (their wingers stand level with the striker) and the 5-3-2 reads 3-5-2.
 Where lineup assignment swaps two players (#56), their mean positions mix, which can change the shape read.
+
+## Analyst report (#69)
+
+After the clip, the analyst writes `report.json` (`schemas/report.schema.json`): a headline and 3-5 tactical
+insights in every language, shown by the web player's Match analysis panel.
+
+```bash
+C=dev1
+python -m agents.tactics runs/footage/$C/observations.jsonl --events data/demo/$C/events.json \
+    --match-info data/demo/$C/match_info.json --out data/demo/$C/tactics.json
+python -m agents.analyst data/demo/$C --backend foundry --out data/demo/$C   # report.json + analyst_report.json
+python scripts/validate.py data/demo/$C
+```
+
+1. **Candidates** (code). One per topic the facts speak to, whole clip unless split: formation matchup
+   (`shape`, actual against team sheet), `defensive_line` and `compactness` out of possession, attacking
+   `width`, `flanks` (where a team's passes into the final third end), `pressing` (regains in the final third),
+   `directness` (long-ball share), `progression` (progressive passes), and `change`: the team whose line moved
+   most after a goal or red card (both sides at least a minute). Each cites its facts as `tactics.json` paths
+   with their values and coverage, and the events behind event facts (frame facts cite frame counts). `labels`
+   are the code's reading ("higher_line": "away", "level" within 3 m / 5 points). Salience: the difference
+   over what reads as notable (5 m of line height, 15 points of long balls, 2 high regains...), scaled down
+   below a full sample (20 passes, 8 regains, 10 final-third passes: 3 of 5 is a thin story).
+2. **Coverage.** An insight's coverage is its facts' lowest. At `COVERAGE_MIN` (0.6) or above it is said plainly.
+   Below, it is `hedged` and used only to reach 3 insights: the text must say so (the verifier checks for a
+   hedge in each language) and the evidence panel shows "Based on 40% of the clip, below 60%: hedged". Below
+   `HEDGE_MIN` (0.3) it is skipped. Every left-out candidate is in `skipped` with its reason. On dev3 the line,
+   width and compactness insights (coverage 0.40) are skipped, as enough confident ones remain.
+3. **Text** (LLM). One call for the headline and every insight, all languages; JSON mode. The verifier is the
+   overlays' (no digit, placeholders only, units, number words, no player name) with longer limits, plus an
+   **uncited claim** check: each fact kind has the words that make a claim about it in en/tr/es
+   (`verifier.TOPIC_TERMS`: "wide", "pressed", "long ball", "kanat", "presión"...), and an insight may only use
+   those of the facts it cites; the headline those of all insights. Formations are placeholders too
+   (`{home_shape}` -> "4-3-3"). One retry with the problems, then the template.
+4. **Numbers.** `values` are the cited facts rounded for the screen; the score comes from `stats.MatchState`.
+   `recheck` reads every fact back from `tactics.json` and every value against its fact; the report is not
+   written if anything differs.
+
+Foundry runs (`gpt-5.4-mini`, en/tr/es). The prompt was tuned on dev1 only; test1 was run once with the final
+prompt.
+
+| Run | Input | Insights | Skipped | Rejected attempts | Fixed on retry | Template fallbacks | Paid calls | Tokens (in + out) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | dev1 | 3 | 5 | 2 | 11 | 1 | 2 | 2.7k + 1.4k |
+| 2 | dev1 | 3 | 5 | 2 | 4 | 1 | 2 | 3.0k + 1.3k |
+| **3 (final)** | **dev1** | 3 | 5 | 1 | 2 | **0** | 2 | 2.9k + 1.2k |
+| **final (held out)** | **test1** | 5 | 4 | 1 | 3 | **0** | 2 | 3.4k + 1.8k |
+
+About $0.03 in all. Run 1: the reply dropped a closing brace and nothing parsed, so the analyst agent asks for
+JSON mode. Runs 1-2: the score written as "0-0", Turkish "iki takım" and Spanish "los dos" (number words), and a
+plain insight hedged; the prompt now says how to write each. test1's one rejection was the new check catching
+"narrow" and "wide" in a flank insight (width is not cited); the retry fixed it. Reading test1 showed one
+placeholder read wrongly: the flank count (passes to that flank, 17) was read as the total ("17 pasın %94'ü"),
+so the key is now `{side}_passes_to_flank` and the topic says what it counts. test1 was not re-run after this.
 
 ## Next steps (P3 backlog)
 

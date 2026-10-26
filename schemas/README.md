@@ -1,6 +1,6 @@
 # Shared data formats
 
-These four formats are the contract between all parts of the project. **Do not change them without telling the whole team**, because every part reads or writes them.
+These formats are the contract between all parts of the project. **Do not change them without telling the whole team**, because every part reads or writes them.
 
 | Format | File | Written by | Read by |
 | --- | --- | --- | --- |
@@ -8,6 +8,8 @@ These four formats are the contract between all parts of the project. **Do not c
 | Event | `event.schema.json` | Vision AI (`source: cv`), simulator (`source: sim`) | Stats, agents |
 | Tracking | `tracking.schema.json` | Vision AI, simulator | Stats, web player |
 | Overlay | `overlay.schema.json` | Director agent | Web player |
+| Tactical facts | `tactics.schema.json` (`tactics.json`) | `agents/tactics.py` | Analyst agent |
+| Match analysis | `report.schema.json` (`report.json`) | Analyst agent (`agents/analyst.py`) | Web player (optional) |
 
 Examples of each are in [`examples/`](examples/).
 

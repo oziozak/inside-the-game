@@ -12,6 +12,11 @@ truth/ folder or simulator tracking (tests/test_vision_pipeline.py checks the fi
   net) or loose are in neither team's possession and count only for "all".
 - **Team frame**: depth is meters from the team's own goal line, y as the team sees it attacking (right
   side y < 34), so both halves and both teams read the same way.
+- **Coverage**: every fact carries `coverage`, the share (0-1) of its segment the fact could see, so a reader
+  knows how far to trust it (#69). A whole-clip frame fact: its frames over the segment's. An in- or
+  out-of-possession one: its frames over the team's frames in that phase, times the share of frames whose
+  possession is known (a phase is unknown on the others). An event fact: the share of frames with the ball
+  seen, as an event can only be detected while it is. None with no frames.
 
 Usage:
     python -m agents.tactics OBSERVATIONS.jsonl --events EVENTS --match-info MI --out tactics.json
@@ -94,6 +99,46 @@ def _evidence(frames: list[int]) -> dict:
     return {"frames": _ranges(frames), "n_frames": len(frames)}
 
 
+def _share(part: int, whole: int) -> float | None:
+    """`part` of `whole` as a 0-1 share, 3 decimals (None of nothing)."""
+    return round(part / whole, 3) if whole else None
+
+
+@dataclass
+class _Counts:
+    """How many of a segment's frames there were, and what was known in them."""
+
+    frames: int = 0
+    known: int = 0                  # a team has the ball
+    ball: int = 0                   # the ball is seen
+    phase: dict = field(default_factory=lambda: {side: {"in_possession": 0, "out_of_possession": 0} for side in SIDES})
+    phase_ball: dict = field(default_factory=lambda: {side: 0 for side in SIDES})   # in possession, ball seen
+
+    def add(self, with_ball: str | None, ball_seen: bool) -> None:
+        self.frames += 1
+        self.ball += ball_seen
+        if with_ball is not None:
+            self.known += 1
+            for side in SIDES:
+                self.phase[side]["in_possession" if side == with_ball else "out_of_possession"] += 1
+            self.phase_ball[with_ball] += ball_seen
+
+    def coverage(self, n: int, side: str, phase: str) -> float | None:
+        """A frame fact's coverage: `n` of its frames over the segment's (phase "all"), or over the team's
+        frames in the phase times the share of frames whose possession is known."""
+        if phase == "all":
+            return _share(n, self.frames)
+        of = self.phase[side][phase]
+        if not self.frames:
+            return None
+        return round(n / of * self.known / self.frames, 3) if of else 0.0
+
+    def result(self) -> dict:
+        """The segment's frame counts."""
+        return {"n_frames": self.frames, "possession_known": _share(self.known, self.frames),
+                "ball_seen": _share(self.ball, self.frames)}
+
+
 @dataclass
 class _FrameFact:
     """One per-frame measurement collected over frames: its values and which frames gave them."""
@@ -105,10 +150,10 @@ class _FrameFact:
         self.values.append(value)
         self.frames.append(frame)
 
-    def result(self) -> dict:
-        """The fact: the mean value (m, 1 decimal; None with no frames) and its frames."""
+    def result(self, coverage: float | None) -> dict:
+        """The fact: the mean value (m, 1 decimal; None with no frames), its coverage and its frames."""
         return {"value": round(statistics.fmean(self.values), 1) if self.values else None,
-                **_evidence(self.frames)}
+                "coverage": coverage, **_evidence(self.frames)}
 
 
 def sheet_lines(players: list[dict], formation: str | None) -> list[list[int]]:
@@ -165,7 +210,7 @@ class _Shape:
             s.y += y
         self.frames.append(frame)
 
-    def result(self, formation: str | None, lines: list[list[int]]) -> dict:
+    def result(self, formation: str | None, lines: list[list[int]], coverage: float | None) -> dict:
         """The actual formation next to the team sheet's, the sheet's lines, and each player's mean
         position (over the frames they were seen in, `n_frames`, of the fact's frames)."""
         where = {pid: (s.depth / s.frames, s.y / s.frames) for pid, s in self.seen.items()}
@@ -178,7 +223,7 @@ class _Shape:
                 out_lines.append({"players": ids, "depth_m": round(statistics.fmean(where[p][0] for p in ids), 1),
                                   "width_m": round(max(ys) - min(ys), 1)})
         return {"value": "-".join(str(len(g)) for g in actual) or None, "team_sheet": formation,
-                "actual_lines": actual, "lines": out_lines,
+                "coverage": coverage, "actual_lines": actual, "lines": out_lines,
                 "players": {str(pid): {"depth_m": round(d, 1), "y_m": round(y, 1),
                                        "n_frames": self.seen[pid].frames} for pid, (d, y) in sorted(where.items())},
                 **_evidence(self.frames)}
@@ -187,8 +232,9 @@ class _Shape:
 class _Team:
     """Everything collected for one team in one segment."""
 
-    def __init__(self, side: str, line_of: dict[int, str], info: dict):
+    def __init__(self, side: str, line_of: dict[int, str], info: dict, counts: _Counts):
         self.side, self.formation, self.line_of, self.info = side, info[side].get("formation"), line_of, info
+        self.counts = counts                            # the segment's, shared by both teams
         self.lines = sheet_lines(info[side]["players"], self.formation)
         self.passes: list[dict] = []                    # this team's passes with a start and an end
         self.regains: dict[str, list[str]] = {third: [] for third in THIRD.values()}     # cited ids per third
@@ -236,10 +282,12 @@ class _Team:
         for e in into:
             ids[_flank(_team_frame(e["end"], self.side, e.get("period", 1), self.info)[1])].append(e["id"])
         frames = {where: len(fs) for where, fs in self.ball_flank.items()}
+        seen = self.counts.coverage(self.counts.phase_ball[self.side], self.side, "in_possession")
         return {"passes": {"value_pct": {w: _pct(len(i), len(into)) for w, i in ids.items()},
-                           "count": {w: len(i) for w, i in ids.items()}, "event_ids": ids},
+                           "count": {w: len(i) for w, i in ids.items()}, "coverage": self._event_coverage(),
+                           "event_ids": ids},
                 "possession": {"value_pct": {w: _pct(n, sum(frames.values())) for w, n in frames.items()},
-                               "n_frames": frames,
+                               "n_frames": frames, "coverage": seen,
                                "frames": {w: _ranges(fs) for w, fs in self.ball_flank.items()}}}
 
     def regain(self, e: dict, event_ids: list[str]) -> None:
@@ -247,6 +295,10 @@ class _Team:
         third = THIRD[zone(self._depth(e, "start"))]
         self.regains[third] += event_ids
         self.regain_n[third] += 1
+
+    def _event_coverage(self) -> float | None:
+        """An event fact's coverage: the share of the segment's frames with the ball seen."""
+        return _share(self.counts.ball, self.counts.frames)
 
     def _depth(self, e: dict, point: str) -> float:
         """Meters from this team's goal line of an event's `start` or `end`."""
@@ -259,23 +311,28 @@ class _Team:
         half = {True: "opp", False: "own"}
         progressive = [e for e in done if self._depth(e, "end") - self._depth(e, "start") >= PROGRESSIVE_M[
             half[self._depth(e, "start") >= HALFWAY_M], half[self._depth(e, "end") >= HALFWAY_M]]]
+        cover = self._event_coverage()
         return {"long_balls": {"value_pct": _pct(len(long_), len(self.passes)), "count": len(long_),
-                               "of": len(self.passes), "event_ids": [e["id"] for e in self.passes],
+                               "of": len(self.passes), "coverage": cover, "event_ids": [e["id"] for e in self.passes],
                                "long_event_ids": [e["id"] for e in long_]},
                 "progressive_passes": {"value": len(progressive), "of": len(done),
-                                       "share_pct": _pct(len(progressive), len(done)),
+                                       "share_pct": _pct(len(progressive), len(done)), "coverage": cover,
                                        "event_ids": [e["id"] for e in done],
                                        "progressive_event_ids": [e["id"] for e in progressive]}}
 
     def result(self) -> dict:
         """The team's facts for its segment."""
+        def cover(fact, ph: str) -> float | None:
+            return self.counts.coverage(len(fact.frames), self.side, ph)
+
         return {**self._pass_facts(),
-                "regains": {"value": self.regain_n, "event_ids": self.regains},
-                "attacking_width_m": self.width.result(),
+                "regains": {"value": self.regain_n, "coverage": self._event_coverage(), "event_ids": self.regains},
+                "attacking_width_m": self.width.result(cover(self.width, "in_possession")),
                 "final_third_flanks": self._flank_facts(),
-                "shape": {ph: self.shape[ph].result(self.formation, self.lines) for ph in PHASES},
-                "defensive_line_m": {ph: self.line[ph].result() for ph in PHASES},
-                "compactness_m": {ph: self.compact[ph].result() for ph in PHASES}}
+                "shape": {ph: self.shape[ph].result(self.formation, self.lines, cover(self.shape[ph], ph))
+                          for ph in PHASES},
+                "defensive_line_m": {ph: self.line[ph].result(cover(self.line[ph], ph)) for ph in PHASES},
+                "compactness_m": {ph: self.compact[ph].result(cover(self.compact[ph], ph)) for ph in PHASES}}
 
 
 @dataclass
@@ -287,6 +344,7 @@ class _Segment:
     end: float
     split_by: str | None = None
     teams: dict[str, _Team] = field(default_factory=dict)
+    counts: _Counts = field(default_factory=_Counts)
 
     def holds(self, t: float) -> bool:
         """Whether time `t` is in this segment."""
@@ -295,7 +353,7 @@ class _Segment:
     def result(self) -> dict:
         """The segment's tactics.json object."""
         return {"id": self.id, "start": round(self.start, 2), "end": round(self.end, 2), "split_by": self.split_by,
-                "teams": {side: self.teams[side].result() for side in SIDES}}
+                "frames": self.counts.result(), "teams": {side: self.teams[side].result() for side in SIDES}}
 
 
 def _segments(frames: list[FrameObservation], events: list[dict], team_sheet: dict) -> list[_Segment]:
@@ -309,7 +367,7 @@ def _segments(frames: list[FrameObservation], events: list[dict], team_sheet: di
                     _Segment(f"after_{e['id']}", e["t"], end, e["id"])]
     line_of = {p["id"]: LINE.get(p["pos"]) for side in SIDES for p in team_sheet[side]["players"]}
     for seg in out:
-        seg.teams = {side: _Team(side, line_of, team_sheet) for side in SIDES}
+        seg.teams = {side: _Team(side, line_of, team_sheet, seg.counts) for side in SIDES}
         for e in events:
             if seg.holds(e["t"]) and e.get("team") in SIDES:
                 seg.teams[e["team"]].event(e)
@@ -342,6 +400,7 @@ def tactics(frames: list[FrameObservation], events: list[dict], team_sheet: dict
                 named[p.team][pid] = _team_frame(p.pos, p.team, f.period, team_sheet)
         for seg in segments:
             if seg.holds(f.t):
+                seg.counts.add(with_ball, bool(f.ball_visible and f.ball is not None))
                 for side in SIDES:
                     phase = None if with_ball is None else ("in_possession" if with_ball == side
                                                             else "out_of_possession")

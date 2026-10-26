@@ -126,24 +126,28 @@ class FoundryBackend:
     AZURE_OPENAI_API_KEY or an `az login` session (DefaultAzureCredential).
     Answers are cached on disk after every new answer, so a crash keeps what was paid for
     and re-runs cost nothing. Rate limits (429) are retried with exponential backoff.
-    `agent` and `deployment` replace the env-built agent (tests pass a fake).
+    `agent` and `deployment` replace the env-built agent (tests pass a fake). `instructions` and
+    `agent_name` make another agent on the same deployment (the analyst, agents/analyst.py); `options` are its
+    default chat options (the analyst asks for JSON mode: its reply nests deeper, and a dropped brace lost it).
     """
 
     name = "foundry"
 
     def __init__(self, cache_path: str | Path = "data/generated/llm_cache.json",
-                 agent=None, deployment: str | None = None) -> None:
+                 agent=None, deployment: str | None = None, instructions: str = INSTRUCTIONS,
+                 agent_name: str = "explainer", options: dict | None = None) -> None:
         if agent is None:
-            agent, deployment = self._agent_from_env()
+            agent, deployment = self._agent_from_env(instructions, agent_name, options)
         self.agent = agent
         self.deployment = deployment
+        self.instructions = instructions
         self.cache_path = Path(cache_path)
         self.cache = json.loads(self.cache_path.read_text("utf-8")) if self.cache_path.exists() else {}
         # Paid calls this run (cache hits cost nothing), for the cost line in agents_report.json.
         self.usage = {"calls": 0, "cached": 0, "input_tokens": 0, "output_tokens": 0}
 
     @staticmethod
-    def _agent_from_env():
+    def _agent_from_env(instructions: str = INSTRUCTIONS, agent_name: str = "explainer", options: dict | None = None):
         from agent_framework import Agent
         from agent_framework.openai import OpenAIChatCompletionClient
 
@@ -157,7 +161,7 @@ class FoundryBackend:
             from azure.identity import DefaultAzureCredential
             kwargs["credential"] = DefaultAzureCredential()
         client = OpenAIChatCompletionClient(**{k: v for k, v in kwargs.items() if v is not None})
-        return Agent(client, instructions=INSTRUCTIONS, name="explainer"), deployment
+        return Agent(client, instructions=instructions, name=agent_name, default_options=options or None), deployment
 
     def save_cache(self) -> None:
         """Write via a temp file and rename, so a crash mid-write never corrupts the cache."""
@@ -181,17 +185,21 @@ class FoundryBackend:
                     raise
                 await asyncio.sleep(delay + random.uniform(0, 1))
 
-    async def explain(self, req: dict, feedback: str | None = None) -> dict:
-        prompt = json.dumps(prompt_view(req), ensure_ascii=False)
-        if feedback:
-            prompt += f"\n\nYour previous answer was rejected by the verifier: {feedback}\nFix it."
-        key = cache_key(self.deployment, prompt)
+    async def ask(self, prompt: str) -> str:
+        """The agent's raw answer to `prompt`, from the disk cache when this prompt was asked before."""
+        key = cache_key(self.deployment, prompt, self.instructions)
         if key not in self.cache:
             self.cache[key] = await self.run_with_retry(prompt)
             self.save_cache()
         else:
             self.usage["cached"] += 1
-        return parse_json_reply(self.cache[key], req["langs"])
+        return self.cache[key]
+
+    async def explain(self, req: dict, feedback: str | None = None) -> dict:
+        prompt = json.dumps(prompt_view(req), ensure_ascii=False)
+        if feedback:
+            prompt += f"\n\nYour previous answer was rejected by the verifier: {feedback}\nFix it."
+        return parse_json_reply(await self.ask(prompt), req["langs"])
 
 
 def prompt_view(req: dict) -> dict:
@@ -224,15 +232,20 @@ def cache_key(deployment: str, prompt: str, instructions: str = INSTRUCTIONS) ->
     return hashlib.sha256("\0".join((instructions, deployment, prompt)).encode()).hexdigest()
 
 
-def parse_json_reply(raw: str, langs: list[str]) -> dict:
-    """Parse the model's JSON, tolerating ```json fences. Missing languages -> empty text."""
+def load_json_reply(raw: str) -> object:
+    """The model's JSON, tolerating ```json fences; {} when it is not JSON."""
     raw = raw.strip()
     if raw.startswith("```"):
         raw = raw.strip("`").split("\n", 1)[-1].rsplit("```", 1)[0]
     try:
-        data = json.loads(raw)
+        return json.loads(raw)
     except json.JSONDecodeError:
-        data = {}
+        return {}
+
+
+def parse_json_reply(raw: str, langs: list[str]) -> dict:
+    """Parse the model's JSON, tolerating ```json fences. Missing languages -> empty text."""
+    data = load_json_reply(raw)
     return {lang: {"title": str(data.get(lang, {}).get("title", "")),
                    "text": str(data.get(lang, {}).get("text", ""))} for lang in langs}
 

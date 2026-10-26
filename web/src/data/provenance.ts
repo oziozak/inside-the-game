@@ -9,7 +9,7 @@ export function confidencePercent(value: unknown): string | undefined {
 export interface Provenance { label: string; confidence?: string }
 
 /** Sources come exclusively from cited events; ranges describe CV values, never SIM confidence. */
-export function overlayProvenance(overlay: Overlay, events: Map<string, MatchEvent>): Provenance {
+export function overlayProvenance(overlay: Pick<Overlay, 'event_ids'>, events: Map<string, MatchEvent>): Provenance {
   const cited = [...new Set(overlay.event_ids)].map(id => events.get(id));
   const cv = cited.filter((e): e is MatchEvent => e?.source === 'cv');
   const sim = cited.some(e => e?.source === 'sim');

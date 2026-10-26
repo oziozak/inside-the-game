@@ -79,6 +79,7 @@ python -m vision.annotate CLIP_DIR RUN_DIR --out ai_view.mp4   # the clip with w
 python scripts/merge_events.py DETECTED TRUTH --out OUT  # detected (cv) + sim's foul/card/offside/sub -> events.json
 python scripts/name_threshold.py                        # choose the agents' NAME_MIN_CONFIDENCE on dev1-dev3 (never test1)
 python -m agents.tactics OBS.jsonl --events EVENTS --match-info MI --out tactics.json   # tactical facts (code only)
+python -m agents.analyst DATA_DIR --tactics tactics.json --backend foundry --out DATA_DIR   # report.json: post-match analysis
 pytest                                                  # tests
 ```
 

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import re
 
-from .fill import KINDS, PLACEHOLDER_RE, fill, known
+from .fill import PLACEHOLDER_RE, fill, kind_of, known
 
 MAX_TEXT_CHARS = 110
 MAX_TITLE_CHARS = 40
@@ -106,13 +106,22 @@ def names_only(s: str, roster_names: set[str]) -> bool:
     return rest != s and not re.search(r"[^\W_]", rest)
 
 
+def as_numbers(v) -> list[float]:
+    """The numbers a value writes: itself, or those in a string ("4-3-3": 4, 3, 3); none for a bool."""
+    if isinstance(v, str):
+        return [float(n.replace(",", ".")) for n in NUMBER_RE.findall(v)]
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return [v]
+    return []
+
+
 def allowed_numbers(values: dict, facts: dict) -> set[float]:
     nums = set()
     # `values` wins over the moment's facts, as in fill.py.
     for k, v in {**{k: facts[k] for k in ("minute", "score_home", "score_away") if k in facts}, **values}.items():
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
-            nums.add(round(float(v), 1))
-            nums.add(float(round(v)))
+        for n in as_numbers(v):
+            nums.add(round(float(n), 1))
+            nums.add(float(round(n)))
     return nums
 
 
@@ -121,7 +130,8 @@ def stray_digit_problem(raw: str, numbers: dict, allowed: str) -> str:
     `numbers` maps each placeholder to its number (fill.known)."""
     n = round(float(raw.replace(",", ".")), 1)
     keys = [k for k, v in numbers.items()
-            if any(n in (round(float(x), 1), float(round(x))) for x in (v if isinstance(v, tuple) else (v,)))]
+            if any(n in (round(float(x), 1), float(round(x)))
+                   for part in (v if isinstance(v, tuple) else (v,)) for x in as_numbers(part))]
     if keys:
         use = " or ".join(f"{{{k}}}" for k in keys)
         return f"digit {raw} outside a placeholder: write {use} instead (code adds the number and unit)"
@@ -150,11 +160,11 @@ def unit_problems(raw: str, values: dict, facts: dict, lang: str) -> list[str]:
         elif after.startswith(tuple(APOSTROPHES)):
             if key == "minute":
                 problems.append(f"apostrophe after {{minute}}: it already reads '{shown}', write nothing after it")
-            elif KINDS.get(key) not in ("distance", "speed"):
+            elif kind_of(key) not in ("distance", "speed"):
                 problems.append(f"suffix after {{{key}}}: its form depends on the number, which you cannot see; "
                                 "rephrase without a suffix")
         elif after[:1].isalpha():  # Turkish "{distance_m}lik" -> "23 mlik"
-            fix = f", or an apostrophe before a suffix ({{{key}}}'lik)" if KINDS.get(key) in ("distance", "speed") else ""
+            fix = f", or an apostrophe before a suffix ({{{key}}}'lik)" if kind_of(key) in ("distance", "speed") else ""
             problems.append(f"letter right after {{{key}}}: it reads '{shown}', put a space after it{fix}")
         if key == "difficulty" and not DIFFICULTY_NOUN_RE.search(before):
             problems.append(f"{{difficulty}} reads '{shown}': write it as its own clause after a comma, "
@@ -184,17 +194,18 @@ def check_raw(text: str, title: str, values: dict, facts: dict, lang: str = "en"
 
 
 def check_filled(text: str, title: str, values: dict, facts: dict, involved_names: set[str],
-                 roster_names: set[str], name_players: bool = True, lang: str = "en") -> list[str]:
-    """Stage 2: the text as the viewer would see it."""
+                 roster_names: set[str], name_players: bool = True, lang: str = "en",
+                 max_text: int = MAX_TEXT_CHARS, max_title: int = MAX_TITLE_CHARS) -> list[str]:
+    """Stage 2: the text as the viewer would see it. A graphic's length limits unless given."""
     problems = []
     if not text.strip():
         problems.append("empty text")
     elif text.strip() == title.strip() or names_only(text, roster_names):
         problems.append(f"text '{text}' only repeats the title or a name: say what the player did")
-    if len(text) > MAX_TEXT_CHARS:
-        problems.append(f"text too long ({len(text)} > {MAX_TEXT_CHARS} chars)")
-    if len(title) > MAX_TITLE_CHARS:
-        problems.append(f"title too long ({len(title)} > {MAX_TITLE_CHARS} chars)")
+    if len(text) > max_text:
+        problems.append(f"text too long ({len(text)} > {max_text} chars)")
+    if len(title) > max_title:
+        problems.append(f"title too long ({len(title)} > {max_title} chars)")
 
     ok_nums = allowed_numbers(values, facts)
     for raw in NUMBER_RE.findall(f"{title} {text}"):
@@ -262,10 +273,72 @@ def harmony_problems(s: str, roster_names: set[str]) -> list[str]:
 
 
 def check(text: str, title: str, values: dict, facts: dict, involved_names: set[str],
-          roster_names: set[str], lang: str, name_players: bool = True) -> list[str]:
+          roster_names: set[str], lang: str, name_players: bool = True,
+          max_text: int = MAX_TEXT_CHARS, max_title: int = MAX_TITLE_CHARS) -> list[str]:
     """Both stages on one language of the model's raw (placeholder) text."""
     problems = check_raw(text, title, values, facts, lang)
     if problems:  # cannot fill yet; name problems are reported now so one retry can fix everything
         return problems + name_problems(f"{title} {text}", involved_names, roster_names, name_players, lang)
     text, title = fill(text, values, lang, facts), fill(title, values, lang, facts)
-    return check_filled(text, title, values, facts, involved_names, roster_names, name_players, lang)
+    return check_filled(text, title, values, facts, involved_names, roster_names, name_players, lang,
+                        max_text, max_title)
+
+
+# Analyst report (agents/analyst.py). An insight may say only what its cited facts say: a sentence about a
+# topic it does not cite ("they pressed high" in a width insight) is an uncited claim. Each fact kind has the
+# words that make a claim about it, per language; a name is cut first ("Thames United" is no claim).
+TOPIC_TERMS = {
+    "en": {
+        "shape": r"\bformations?\b|\bshape\b|\bsystem\b|\blined up\b",
+        "defensive_line": r"\b(?:defensive|back|high|higher|deep|deeper) lines?\b|\bline height\b",
+        "compactness": r"\bcompact\w*|\btight\w* block\b|\bspace between (?:the )?lines\b|\bgaps? between\b",
+        "width": r"\bwid(?:e|er|est|th)\b|\bnarrow\w*|\bstretch\w*",
+        "flanks": r"\bflanks?\b|\bwings?\b|\bdown the (?:left|right)\b|\bthrough the middle\b|\b(?:left|right) side\b",
+        "pressing": r"\bpress\w*|\bregain\w*|\b(?:won|win|wins|winning) (?:the ball|it) back\b",
+        "directness": r"\blong balls?\b|\bdirect\w*|\b(?:went|go|going) long\b",
+        "progression": r"\bprogress\w*|\bforward pass\w*|\bmoved the ball forward\b",
+    },
+    "tr": {
+        "shape": r"diziliş\w*|formasyon\w*|\bsistem\w*",
+        "defensive_line": r"savunma hatt\w*|\bhat yüksekli\w*|(?:önde|geride) savun\w*",
+        "compactness": r"kompakt\w*|derli toplu|hatlar arası",
+        "width": r"genişli\w*|\bgeniş\w*|\bdar\b",
+        "flanks": r"kanat\w*|\bsol\b|\bsağ\b|merkez\w*|\bortadan\b",
+        "pressing": r"\bpres\b|\bpres\w*|top kazan\w*|geri kazan\w*",
+        "directness": r"uzun top\w*|direkt\w*",
+        "progression": r"ileri pas\w*|topu ileri\w*|ilerlet\w*",
+    },
+    "es": {
+        "shape": r"\bdibujo\b|\bsistema\b|\bformaci\w+|\bform[oó]\b",
+        "defensive_line": r"l[ií]nea defensiva|l[ií]nea (?:m[aá]s )?(?:adelantada|alta|baja|retrasada)|altura de la l[ií]nea|\bzaga\b",
+        "compactness": r"compact\w*|entre l[ií]neas",
+        "width": r"\bamplitud\b|\bancho\b|estrech\w*|abri\w* (?:m[aá]s )?el campo",
+        "flanks": r"\bbandas?\b|\bcostados?\b|\bizquierda\b|\bderecha\b|por el centro|\bcarril\w*",
+        "pressing": r"presi[oó]n\w*|presion\w*|recuper\w*",
+        "directness": r"bal[oó]n(?:es)? largos?|direct\w*|en largo",
+        "progression": r"progres\w*|hacia (?:a)?delante",
+    },
+}
+TOPIC_RE = {lang: {t: re.compile(rx, re.I) for t, rx in terms.items()} for lang, terms in TOPIC_TERMS.items()}
+# A hedged insight (coverage below the threshold) must say so in its own words.
+HEDGE_RE = {"en": re.compile(r"\b(?:seem\w*|appear\w*|suggest\w*|likely|limited|partial|tentative\w*)\b", re.I),
+            "tr": re.compile(r"görün\w*|\bgibi\b|sınırlı|muhtemelen|olası", re.I),
+            "es": re.compile(r"parec\w*|apunt\w*|limitad\w*|probablemente|sugier\w*|indic\w*", re.I)}
+
+
+def uncited_claims(s: str, cited: set[str], lang: str, team_names: set[str]) -> list[str]:
+    """Claims about a fact kind (TOPIC_TERMS) that the text does not cite."""
+    for name in team_names:
+        s = s.replace(name, " ")
+    terms = TOPIC_RE.get(lang, TOPIC_RE["en"])
+    allowed = ", ".join(sorted(cited)) or "none"
+    return [f"'{m.group(0)}' is a claim about {topic}, which this text does not cite: keep to {allowed}"
+            for topic, rx in terms.items() if topic not in cited and (m := rx.search(s))]
+
+
+def missing_hedge(text: str, lang: str) -> list[str]:
+    """A hedged insight's text that does not hedge."""
+    if HEDGE_RE.get(lang, HEDGE_RE["en"]).search(text):
+        return []
+    return ["this insight rests on little of the clip (coverage below the threshold): say so, e.g. "
+            "'seems', 'on limited evidence' (tr 'görünüyor', 'sınırlı veriye göre'; es 'parece', 'con datos limitados')"]
