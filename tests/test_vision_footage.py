@@ -142,7 +142,8 @@ def test_grade_clip_records_settings_and_seeds(tmp_path):
 
 
 def test_grade_clip_runs_the_tracer_from_the_clip_start(tmp_path, monkeypatch):
-    """A clip from minute 40 is traced with --start 2400, so its events carry match time."""
+    """A clip from minute 40 is traced with --start 2400, so its events carry match time,
+    and the same run is drawn as the AI view once the grade is written."""
     clip = {**CLIPS["test2"], "name": "calib"}
     folder = tmp_path / "footage" / "calib"
     (folder / "truth").mkdir(parents=True)
@@ -151,13 +152,24 @@ def test_grade_clip_runs_the_tracer_from_the_clip_start(tmp_path, monkeypatch):
     shutil.copy(TRUTH, folder / "truth" / "events.json")
     calls = []
 
+    out = tmp_path / "runs"
+
     def run(args, **kwargs):
-        calls.append(args)
-        shutil.copy(TRUTH, tmp_path / "runs" / "events.json")
+        calls.append((args, (out / "vision_report.json").exists()))
+        if args[2] == "vision":
+            shutil.copy(TRUTH, out / "events.json")
     monkeypatch.setattr("vision.grade_footage.subprocess.run", run)
-    grade_clip(clip, tmp_path / "footage", tmp_path / "runs")
-    args = calls[0]
-    assert args[1:3] == ["-m", "vision"] and args[args.index("--start") + 1] == "2400"
+    grade_clip(clip, tmp_path / "footage", out)
+    (tracer, graded_before), (annotate, graded_after) = calls
+    assert tracer[1:3] == ["-m", "vision"] and tracer[tracer.index("--start") + 1] == "2400"
+    assert tracer[tracer.index("--frame-boxes") + 1] == str(out / "frame_boxes.jsonl")
+    assert annotate[1:5] == ["-m", "vision.annotate", str(folder), str(out)]
+    assert annotate[annotate.index("--out") + 1] == str(out / "ai_view.mp4")
+    assert (graded_before, graded_after) == (False, True)
+
+    calls.clear()                                       # re-grading saved events draws nothing
+    grade_clip(clip, tmp_path / "footage", out, reuse=True)
+    assert calls == []
 
 
 def test_footage_root_prefers_argument_then_environment(monkeypatch, tmp_path):

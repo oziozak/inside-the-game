@@ -54,7 +54,7 @@ Expected: 3 events (1 pass, 1 shot, 1 goal), each graded P 1.000 / R 1.000; the 
 
 ```bash
 python -m vision.footage render dev1                 # ~7 min: data/renders/footage/dev1/
-python -m vision.grade_footage dev1                  # ~8 min: runs/footage/dev1/{events,vision_report}.json
+python -m vision.grade_footage dev1                  # ~8 min: runs/footage/dev1/{events,vision_report}.json, ai_view.mp4
 python scripts/merge_events.py runs/footage/dev1/events.json \
     data/renders/footage/dev1/truth/events.json --out data/generated/dev1/events.json
 ```
@@ -480,14 +480,14 @@ python -m vision.grader --detected runs/m007/events.json --truth data/generated/
 
 ## Footage grades (`vision/grade_footage.py`, offline only)
 
-The tracer on the 22-player footage clips, graded. For each clip in the seed record it runs `python -m vision` as a child process on the clip's video (so the run reads only the video and team sheet), grades the detected events against `truth/events.json` and writes `vision_report.json`. The report's `clip` block records the render settings (export manifest), the clip's name, role, seed and pairing (seed record), the detector weights and the seeds they were trained on (none: pretrained yolo11s, #21).
+The tracer on the 22-player footage clips, graded. For each clip in the seed record it runs `python -m vision` as a child process on the clip's video (so the run reads only the video and team sheet), grades the detected events against `truth/events.json` and writes `vision_report.json`, then draws the same run as the [AI view](#ai-view-visionannotatepy-what-the-ai-saw-drawn-on-the-clip) (`python -m vision.annotate`, also a child process, after the report so a failed drawing never costs the grade). The tracer gets the clip's start as `--start` (2400 for test2). The report's `clip` block records the render settings (export manifest), the clip's name, role, seed and pairing (seed record), the detector weights and the seeds they were trained on (none: pretrained yolo11s, #21).
 
 ```bash
 python -m vision.grade_footage --role dev              # or dev1 test1, or --all (dev + test)
 python -m vision.grade_footage --role dev --reuse      # re-grade saved detections, no tracer run
 ```
 
-Clips are read from `--footage`, else `$VISION_FOOTAGE`, else `data/renders/footage`. Output in `runs/footage/<name>/` (ignored by git): `events.json`, `observations.jsonl`, `vision_report.json`. The tracer runs at about 6 frames/s on an M-series Mac: 8 minutes per dev clip, about 40 for the test clip (`caffeinate -i` keeps the Mac awake).
+Clips are read from `--footage`, else `$VISION_FOOTAGE`, else `data/renders/footage`. Output in `runs/footage/<name>/` (ignored by git): `events.json`, `observations.jsonl`, `frame_boxes.jsonl`, `vision_report.json`, `ai_view.mp4`. `--reuse` runs neither the tracer nor the drawing. The tracer runs at about 6 frames/s on an M-series Mac: 8 minutes per dev clip, about 40 for the test clip (`caffeinate -i` keeps the Mac awake).
 
 `tests/test_vision_footage.py` runs the same on every dev and test clip when `$VISION_FOOTAGE` points at the rendered clips, and skips otherwise. Its `THRESHOLDS` hold each clip's minimum precision and recall per type: the first measured grade minus a cross-hardware margin (the dev clips were graded on MPS, test1 on CUDA): 0.03 for passes, one match fewer for types with fewer than 5 true events. Floors are only ever raised. Kickoffs get no margin: every clip's kickoff must be found, for the right team, because kickoffs anchor lineup assignment. Player-id accuracy is reported but not asserted yet.
 
