@@ -14,8 +14,12 @@ Examples of each are in [`examples/`](examples/).
 ## Conventions
 
 - **Time:** `t` is seconds since kick-off, as a decimal. 2052.4 = 34:12.4. Convert to `mm:ss` only when displaying.
+- **Halves:** the clock is continuous; the second half starts right after the first ends (the break is cut, like a broadcast). `match_info.periods` gives each half's start and end. Second-half display minute = 45:00 + (t - second half start).
+- **Directions:** home attacks toward x = 105 in the first half and toward x = 0 in the second.
 - **Positions:** meters on a 105 x 68 m pitch. `(0, 0)` is the bottom-left corner. `x` runs goal to goal (0-105), `y` sideline to sideline (0-68).
 - **Ball height:** tracking `ball` is `[x, y, z]`; `z` is meters above the grass.
+- **Team style:** `match_info.home.style` / `away.style` is an optional string (`possession`, `counter`, `pressing`, `direct`, `balanced`) describing how the simulator played that team. Do not rely on it being present.
+- **Tracking period:** a tracking frame may carry an optional `period` (1 or 2). The simulator always writes it; the vision AI may leave it out, in which case derive it from `match_info.periods`.
 - **Player ids:** unique across both teams. Home 1-99, away 101-199.
 - **Event ids:** `e` + 4 digits (`e0412`). Overlay ids: `o` + 4 digits.
 - **Files:** events and overlays are JSON arrays sorted by time. Tracking is JSON Lines (one frame per line) because it is large.
@@ -25,7 +29,17 @@ Examples of each are in [`examples/`](examples/).
 
 `kickoff`, `pass`, `possession_change`, `clearance`, `throw_in`, `shot`, `free_kick`, `foul`, `goal_kick`, `corner`, `substitution`, `offside`, `yellow_card`, `red_card`, `goal`, `half_time`, `full_time`.
 
-Optional `subtype` adds detail: pass `short|long|cross|through`, possession_change `tackle|interception`, shot `on_target|off_target|blocked`, goal `open_play|penalty|own_goal`.
+Optional `subtype` adds detail: pass `short|long|cross|through` (short/long split at 25 m), possession_change `tackle|interception`, shot `on_target|off_target|blocked`, goal `open_play|penalty|own_goal`, free_kick `direct|penalty` (no subtype = played as a pass), red_card `straight_red|second_yellow`.
+
+Who is `from` and `to`:
+
+| Type | `from` | `to` |
+| --- | --- | --- |
+| pass, throw_in, goal_kick, corner, free_kick, kickoff | passer / taker | receiver (`null` if failed) |
+| possession_change | player who won the ball | player who lost it |
+| foul | player who fouled | player who was fouled |
+| substitution | player coming on | player going off |
+| shot, goal, clearance, offside, cards | the player | `null` |
 
 ## Validate
 

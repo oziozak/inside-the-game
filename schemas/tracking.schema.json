@@ -9,6 +9,7 @@
     "match_id": { "type": "string" },
     "frame": { "type": "integer", "minimum": 0 },
     "t": { "type": "number", "minimum": 0, "description": "Seconds since kick-off." },
+    "period": { "enum": [1, 2], "description": "Optional. First or second half. The simulator always writes it; the vision AI may omit it (derive it from match_info.periods)." },
     "ball": {
       "type": "array",
       "description": "[x, y, z] in meters. z is height above the grass.",

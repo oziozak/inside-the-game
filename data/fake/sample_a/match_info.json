@@ -1,0 +1,246 @@
+{
+ "match_id": "fake_a",
+ "fps": 25,
+ "pitch": [
+  105.0,
+  68.0
+ ],
+ "origin": "bottom-left",
+ "kickoff_direction": {
+  "home": "left_to_right"
+ },
+ "periods": [
+  {
+   "period": 1,
+   "start": 0.0,
+   "end": 303.39
+  },
+  {
+   "period": 2,
+   "start": 304.39,
+   "end": 605.04
+  }
+ ],
+ "home": {
+  "name": "Bosphorus FC",
+  "short": "BOS",
+  "kit": {
+   "shirt": "#c8102e",
+   "shorts": "#ffffff",
+   "goalkeeper": "#1d1d1d"
+  },
+  "formation": "4-3-3",
+  "style": "possession",
+  "players": [
+   {
+    "id": 1,
+    "number": 1,
+    "name": "M. Yilmaz",
+    "pos": "GK",
+    "starter": true
+   },
+   {
+    "id": 2,
+    "number": 2,
+    "name": "C. Arslan",
+    "pos": "RB",
+    "starter": true
+   },
+   {
+    "id": 4,
+    "number": 4,
+    "name": "B. Kaya",
+    "pos": "CB",
+    "starter": true
+   },
+   {
+    "id": 5,
+    "number": 5,
+    "name": "O. Celik",
+    "pos": "CB",
+    "starter": true
+   },
+   {
+    "id": 3,
+    "number": 3,
+    "name": "T. Sahin",
+    "pos": "LB",
+    "starter": true
+   },
+   {
+    "id": 6,
+    "number": 6,
+    "name": "H. Koc",
+    "pos": "DM",
+    "starter": true
+   },
+   {
+    "id": 8,
+    "number": 8,
+    "name": "K. Aydin",
+    "pos": "CM",
+    "starter": true
+   },
+   {
+    "id": 10,
+    "number": 10,
+    "name": "E. Demir",
+    "pos": "AM",
+    "starter": true
+   },
+   {
+    "id": 7,
+    "number": 7,
+    "name": "S. Polat",
+    "pos": "RW",
+    "starter": true
+   },
+   {
+    "id": 9,
+    "number": 9,
+    "name": "A. Kurt",
+    "pos": "ST",
+    "starter": true
+   },
+   {
+    "id": 11,
+    "number": 11,
+    "name": "Y. Erdem",
+    "pos": "LW",
+    "starter": true
+   },
+   {
+    "id": 14,
+    "number": 14,
+    "name": "F. Ozturk",
+    "pos": "CM",
+    "starter": false
+   },
+   {
+    "id": 17,
+    "number": 17,
+    "name": "R. Aksoy",
+    "pos": "RW",
+    "starter": false
+   },
+   {
+    "id": 19,
+    "number": 19,
+    "name": "D. Tekin",
+    "pos": "ST",
+    "starter": false
+   }
+  ]
+ },
+ "away": {
+  "name": "Thames United",
+  "short": "THU",
+  "kit": {
+   "shirt": "#1b4d9b",
+   "shorts": "#1b4d9b",
+   "goalkeeper": "#f2c500"
+  },
+  "formation": "4-4-2",
+  "style": "counter",
+  "players": [
+   {
+    "id": 101,
+    "number": 1,
+    "name": "J. Hartley",
+    "pos": "GK",
+    "starter": true
+   },
+   {
+    "id": 102,
+    "number": 2,
+    "name": "L. Pemberton",
+    "pos": "RB",
+    "starter": true
+   },
+   {
+    "id": 105,
+    "number": 5,
+    "name": "D. Okonkwo",
+    "pos": "CB",
+    "starter": true
+   },
+   {
+    "id": 106,
+    "number": 6,
+    "name": "R. Whitlock",
+    "pos": "CB",
+    "starter": true
+   },
+   {
+    "id": 103,
+    "number": 3,
+    "name": "S. Marsh",
+    "pos": "LB",
+    "starter": true
+   },
+   {
+    "id": 107,
+    "number": 7,
+    "name": "N. Fairbairn",
+    "pos": "RM",
+    "starter": true
+   },
+   {
+    "id": 104,
+    "number": 4,
+    "name": "T. Castell",
+    "pos": "CM",
+    "starter": true
+   },
+   {
+    "id": 108,
+    "number": 8,
+    "name": "G. Ashby",
+    "pos": "CM",
+    "starter": true
+   },
+   {
+    "id": 111,
+    "number": 11,
+    "name": "P. Rowntree",
+    "pos": "LM",
+    "starter": true
+   },
+   {
+    "id": 109,
+    "number": 9,
+    "name": "C. Hollis",
+    "pos": "ST",
+    "starter": true
+   },
+   {
+    "id": 110,
+    "number": 10,
+    "name": "M. Draycott",
+    "pos": "ST",
+    "starter": true
+   },
+   {
+    "id": 114,
+    "number": 14,
+    "name": "A. Penrose",
+    "pos": "CM",
+    "starter": false
+   },
+   {
+    "id": 118,
+    "number": 18,
+    "name": "B. Kettering",
+    "pos": "ST",
+    "starter": false
+   },
+   {
+    "id": 116,
+    "number": 16,
+    "name": "W. Thorne",
+    "pos": "LM",
+    "starter": false
+   }
+  ]
+ }
+}
