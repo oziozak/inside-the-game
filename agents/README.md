@@ -31,6 +31,10 @@ events.json ──► stats.py ──► director.py ──► explainer.py ─�
 | `templates.py` | Code-written text per graphic, mode and language (en, tr, es), numbers as placeholders. Mock backend + fallback | No |
 | `run.py` | CLI | |
 
+**Pass difficulty** (1-10) is a completed pass's percentile among this match's earlier completed passes, ranked by
+a raw score of distance, forward progress, speed and pass type (10/10 = harder than ~90% of them; before 10
+completed passes, the raw score clamped to 1-10), so it reads the same live and after the match.
+
 Why the split: timing and budgets must be predictable live, and numbers on a broadcast must be right,
 so code owns both. The LLM only writes words, and the verifier checks those words.
 
