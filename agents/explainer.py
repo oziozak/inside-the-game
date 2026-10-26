@@ -3,7 +3,8 @@
 For each accepted (candidate, mode):
   1. build a request with facts and values (all computed by code),
   2. ask the explainer backend for title + text in every language,
-  3. fill the placeholders with code-formatted numbers (fill.py), verify each language; on failure, retry ONCE with the verifier's feedback,
+  3. verify each language (verifier.py: the raw placeholder text, then the filled text) and fill the
+     placeholders with code-formatted numbers (fill.py); on failure, retry ONCE with the verifier's feedback,
   4. if it still fails, fall back to the code template (and log it).
 """
 
@@ -12,7 +13,7 @@ from __future__ import annotations
 import asyncio
 
 from . import templates, verifier
-from .fill import UnknownPlaceholder, fill
+from .fill import fill, known
 from .data_io import Match
 from .director import BUDGET_WINDOW_S, Candidate
 
@@ -40,7 +41,8 @@ def mode_values(c: Candidate, mode: str) -> dict:
 
 
 def build_request(c: Candidate, mode: str, match: Match, langs: list[str]) -> dict:
-    """What the explainer sees. A team-only candidate has no `actor`, `target` or `setup_by`:
+    """What the explainer sees. `placeholders` are the only way it may write a number: the `values`
+    keys plus `{minute}` and `{score}`. A team-only candidate has no `actor`, `target` or `setup_by`:
     `subject` (the team) is who the text is about, so no player can be named."""
     e = c.event
     side = e.get("team")
@@ -64,6 +66,7 @@ def build_request(c: Candidate, mode: str, match: Match, langs: list[str]) -> di
         "facts": {k: c.facts[k] for k in FACT_KEYS if k in c.facts},
         "values": mode_values(c, mode),
     }
+    req["placeholders"] = [f"{{{k}}}" for k in sorted(known(req["values"], req["facts"]))]
     if c.team_only:
         for k in ("actor", "target", "setup_by"):
             del req[k]
@@ -84,13 +87,13 @@ async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: lis
     involved = involved_names(req)
 
     def finish(answer: dict, lang: str) -> tuple[dict, list[str]]:
-        """One language of a backend answer with its placeholders filled, and its problems."""
+        """One language of a backend answer with its placeholders filled, and its problems
+        (the raw text if it has any)."""
         t = answer.get(lang, {"title": "", "text": ""})
-        try:
-            t = {k: fill(t[k], req["values"], lang, req["facts"]) for k in ("title", "text")}
-        except UnknownPlaceholder as ex:
-            return t, [str(ex)]
-        return t, verifier.check(t["text"], t["title"], req["values"], c.facts, involved, roster)
+        problems = verifier.check(t["text"], t["title"], req["values"], req["facts"], involved, roster, lang)
+        if problems:
+            return t, problems
+        return {k: fill(t[k], req["values"], lang, req["facts"]) for k in ("title", "text")}, []
 
     answer = await backend.explain(req)
     out, bad = {}, {}
@@ -100,7 +103,7 @@ async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: lis
             bad[lang] = p
     if bad:
         report["rejected"].append({"event_id": c.event.get("id"), "mode": mode, "attempt": 1,
-                                   "problems": bad, "text": {l: answer.get(l) for l in bad}})
+                                   "problems": dict(bad), "text": {l: answer.get(l) for l in bad}})
         feedback = "; ".join(f"[{l}] " + ", ".join(p) for l, p in bad.items())
         retry = await backend.explain(req, feedback)
         for lang in list(bad):

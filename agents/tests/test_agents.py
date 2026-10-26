@@ -64,25 +64,67 @@ class StatsTest(unittest.TestCase):
 
 class VerifierTest(unittest.TestCase):
     def test_rejects_invented_number(self):
-        p = verifier.check("23 m pass, 87% xG", "K. Aydin", {"distance_m": 23}, {}, {"K. Aydin"}, {"K. Aydin"})
+        p = verifier.check("{distance_m} pass, 87% xG", "K. Aydin", {"distance_m": 23}, {}, {"K. Aydin"},
+                           {"K. Aydin"}, "en")
         self.assertTrue(any("87" in x for x in p))
 
+    def test_a_digit_outside_a_placeholder_names_the_placeholder_to_use(self):
+        # Stage 1 runs on the model's raw text: even a correct number must be a placeholder.
+        p = verifier.check("23 m pass", "K. Aydin", {"distance_m": 23}, {}, {"K. Aydin"}, {"K. Aydin"}, "en")
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("23", p[0])
+        self.assertIn("{distance_m}", p[0])
+
+    def test_a_placeholder_not_in_values_is_rejected(self):
+        # A casual pass card carries only the distance: the model may not show the difficulty.
+        p = verifier.check("{distance_m} pass, difficulty {difficulty}", "", {"distance_m": 23}, {}, set(), set(), "en")
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("{difficulty}", p[0])
+        self.assertEqual(verifier.check("{score}", "", {}, {"minute": 9}, set(), set(), "en"),
+                         ["unknown placeholder {score} (allowed: {minute})"])
+
+    def test_difficulty_out_of_ten_is_one_placeholder(self):
+        # {difficulty} already fills as "7/10": suggesting {difficulty_max} for the 10 led to "7/10/10".
+        v = {"difficulty": 7, "difficulty_max": 10}
+        p = verifier.check("difficulty 7/10", "", v, {}, set(), set(), "en")
+        self.assertEqual(len(p), 2, p)
+        self.assertIn("{difficulty}", p[0])
+        self.assertNotIn("difficulty_max", " ".join(p))
+        self.assertIn("unknown placeholder {difficulty_max}",
+                      verifier.check("{difficulty}/{difficulty_max}", "", v, {}, set(), set(), "en")[0])
+
+    def test_a_malformed_placeholder_is_rejected(self):
+        for text in ("{ distance_m } pass", "{distance-m} pass", "{distance_m pass"):
+            p = verifier.check(text, "", {"distance_m": 23}, {}, set(), set(), "en")
+            self.assertEqual(len(p), 1, (text, p))
+            self.assertIn("{distance_m}", p[0])
+
+    def test_length_is_checked_on_the_filled_text(self):
+        # "{speed_kmh}" is 11 characters raw, "112 km/h" 8 in en and "112 km/sa" 9 in tr.
+        v = {"speed_kmh": 112}
+        text = "x" * (verifier.MAX_TEXT_CHARS - 8) + "{speed_kmh}"
+        self.assertGreater(len(text), verifier.MAX_TEXT_CHARS)
+        self.assertEqual(verifier.check(text, "", v, {}, set(), set(), "en"), [])
+        p = verifier.check(text, "", v, {}, set(), set(), "tr")
+        self.assertEqual(p, [f"text too long ({verifier.MAX_TEXT_CHARS + 1} > {verifier.MAX_TEXT_CHARS} chars)"])
+
     def test_rejects_wrong_player(self):
-        p = verifier.check("E. Demir with the pass", "", {}, {}, {"K. Aydin"}, {"K. Aydin", "E. Demir"})
+        p = verifier.check("E. Demir with the pass", "", {}, {}, {"K. Aydin"}, {"K. Aydin", "E. Demir"}, "en")
         self.assertTrue(any("not part of" in x for x in p))
 
     def test_accepts_backed_text(self):
-        self.assertEqual(verifier.check("23 m pass", "K. Aydin", {"distance_m": 23.0}, {}, {"K. Aydin"}, {"K. Aydin"}), [])
+        self.assertEqual(verifier.check("{distance_m} pass", "K. Aydin", {"distance_m": 23.0}, {}, {"K. Aydin"},
+                                        {"K. Aydin"}, "en"), [])
 
     def test_turkish_suffix_on_a_real_name_passes(self):
-        self.assertEqual(verifier.check("K. Aydin'den harika pas", "", {}, {}, {"K. Aydin"}, {"K. Aydin"}), [])
+        self.assertEqual(verifier.check("K. Aydin'den harika pas", "", {}, {}, {"K. Aydin"}, {"K. Aydin"}, "tr"), [])
 
     def test_turkish_letters_are_read_as_one_name(self):
-        p = verifier.check("K. Aydın ile hücum", "", {}, {}, {"K. Aydin"}, {"K. Aydin"})
+        p = verifier.check("K. Aydın ile hücum", "", {}, {}, {"K. Aydin"}, {"K. Aydin"}, "tr")
         self.assertEqual(p, ["unknown player name 'K. Aydın'"])
 
     def test_invented_name_with_turkish_initial_is_rejected(self):
-        p = verifier.check("Ç. Uydurma'dan gol", "", {}, {}, {"K. Aydin"}, {"K. Aydin"})
+        p = verifier.check("Ç. Uydurma'dan gol", "", {}, {}, {"K. Aydin"}, {"K. Aydin"}, "tr")
         self.assertEqual(p, ["unknown player name 'Ç. Uydurma'"])
 
     def test_parse_fenced_json(self):
@@ -255,10 +297,30 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("goal_banner", shown)
         self.assertIn("card_banner", shown)
 
+    def test_request_lists_the_placeholders_the_model_may_use(self):
+        match = load_match(SAMPLE_A)
+        candidates, _ = direct(match)
+        c = next(c for c in candidates if c.graphic == "pass_card" and "difficulty" in c.values)
+        casual = build_request(c, "casual", match, ["en"])
+        self.assertEqual(casual["placeholders"], ["{distance_m}", "{minute}", "{score}"])
+        analyst = build_request(c, "analyst", match, ["en"])
+        self.assertIn("{difficulty}", analyst["placeholders"])
+
     def test_noisy_llm_numbers_never_reach_the_screen(self):
         overlays, report = self.run_pipeline(NoisyBackend())
         self.assertGreater(len(report["rejected"]), 0)
+        for r in report["rejected"]:
+            self.assertEqual(set(r["problems"]), set(templates.LANGS), r)  # kept after the retry fixed them
+            for problems in r["problems"].values():
+                self.assertTrue(any(p.startswith("digit 87 outside a placeholder") for p in problems), r)
+        self.assertGreater(report["fixed_on_retry"], 0)
+        self.assertEqual(report["template_fallbacks"], 0)
         self.assertFalse(any("87" in o["text"] for o in overlays))
+
+    def test_mock_run_needs_no_fallback_and_drops_nothing(self):
+        overlays, report = self.run_pipeline(MockBackend())
+        self.assertGreater(len(overlays), 0)
+        self.assertEqual((report["rejected"], report["template_fallbacks"], report["dropped"]), ([], 0, []))
 
 
 DETECTED_TYPES = {"kickoff", "pass", "possession_change", "shot", "goal"}  # what the vision AI detects
@@ -343,8 +405,8 @@ class DetectedEventsTest(unittest.TestCase):
                             out = {k: fill(raw[k], req["values"], lang, req["facts"]) for k in raw}
                             where = (c.graphic, c.event["id"], mode, lang, form, raw)
                             self.assertNotRegex(raw["title"] + raw["text"], r"\d", where)  # numbers only via placeholders
-                            self.assertEqual(verifier.check(out["text"], out["title"], req["values"], cand.facts,
-                                                            involved_names(req), roster), [], where)
+                            self.assertEqual(verifier.check(raw["text"], raw["title"], req["values"], req["facts"],
+                                                            involved_names(req), roster, lang), [], where)
                             self.assertTrue(out["title"].strip() and out["text"].strip(), where)
                             if cand.team_only:
                                 self.assertNotIn("actor", req)
