@@ -360,22 +360,26 @@ python scripts/validate.py data/demo/$C
    `recheck` reads every fact back from `tactics.json` and every value against its fact; the report is not
    written if anything differs.
 
-Foundry runs (`gpt-5.4-mini`, en/tr/es). The prompt was tuned on dev1 only; test1 was run once with the final
-prompt.
+Foundry runs (`gpt-5.4-mini`, en/tr/es). The prompt was tuned on dev1 only; test1 was run with the final prompt,
+then once more after the flank-key fix below.
 
 | Run | Input | Insights | Skipped | Rejected attempts | Fixed on retry | Template fallbacks | Paid calls | Tokens (in + out) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | dev1 | 3 | 5 | 2 | 11 | 1 | 2 | 2.7k + 1.4k |
 | 2 | dev1 | 3 | 5 | 2 | 4 | 1 | 2 | 3.0k + 1.3k |
 | **3 (final)** | **dev1** | 3 | 5 | 1 | 2 | **0** | 2 | 2.9k + 1.2k |
-| **final (held out)** | **test1** | 5 | 4 | 1 | 3 | **0** | 2 | 3.4k + 1.8k |
+| final (held out) | test1 | 5 | 4 | 1 | 3 | 0 | 2 | 3.4k + 1.8k |
+| **re-run (held out)** | **test1** | 5 | 4 | 1 | 5 | **0** | 2 | 3.7k + 2.0k |
 
-About $0.03 in all. Run 1: the reply dropped a closing brace and nothing parsed, so the analyst agent asks for
+About $0.04 in all. Run 1: the reply dropped a closing brace and nothing parsed, so the analyst agent asks for
 JSON mode. Runs 1-2: the score written as "0-0", Turkish "iki takım" and Spanish "los dos" (number words), and a
 plain insight hedged; the prompt now says how to write each. test1's one rejection was the new check catching
 "narrow" and "wide" in a flank insight (width is not cited); the retry fixed it. Reading test1 showed one
 placeholder read wrongly: the flank count (passes to that flank, 17) was read as the total ("17 pasın %94'ü"),
-so the key is now `{side}_passes_to_flank` and the topic says what it counts. test1 was not re-run after this.
+so the key is now `{side}_passes_to_flank` and the topic says what it counts. The test1 re-run reads it as the
+flank's count ("94% of them and 17 entries there"). Its rejection: "direct"/"directa" and "stretching"/"abrir el
+campo" in the flank insights (directness and width not cited), and Turkish "üçüncü" read as a number word; the
+retry fixed all 5.
 
 ## Next steps (P3 backlog)
 
