@@ -75,7 +75,7 @@ test('shot identity comes from the shot rather than its setup or a simulator cit
   assert.match(identity.description, /^Thames United shot/);
 });
 
-test('unavailable follow-player anchors become stable bottom-left cards with CV/SIM provenance', () => {
+test('unavailable follow-player anchors become stable bottom-left cards with a CV/SIM source chip', () => {
   const first = JSON.parse(readFileSync(new URL('../../data/fake/sample_a/tracking.jsonl', import.meta.url), 'utf8').split('\n')[0]);
   const match = { info, frames: [first] };
   const camera = buildCamera('cv_full_pitch', match, 10, 16 / 9);
@@ -87,7 +87,7 @@ test('unavailable follow-player anchors become stable bottom-left cards with CV/
     assert.equal(regions.length, 1);
     assert.equal(regions[0].x, 24);
     assert.deepEqual(draw(12).map(r => [r.x, r.y, r.w, r.h]), regions.map(r => [r.x, r.y, r.w, r.h]));
-    assert.ok(text.some(v => v.includes('SOURCE CV+SIM')));
+    assert.ok(text.some(v => /^AI · \d+% \+ SIM$/.test(v)));
     assert.ok(text.some(v => v.includes(info.home.name)));
     assert.ok(text.every(v => !v.includes('undefined')));
   }

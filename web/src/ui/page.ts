@@ -39,28 +39,3 @@ export function renderSummary(info: MatchInfo, events: MatchEvent[], start: numb
       </div>`;
   }).join('');
 }
-
-/** Each row is a button carrying `data-player-id`; wire a click listener on the container to pick a player. */
-export function renderLineups(homeEl: HTMLElement, awayEl: HTMLElement, info: MatchInfo): void {
-  const list = (team: 'home' | 'away', el: HTMLElement) => {
-    const players = info[team].players.filter(p => p.starter).sort((a, b) => a.number - b.number);
-    const label = team === 'home' ? info.home.short : info.away.short;
-    el.innerHTML = `
-      <div class="lineup-head">
-        <span class="chip ${team}">${label}</span>
-        <span>${info[team].name}</span>
-      </div>
-      <ul class="lineup-list">
-        ${players.map(p => `
-          <li>
-            <button type="button" class="lineup-pick" data-player-id="${p.id}">
-              <span class="mono lineup-number">${p.number}</span>
-              <span class="lineup-name">${p.name}</span>
-              <span class="lab">${p.pos}</span>
-            </button>
-          </li>`).join('')}
-      </ul>`;
-  };
-  list('home', homeEl);
-  list('away', awayEl);
-}

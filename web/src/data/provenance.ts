@@ -27,3 +27,16 @@ export function overlayProvenance(overlay: Pick<Overlay, 'event_ids'>, events: M
 export function provenanceText(provenance: Provenance): string {
   return [provenance.label, provenance.confidence].filter(Boolean).join(' · ');
 }
+
+/**
+ * Short on-card source chip: "AI · 73%" when cited events were detected from video (lowest cited confidence),
+ * "SIM" for simulator events, both joined with "+" when mixed. The evidence panel keeps the full provenance.
+ */
+export function sourceChipText(overlay: Pick<Overlay, 'event_ids'>, events: Map<string, MatchEvent>): string | undefined {
+  const cited = [...new Set(overlay.event_ids)].map(id => events.get(id));
+  const cv = cited.filter((e): e is MatchEvent => e?.source === 'cv');
+  const values = cv.map(e => e.confidence).filter((c): c is number => confidencePercent(c) !== undefined);
+  const ai = cv.length ? (values.length ? `AI · ${confidencePercent(Math.min(...values))}` : 'AI') : '';
+  const sim = cited.some(e => e?.source === 'sim') ? 'SIM' : '';
+  return [ai, sim].filter(Boolean).join(' + ') || undefined;
+}

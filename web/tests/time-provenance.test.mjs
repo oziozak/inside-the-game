@@ -145,7 +145,7 @@ test('hero and clip-stat UI recompute at nonzero offsets and exclude source-end 
   assert.doesNotMatch(elements.get('#hero-clock').textContent, /unavailable/);
 });
 
-test('standard, dual-team and player-following cards all render cited provenance', () => {
+test('standard, dual-team and player-following cards all render a source chip, never a SOURCE block', () => {
   const { drawOverlays, buildRoster } = loadTs(`${web}/src/render/draw.ts`);
   const { buildCamera } = loadTs(`${web}/src/render/camera.ts`);
   const first = JSON.parse(readFileSync(new URL('../../data/fake/sample_a/tracking.jsonl', import.meta.url), 'utf8').split('\n')[0]);
@@ -159,8 +159,8 @@ test('standard, dual-team and player-following cards all render cited provenance
       position: graphic === 'player_tag' ? 'follow-player' : 'bottom-left', title: 'Long fixture title '.repeat(40), values: { shots_home: 1, shots_away: 0 } };
     const regions = drawOverlays(ctx, 1920, 1080, [o], buildRoster(info), map, match, 10, camera);
     assert.equal(regions.length, 1, graphic);
-    assert.ok(drawn.some(text => text.includes('SOURCE CV+SIM')), graphic);
-    assert.ok(drawn.some(text => text.includes('76%')), graphic);
+    assert.ok(drawn.includes('AI · 76% + SIM'), graphic);
+    assert.ok(drawn.every(text => !/SOURCE|SIMULATOR/.test(text)), graphic);
     assert.ok(drawn.every(text => !text.includes('undefined')), graphic);
   }
 });
