@@ -67,7 +67,7 @@ Precision / recall (matched / true, detected):
 - The **showcase** clip was picked for its content (two penalty goals, a second-yellow red card), so it is **not held out** and its numbers are not accuracy claims. Its two penalty goals are both found from video.
 Full grades, dev clips and known limits are in [`vision/README.md`](vision/README.md#accuracy-the-demo-numbers).
  
-## What the AI does not see (yet)
+## What the AI does not see 
  
 - Fouls, cards, offsides and substitutions come from the simulator (`SIM` on the card), not from video.
 - One fixed full-pitch camera. Moving broadcast cameras are not supported.
