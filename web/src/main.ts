@@ -1,6 +1,6 @@
 import { loadMatch, loadEvents, loadOverlays, loadManifest, loadReport } from './data/loadMatch';
 import { loadClips, pickClip, clipBase, clipUrl } from './data/clips';
-import { activeOverlays, clock, languageNotice, matchMinute, overlayMentionsPlayer } from './render/schedule';
+import { activeOverlays, clock, languageNotice, matchMinute, overlayMentionsPlayer, playerHint, playerMoments } from './render/schedule';
 import { buildCamera } from './render/camera';
 import { buildRoster, drawOverlays, type HitRegion } from './render/draw';
 import { findPlayer, startingPlayers } from './data/identity';
@@ -132,7 +132,7 @@ async function main() {
     }
   }
 
-  /** Shows/hides the PLAYER-mode picker and, once a player is chosen, the "no moments yet" notice. */
+  /** Shows/hides the PLAYER-mode picker and, once a player is chosen, the hint under the FOLLOWING chip (#96). */
   function updatePlayerPicker() {
     playerPicker.hidden = mode !== 'player_focus';
     playerStatus.hidden = true;
@@ -145,11 +145,15 @@ async function main() {
     followingTab.textContent = chosen.team === 'home' ? match.info.home.short : match.info.away.short;
     followingTab.className = `chip ${chosen.team}`;
     followingName.textContent = chosen.name;
-    const everHas = overlays.some(o => o.mode === 'player_focus' && o.lang === lang && overlayMentionsPlayer(o, eventsById, followedPlayer!));
-    if (!everHas) {
-      playerStatus.hidden = false;
-      playerStatus.textContent = ui(lang, 'player.none', { name: chosen.name });
-    }
+    playerStatus.hidden = false;
+    updatePlayerHint();
+  }
+  /** Re-words the hint when its count of moments ahead changes; called on every frame while following. */
+  function updatePlayerHint() {
+    const chosen = followedPlayer != null ? findPlayer(match.info, followedPlayer) : undefined;
+    if (mode !== 'player_focus' || !chosen) return;
+    const text = playerHint(playerMoments(overlays, eventsById, chosen.id, lang, matchTime(), clipEnd()), chosen.name, lang);
+    if (playerStatus.textContent !== text) playerStatus.textContent = text;
   }
   updatePlayerPicker();
   const feeds = new FeedSwitcher(broadcast, aiVideo, useAI => {
@@ -195,6 +199,10 @@ async function main() {
 
   function matchTime(): number {
     return videoStart + video.currentTime;
+  }
+  /** The clip's last match time: the export's end, else the video's length once known. */
+  function clipEnd(): number {
+    return manifest?.end ?? videoStart + (Number.isFinite(video.duration) ? video.duration : Infinity);
   }
 
   function buildTicks(t: number) {
@@ -247,6 +255,7 @@ async function main() {
       .filter(o => o.event_ids.every(id => (eventsById.get(id)?.t ?? Infinity) <= t));
     if (mode === 'player_focus') {
       visible = followedPlayer == null ? [] : visible.filter(o => overlayMentionsPlayer(o, eventsById, followedPlayer!));
+      updatePlayerHint();
     }
     const end = manifest?.end ?? videoStart + (Number.isFinite(video.duration) ? video.duration : 0);
     // Refresh at event boundaries (including fractional seconds), clock ticks, and metadata load.

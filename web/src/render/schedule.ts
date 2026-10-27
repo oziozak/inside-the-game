@@ -22,6 +22,23 @@ export function overlayMentionsPlayer(overlay: Overlay, events: Map<string, Matc
   });
 }
 
+/**
+ * The followed player's PLAYER-mode cards in `lang` (#96): how many start before the clip's `end`, and how many of
+ * those start after t. A count only, never when: the timeline still shows nothing ahead of playback.
+ */
+export function playerMoments(overlays: Overlay[], events: Map<string, MatchEvent>, playerId: number, lang: string,
+                              t: number, end = Infinity): { total: number; ahead: number } {
+  const mine = overlays.filter(o => o.mode === 'player_focus' && o.lang === lang && o.start < end && overlayMentionsPlayer(o, events, playerId));
+  return { total: mine.length, ahead: mine.filter(o => o.start > t).length };
+}
+
+/** The line under the FOLLOWING chip: why the pitch can be quiet, and what is still to come; or that nothing is. */
+export function playerHint(moments: { total: number; ahead: number }, name: string, lang: string): string {
+  if (!moments.total) return ui(lang, 'player.none', { name });
+  const ahead = moments.ahead === 1 ? ui(lang, 'player.ahead1') : moments.ahead ? ui(lang, 'player.aheadN', { n: moments.ahead }) : '';
+  return [ui(lang, 'player.hint'), ahead].filter(Boolean).join(' ');
+}
+
 /** Language availability is explicit; gaps in the timeline never trigger another language. The notice is in `uiLang`. */
 export function languageNotice(overlays: Overlay[], lang: string, mode: Mode, uiLang = 'en'): string {
   const language = trMaybe(uiLang, `language.${lang}`, lang);
