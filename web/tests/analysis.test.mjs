@@ -89,3 +89,32 @@ test('an insight with no events (frame facts) says where its evidence is', () =>
   assert.match(p.innerHTML, /Frame facts: no single event/);
   assert.match(p.innerHTML, /frames/);
 });
+
+/** Declarations of `selector`'s rule in style.css, inside `@media (max-width: 720px)` when `phone`. */
+function css(selector, phone = false) {
+  const style = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  const media = style.lastIndexOf('@media (max-width: 720px) {\n  .analysis');
+  const scope = phone ? style.slice(media) : style.slice(0, media);
+  const body = new RegExp(`(?:^|\\n)\\s*${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`).exec(scope)?.[1];
+  assert.ok(body, `${selector} rule${phone ? ' (phone)' : ''}`);
+  return Object.fromEntries(body.split(';').map(d => d.split(':').map(s => s.trim())).filter(([k, v]) => k && v));
+}
+
+test('the analysis panel keeps CLOSE outside its scrolling body, which has room below the last insight', () => {
+  const p = fresh();
+  renderAnalysis(p, example, 'en', info, () => {}, () => {});
+  const head = p.innerHTML.indexOf('class="evidence-head"'), close = p.innerHTML.indexOf('id="analysis-close"'), body = p.innerHTML.indexOf('class="analysis-body"');
+  assert.ok(head < close && close < body, 'CLOSE is in the header, before the body');
+  assert.equal(css('.analysis').overflow, 'hidden');
+  const scroller = css('.analysis-body');
+  assert.equal(scroller['overflow-y'], 'auto');
+  assert.equal(scroller['min-height'], '0');
+  assert.ok(Number.parseInt(scroller.padding.split(' ')[2]) >= 32, 'bottom padding');
+  assert.equal(css('.analysis-body', true).padding.split(' ')[2], scroller.padding.split(' ')[2]);
+});
+
+test('the panel cannot be pushed past the viewport\'s left edge, and is a full-screen sheet on a phone', () => {
+  assert.equal(css('.player-section').width, '100%');  // a shrink-to-fit section centred in <main> overflows on both sides
+  assert.equal(css('.analysis', true).position, 'fixed');
+  assert.equal(css('.stage:has(> .analysis:not(.hidden)) > .evidence', true).position, 'fixed');
+});
