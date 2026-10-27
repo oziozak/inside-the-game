@@ -35,3 +35,9 @@ export function clock(t: number, periods?: { period: number; start: number }[]):
   const seconds = Math.floor(second && t >= second.start ? 2700 + t - second.start : t);
   return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 }
+
+/** Broadcast minute of match time t: 1-based (18:12 is the 19th minute), the second half counting on from 46'. */
+export function matchMinute(t: number, periods?: { period: number; start: number }[]): number {
+  const second = periods?.find(p => p.period === 2);
+  return second && t >= second.start ? 45 + Math.floor((t - second.start) / 60) + 1 : Math.floor(t / 60) + 1;
+}

@@ -1,12 +1,13 @@
 import { loadMatch, loadEvents, loadOverlays, loadManifest, loadReport } from './data/loadMatch';
 import { loadClips, pickClip, clipBase, clipUrl } from './data/clips';
-import { activeOverlays, clock, languageNotice, overlayMentionsPlayer } from './render/schedule';
+import { activeOverlays, clock, languageNotice, matchMinute, overlayMentionsPlayer } from './render/schedule';
 import { buildCamera } from './render/camera';
 import { buildRoster, drawOverlays, type HitRegion } from './render/draw';
 import { findPlayer, startingPlayers } from './data/identity';
 import { renderEvidence } from './ui/evidence';
 import { renderAnalysis, renderInsightEvidence } from './ui/analysis';
-import { renderHero, renderSummary, renderLineups } from './ui/page';
+import { renderHero, renderSummary } from './ui/page';
+import { renderLineups, renderLineupCard, renderOnPitchPanel } from './ui/lineups';
 import { initScrollGlow } from './ui/scrollGlow';
 import { initFootballDrops } from './ui/footballs';
 import { FeedSwitcher, feedsSynchronized } from './playback/feeds';
@@ -50,6 +51,9 @@ const lineupAway = document.querySelector<HTMLElement>('#lineup-away')!;
 const liveBtn = document.querySelector<HTMLButtonElement>('#live')!;
 const analysisPanel = document.querySelector<HTMLElement>('#analysis')!;
 const analysisBtn = document.querySelector<HTMLButtonElement>('#analysis-open')!;
+const onPitchPanel = document.querySelector<HTMLElement>('#onpitch')!;
+const lineupsBtn = document.querySelector<HTMLButtonElement>('#lineups-open')!;
+const lineupCard = document.querySelector<HTMLElement>('#lineup-card')!;
 
 function wireSegmented(group: HTMLElement, onPick: (value: string) => void) {
   group.querySelectorAll<HTMLButtonElement>('button').forEach(btn => {
@@ -90,10 +94,18 @@ async function main() {
   const eventsById = new Map<string, MatchEvent>(events.map(e => [e.id, e]));
 
   renderHero(match.info);
-  renderLineups(lineupHome, lineupAway, match.info);
 
   video.src = `${base}/match.mp4`;
   const videoStart = manifest?.start ?? 0;
+
+  // The lineup card shows over the paused video at load; play, SKIP or ~6 s close it, and it never returns mid-play.
+  let lineupCardTimer: ReturnType<typeof setTimeout> | undefined;
+  function hideLineupCard() {
+    lineupCard.hidden = true;
+    clearTimeout(lineupCardTimer);
+  }
+  renderLineupCard(lineupCard, match.info, events, videoStart, hideLineupCard);
+  lineupCardTimer = setTimeout(hideLineupCard, 6000);
   const cameraPreset = manifest?.render.camera ?? 'cv_full_pitch';
 
   let mode: Mode = 'analyst';
@@ -102,6 +114,10 @@ async function main() {
   let hitRegions: HitRegion[] = [];
   let seeking = false;
   let lastSummaryKey = '';
+  let lastLineupKey: string | undefined;
+  /** The substitution and card events up to t: the lineups change only when this does. */
+  const lineupKey = (t: number) => events
+    .filter(e => e.t <= t && (e.type === 'substitution' || e.type === 'yellow_card' || e.type === 'red_card')).map(e => e.id).join();
   let selectedEvidence: Overlay | undefined;
 
   const starters = startingPlayers(match.info);
@@ -234,6 +250,13 @@ async function main() {
       buildTicks(t);
       lastSummaryKey = summaryKey;
     }
+    // Lineups change only at substitutions and cards: re-render then, so hover and focus survive clock ticks.
+    const lineups = lineupKey(t);
+    if (lineups !== lastLineupKey) {
+      renderLineups(lineupHome, lineupAway, match.info, events, t);
+      lastLineupKey = lineups;
+    }
+    if (!onPitchPanel.classList.contains('hidden') && `${matchMinute(t, match.info.periods)}|${lineups}` !== lastOnPitchKey) openOnPitch();
     if (selectedEvidence?.event_ids.some(id => (eventsById.get(id)?.t ?? Infinity) > t)) {
       evidencePanel.classList.add('hidden');
       selectedEvidence = undefined;
@@ -264,6 +287,7 @@ async function main() {
 
   for (const feed of [broadcast, aiVideo]) {
     feed.addEventListener('loadedmetadata', render);
+    feed.addEventListener('play', hideLineupCard);
     for (const event of ['play', 'pause', 'ended']) feed.addEventListener(event, () => {
       if (feed === video) setPlaying(!feed.paused);
     });
@@ -297,6 +321,24 @@ async function main() {
     selectedEvidence = undefined;
     evidencePanel.classList.add('hidden');
   }
+  // ON THE PITCH panel: recomputed from the events at the current time while open (live and on seeking back).
+  let lastOnPitchKey = '';
+  function closeOnPitch() {
+    onPitchPanel.classList.add('hidden');
+    lineupsBtn.setAttribute('aria-pressed', 'false');
+  }
+  function openOnPitch() {
+    const t = matchTime();
+    lastOnPitchKey = `${matchMinute(t, match.info.periods)}|${lineupKey(t)}`;
+    renderOnPitchPanel(onPitchPanel, match.info, events, t, closeOnPitch);
+    lineupsBtn.setAttribute('aria-pressed', 'true');
+  }
+  lineupsBtn.addEventListener('click', () => {
+    if (!onPitchPanel.classList.contains('hidden')) { closeOnPitch(); return; }
+    closeAnalysis(); closeEvidence(); hideLineupCard();
+    openOnPitch();
+  });
+
   // Clip analysis (optional report.json): opens when the clip ends, or from its button at any time.
   function closeAnalysis() {
     analysisPanel.classList.add('hidden');
@@ -304,6 +346,7 @@ async function main() {
   }
   function openAnalysis() {
     if (!report) return;
+    closeOnPitch(); hideLineupCard();
     renderAnalysis(analysisPanel, report, lang, match.info, insight => {
       selectedEvidence = undefined;  // insight evidence is not an overlay's: the playback-time rule is for cards
       renderInsightEvidence(evidencePanel, insight, report, eventsById, match.info);

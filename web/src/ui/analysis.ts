@@ -1,6 +1,7 @@
 import type { Insight, MatchEvent, MatchInfo, Report, ReportFact } from '../types';
 import { eventSection } from './evidence';
 import { overlayProvenance, provenanceText } from '../data/provenance';
+import { matchMinute } from '../render/schedule';
 
 /** Cited events listed in an insight's evidence before the rest are summarised as a count. */
 export const MAX_EVENTS_SHOWN = 12;
@@ -37,12 +38,6 @@ export function hasLanguage(report: Report, lang: string): boolean {
   return Boolean(report.headline[lang]) || report.insights.some(i => i.text[lang]);
 }
 
-/** Broadcast minute of match time t: 1-based, the second half counting on from 46'. */
-function minute(t: number, info: MatchInfo): number {
-  const second = info.periods?.find(p => p.period === 2);
-  return second && t >= second.start ? 45 + Math.floor((t - second.start) / 60) + 1 : Math.floor(t / 60) + 1;
-}
-
 /** Why a report has no insight: a short highlight is too short for a tactical read; a long clip was badly seen. */
 function emptyNote(report: Report): string {
   return report.end - report.start < SHORT_CLIP_S
@@ -71,7 +66,7 @@ export function renderAnalysis(panel: HTMLElement, report: Report, lang: string,
       <button id="analysis-close" class="evidence-close mono" aria-label="Close clip analysis"><span>CLOSE</span></button>
     </div>
     <div class="analysis-body">
-      <p class="analysis-window mono">CLIP ${minute(report.start, info)}'–${minute(report.end, info)}' · WHAT THE AI SAW</p>${body}
+      <p class="analysis-window mono">CLIP ${matchMinute(report.start, info.periods)}'–${matchMinute(report.end, info.periods)}' · WHAT THE AI SAW</p>${body}
       <p class="analysis-note mono">Covers this clip only, from the vision AI's tracking and events. Written by the analyst agent from tactical facts computed by code; every number is from those facts. Click an insight for its evidence.</p>
     </div>`;
   panel.classList.remove('hidden');

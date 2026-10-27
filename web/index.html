@@ -70,6 +70,8 @@
               <span class="corner"></span>
               <span class="name">INSIDE THE GAME</span>
             </div>
+            <div id="lineup-card" class="lineup-card" role="dialog" aria-label="Lineups at the clip start" hidden></div>
+            <aside id="onpitch" class="onpitch hidden" aria-label="On the pitch"></aside>
             <aside id="analysis" class="analysis hidden" aria-label="Clip analysis"></aside>
             <aside id="evidence" class="evidence hidden"></aside>
           </div>
@@ -107,6 +109,7 @@
             <div class="seg-group">
               <button id="live" class="seg live" aria-pressed="false">LIVE</button>
               <button id="analysis-open" class="seg" aria-pressed="false" aria-controls="analysis" hidden>ANALYSIS</button>
+              <button id="lineups-open" class="seg" aria-pressed="false" aria-controls="onpitch">LINEUPS</button>
               <button id="ai-view" class="seg" aria-pressed="false" aria-label="AI VIEW" aria-describedby="feed-status" hidden disabled>AI VIEW</button>
             </div>
           </div>
@@ -140,7 +143,7 @@
 
       <section id="lineups" class="lineups-section">
         <div class="section-head">
-          <span class="lab">STARTING XI</span>
+          <span class="lab">ON THE PITCH</span>
           <h2>Lineups</h2>
         </div>
         <div class="lineups-grid">
