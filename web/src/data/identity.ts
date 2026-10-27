@@ -13,6 +13,12 @@ export function findPlayer(info: MatchInfo, id: number | null | undefined): Play
   return undefined;
 }
 
+/** Starting XI for both teams, squad-number order — the players selectable from Lineups and the PLAYER picker. */
+export function startingPlayers(info: MatchInfo): PlayerRef[] {
+  return (['home', 'away'] as const).flatMap(team =>
+    info[team].players.filter(p => p.starter).sort((a, b) => a.number - b.number).map(p => ({ ...p, team })));
+}
+
 export interface OverlayIdentity {
   player?: PlayerRef;
   team?: Side;
