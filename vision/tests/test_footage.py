@@ -23,6 +23,7 @@ VALID = {"clips": [
     clip("dev3", "dev", 3, "saltmarsh", "caldera"),
     clip("test1", "test", 4, minutes=10),
     clip("train1", "training", 5, "thames", "caldera"),
+    clip("hl1", "highlight", 6, minutes=3),
 ]}
 
 
@@ -51,7 +52,7 @@ def test_duplicate_clip_name_is_an_error():
 
 def test_showcase_role_is_optional_and_its_seed_disjoint():
     record = copy.deepcopy(VALID)
-    record["clips"].append(clip("showcase", "showcase", 6, start_minute=30, minutes=10))
+    record["clips"].append(clip("showcase", "showcase", 8, start_minute=30, minutes=10))
     assert footage.check_record(record) == []
     record["clips"][-1]["seed"] = 4                    # reuses test1's seed
     assert any("seed 4" in e and "showcase" in e and "test" in e for e in footage.check_record(record))
@@ -74,6 +75,7 @@ def test_dev_needs_a_white_away_kit():
     (lambda r: r["clips"][4].update(away="no_such_team"), "no_such_team"),
     (lambda r: r["clips"].pop(3), "no test clip"),
     (lambda r: r["clips"].pop(4), "no training clip"),
+    (lambda r: r["clips"].pop(5), "no highlight clip"),
     (lambda r: r["clips"][4].update(minutes=0), "minutes"),
     (lambda r: r["clips"][4].update(start_minute=-1), "start_minute"),
     (lambda r: r["clips"][4].update(start_minute=50, minutes=10), "before any substitution"),
