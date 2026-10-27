@@ -139,6 +139,29 @@ def test_a_goal_counts_on_from_the_team_sheets_score_at_start():
         [{k: v for k, v in e.items() if k != "score"} for e in plain]
 
 
+@pytest.mark.parametrize("seed, until, goal", [
+    (5, 140, True),         # 2:01 penalty goal, the keeper standing within reach on the line
+    (387, 640, False),      # 10:13 penalty saved: the keeper at the ball on the line
+])
+def test_a_penalty_goal_counts_and_a_saved_penalty_does_not(seed, until, goal):
+    """#87: the ball is dead after the foul, and at a penalty the keeper waits on the line, so
+    the old rules read every penalty goal with the keeper near as a save (vision/README.md)."""
+    from simulator import Match, build_tracking
+
+    m = Match(seed, 300, "short", f"penalty_{seed}")
+    m.play()
+    team_sheet = m.match_info()
+    tracking = [fr for p in m.periods if p["start"] < until for fr in build_tracking(m, p["start"], min(p["end"], until))]
+    events = detect_events(observations_from_tracking(tracking, team_sheet), team_sheet)
+    kick = next(e for e in m.events if e["type"] == "free_kick" and e.get("subtype") == "penalty"
+                and e["t"] > until - 60)
+    shot = next(e for e in m.events if e["type"] == "shot" and e["t"] > kick["t"])
+    assert any(e["type"] == "shot" and abs(e["t"] - shot["t"]) < 0.5 and e["subtype"] == "on_target"
+               for e in events)
+    goals = [e for e in events if e["type"] == "goal" and abs(e["t"] - shot["t"]) < 2]
+    assert [g["team"] for g in goals] == ([shot["team"]] if goal else [])
+
+
 def test_clean_simulator_clips_score_near_perfectly(validate, tmp_path, sim_clips, sim_detections):
     """Precision and recall per type, and shot and possession-change subtypes,
     pooled over seeds and pairings."""
