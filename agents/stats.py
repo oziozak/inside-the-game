@@ -101,6 +101,11 @@ class MatchState:
     _completed_raw: list = field(default_factory=list)  # sorted raw difficulty of completed passes so far
     pass_ratings: dict = field(default_factory=dict)  # event id -> difficulty 1-10, as of that pass
 
+    def __post_init__(self) -> None:
+        """A clip cut from mid-match starts from the score at its start (match_info.score_at_start)."""
+        if self.info.get("score_at_start"):
+            self.score = dict(self.info["score_at_start"])
+
     def _trim(self, t: float) -> None:
         while self._recent and self._recent[0][0] < t - MOMENTUM_WINDOW_S:
             self._recent.popleft()

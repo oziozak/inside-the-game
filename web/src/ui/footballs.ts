@@ -1,6 +1,15 @@
 /** Click an empty part of the page and a football drops from the cursor and bounces to a stop. Pure flourish, no state. */
 
-const INTERACTIVE_SELECTOR = 'a, button, input, select, label, .evidence, .analysis, #seek';
+/**
+ * Anywhere a click must never drop a ball: controls, and every content block. The whole player
+ * section (video, canvas, cards, console, pickers, panels) is excluded, so a missed click on the
+ * video never looks like a reaction to the match.
+ */
+const NO_DROP_SELECTOR = [
+  'a, button, input, select, label',
+  '#player, .evidence, .analysis',
+  '.site-header, .hero-score, .hero-meta, .section-head, .compare-rows, .lineups-grid, .pipeline-steps',
+].join(', ');
 
 const FOOTBALL_SVG = `<svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
   <circle cx="16" cy="16" r="14.5" fill="#EDF0EA" stroke="#07090B" stroke-width="1.3"/>
@@ -42,13 +51,14 @@ export function dropFootballAt(x: number, y: number): void {
   wrap.addEventListener('animationend', () => wrap.remove(), { once: true });
 }
 
-/** Wires a page-wide click listener; skips real controls (buttons, links, the evidence/analysis panels, the scrubber). */
+/** True only for a click on empty page background (not on a control, content block or the player section). */
+export function landsOnEmptyBackground(target: { closest(selector: string): unknown } | null): boolean {
+  return !!target && !target.closest(NO_DROP_SELECTOR);
+}
+
+/** Wires a page-wide click listener that drops a ball only on empty page background. */
 export function initFootballDrops(): void {
   document.addEventListener('click', event => {
-    const target = event.target as HTMLElement | null;
-    if (!target) return;
-    // #overlay (the video canvas) handles its own drop, only when the click didn't land on a card.
-    if (target.closest(INTERACTIVE_SELECTOR) || target.closest('#overlay')) return;
-    dropFootballAt(event.clientX, event.clientY);
+    if (landsOnEmptyBackground(event.target as Element | null)) dropFootballAt(event.clientX, event.clientY);
   });
 }

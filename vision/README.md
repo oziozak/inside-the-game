@@ -66,7 +66,7 @@ for the held-out grade (35 min to render, about 40 to grade on an M-series Mac).
 ## What it reads: the video and the team sheet, nothing else
 
 At runtime the stage reads **only** the rendered video and its team sheet (`match_info.json`: clubs, kit
-colors, rosters with shirt numbers and positions, periods, kickoff direction), used the way a
+colors, rosters with shirt numbers and positions, periods, kickoff direction, the score at the clip's start), used the way a
 broadcaster uses a team sheet. Plus the detector weights. It never opens the simulator's `events.json`
 or `tracking.jsonl`, and imports no simulator, grader, harness, baseline or footage code.
 
@@ -80,6 +80,15 @@ anything under a `truth/` folder, any events or tracking file, or anything from 
 simulator, grader, harness, baseline or footage code. `test_guard_catches_a_read_of_simulator_data`
 checks that the guard does catch a run that reads those files. OpenCV reads the video in native code,
 which the hook does not see.
+
+**The score at the clip's start** (`match_info.score_at_start`, #83) is part of the team sheet too. A clip
+cut from mid-match (test2 starts at 40', 3-0) cannot see the goals before its first frame, but a broadcast
+always knows them: the scoreboard graphic shows the score next to the teams, from the same match feed as the
+team sheet, and nobody derives it from the pictures. So it is broadcast metadata, not simulator truth about
+what the video shows. `vision.footage` writes it from the goals before the window, and `EventRules` only counts
+on from it: a goal it detects carries the running score (4-0, not 1-0). It never changes what is detected
+(`tests/test_vision_rules.py` checks the events are the same with and without it, the score aside), and
+every event the vision AI reports still comes from the video alone.
 
 Simulator truth is read only offline, by the grading code (`grader.py`, `grade_footage.py`,
 `baseline.py`, `harness.py`), and by `scripts/merge_events.py`, which lives outside `vision/`.
@@ -190,6 +199,7 @@ python -m vision.footage list                  # clips with role, seed, pairing,
 python -m vision.footage render dev1           # one clip (skipped if already rendered)
 python -m vision.footage render --role dev     # or --all; --force rebuilds
 python -m vision.footage find-seed --after 2101 --start-minute 40 --minutes 10   # a test seed rule, simulator only
+python -m vision.footage find-showcase --first 2301 --last 2500                  # the showcase rule, simulator only
 ```
 
 | Role | Clips | Purpose |
@@ -197,9 +207,10 @@ python -m vision.footage find-seed --after 2101 --start-minute 40 --minutes 10  
 | dev | `dev1`-`dev3`, 2 min each | develop the pipeline; red v blue, orange v white (away kit), green v orange |
 | test | `test1`, minutes 0-10; `test2`, minutes 40-50 | held-out grades; their seeds are never used for dev or training. test2 adds a goal, the kickoff after it, half-time and the second-half kickoff (teams switch ends) |
 | training | `train1`-`train6`, 2 min each | reserved for fine-tuning the player detector; the other six pairings. Unused: pretrained recall sufficed (#21) |
+| showcase | `showcase`, minutes 30-40 | the demo clip with the most action (#82): 2 goals, a yellow and a second-yellow red. Chosen for its content, so **not held out**: its grade is a showcase number, never an accuracy claim |
 
-Dev, test and training seeds are disjoint. `check` (and `pytest`) fails if a
-seed is used by two clips, if a role has no clip, or if the dev clips show
+Dev, test, training, highlight and showcase seeds are disjoint. `check` (and `pytest`) fails if a
+seed is used by two clips, if a dev, test, training or highlight role has no clip (showcase is optional), or if the dev clips show
 fewer than three kit combinations or no white away kit.
 
 Each clip is **`minutes` of a full 90-minute match** (seeded, `full`
@@ -394,6 +405,7 @@ python -m vision.rules observations.jsonl --match-info match_info.json --out eve
 
   The change stands once the winner keeps the ball for 0.5 s or plays it on (a short nudge to a teammate counts). When the other team takes the ball straight back, that is flicker (a player running past the ball), and neither change is reported; one still pending when play stops (out of play, end of input) is dropped too. A goalkeeper holding a shot is a save, not a possession change. `team` is the winner's; `t` and `start` are where the winner first had the ball.
 - **Goal:** a shot reaches the goal line (within 0.5 m: observed ball positions are off by tenths of a meter) between the posts with no player within reach of the ball (that is a save), then comes to rest between the posts, within 0.8 m of the line or behind it (not wide of the goal: from a sharp angle, an off-target ball's ground projection can cross the mouth). The shot gets `success: true`, and the goal carries the running `score`.
+- **Penalty** (#87): a kick from within 4 m of a penalty spot (11 m from the goal line, centered) after the ball rested within 1 m of the spot for 1 s of the last 4 s seen (the taker may carry it a step or two before shooting). The ball is dead after the foul, but the goal line is still watched for the penalty kick, and the keeper, who waits on the line, makes it a save only within 0.7 m of the ball (in the simulator a saving keeper is at the ball).
 - **Players:** `from` and `to` are roster ids from [lineup assignment](#lineup-assignment-visionlineuppy), taken when the track got the ball, per `schemas/README.md`: passer and receiver (pass, kickoff; `to` is `null` when it failed), winner and loser (possession change), the shooter (shot; the goal names the shot's). A shot redirected with no track within reach (a header: an airborne ball's ground projection lands meters from the player) names the shooting team's track nearest where it was struck, within 3.5 m. A track not named yet (before the first kickoff, or nobody missing to take over from) gives `null`; a track id never appears.
 - **Confidence:** 0.9 (pass, goal, kickoff), 0.8 (shot) or 0.7 (possession change) times the mean ball confidence over the kick.
 
@@ -438,13 +450,13 @@ Grades on clean observations, whole 90-minute matches (both halves), four pairin
 | Seeds | Kickoff P / R | Pass P / R | Possession change P / R | Shot P / R | Shot subtype right | Goal P / R | Players right: before 1st sub / whole match |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 201-204 | 1.00 / 1.00 (17) | 0.95 / 0.99 | 0.60 / 0.60 | 0.96 / 0.85 | 98 / 99 | 0.89 / 0.89 (9 goals) | 0.95 / 0.81 |
-| 401-404 | 1.00 / 1.00 (27) | 0.95 / 0.99 | 0.55 / 0.63 | 0.91 / 0.90 | 89 / 92 | 0.93 / 0.74 (19 goals) | 0.97 / 0.84 |
+| 401-404 | 1.00 / 1.00 (27) | 0.95 / 0.99 | 0.55 / 0.63 | 0.91 / 0.90 | 89 / 92 | 0.94 / 0.84 (19 goals; 0.93 / 0.74 before #87) | 0.97 / 0.84 |
 | 501-504 | 1.00 / 1.00 (24) | 0.95 / 0.99 | 0.52 / 0.69 | 0.96 / 0.80 | 80 / 82 | 0.93 / 0.81 (16 goals) | 0.96 / 0.83 |
 
 What keeps clean grades below 1 is mostly the simulator, not the rules:
 - **False passes:** almost all are clearances, physically the same kick as a long pass. v1 reports them as passes.
 - **Missed shots:** many come from the simulator playing a shot (or a pass) from a player standing meters from the ball. Some shots blocked at close range never come to rest near a player, and a few headers measure under 50 km/h.
-- **Goals:** in a penalty, the keeper stands within reach as the ball goes in, so it reads as a save. A few clearances go into the clearing team's own goal.
+- **Goals:** a few clearances go into the clearing team's own goal. Penalties used to read as saves (the keeper stands within reach as the ball goes in) or were never checked (the ball was dead after the foul); since #87 every penalty goal in these matches is found (15 of the 15 penalty goals across 201-204, 401-404 and 501-504), and the goals still missed are all open play.
 - **Possession changes** are capped by how the simulator labels them. It labels an interception only when a pass is cut out in the first 30 % of its path to the intended target, which video cannot see, so a pass cut out within 1 s is a guess either way. It labels no change when a cleared or loose ball is won by the other team, or when a restart follows a foul or offside (invisible to video) and the ball was never seen going out. A tackler who passes on at once (under 0.2 s) never has possession, so the tackle is missed. 473 of 491 matched changes (96 %) carry the true subtype.
 - **Shot subtypes:** the few misses are blocked shots that then go out, which read as `off_target`.
 - **Players** (matched events naming `from`, and `to` where it is a player, right) drop after the first substitution (58'-82') to about 0.5: a substitute's new track takes the name of the player who went off, and later kickoffs name it as that starter. Footage clips end before any substitution. Before it, the misses are the first kickoff of each half's clip (named from one frame) and the simulator playing a ball from a player meters from it.
@@ -532,5 +544,18 @@ First grades (2026-10-24, pretrained yolo11s, v1 render settings), precision / r
 Matched events in test1: pass success right 92 %, pass subtype 85 %, shot and possession-change subtype 100 %, mean timing error 0.03 s, distance error 0.8 m, speed error 7 km/h. The dev clips were graded on an M-series Mac (MPS), test1 on an RTX 5070 (CUDA); a second dev run on the Mac gave byte-identical events.
 
 test2 was graded once, with the event rules of #19 and #65 already in, and nothing was changed after: the goal (Bosphorus, 43:34) and both kickoffs, including the second-half kickoff with the teams switched ends, are found; player-id accuracy is 0.52 because nobody is named before the 44:23 kickoff ([split](#accuracy-the-demo-numbers)). Matched events: pass success right 98 %, pass subtype 79 %, shot and possession-change subtype 100 %, mean timing error 0.03 s, distance error 0.3 m, speed error 6.7 km/h. Of the 4 unmatched detections, 2 are a possession change and a shot at 2578 s, 1 a possession change at 2859 s and 1 a pass at 2899 s, 0.44 s and 5.5 m from a missed true pass (just outside the 5 m tolerance). Rendered at `eecef1b` and graded at `4d19dd9` (the footage code is the same in both) on the RTX PC: Ubuntu on WSL2, NVIDIA GeForce RTX 5070 Ti, driver 610.88, CUDA; one `python -m vision.grade_footage test2` run, which also wrote `ai_view.mp4`.
+
+**Showcase (#82): a showcase number, not a held-out result.** The clip was chosen for its content (2 goals, a yellow, a second-yellow red, all in minutes 30-40 of seed 2422), so its grade is never an accuracy claim; those stay on test1 and test2. Rendered and traced on an M-series Mac (MPS): render 33 min, tracer + AI view 51 min. Precision / recall (matched / true, detected): kickoff 1.00 / 1.00 (2/2, 2), pass 0.95 / 0.88 (74/84, 78), possession change 0.33 / 0.33 (2/6, 6), shot 0.75 / 1.00 (3/3, 4), goal **1.00 / 1.00 (2/2, 2)** with the penalty rule of #87 (0/2 before it: both goals are penalties); player-id accuracy 0.47, timing error 0.03 s. Cards and fouls are not seen by video: the demo takes them from the simulator (`source: sim`).
+
+**Penalty goals (#87), before / after**, the event rules alone re-run on each clip's saved observations (no video re-run; develop's rules at `b40b53e` against the #87 rules):
+
+| Clip | Goals before | Goals after | Other events |
+| --- | --- | --- | --- |
+| dev1, dev2, dev3 | none in the clips | none | `events.json` byte-identical |
+| test1 (held out, re-scored once) | 0 true, 0 detected | 0 true, 0 detected | byte-identical: every grade above unchanged |
+| test2 (held out, re-scored once) | 1/1 (open play), 1 detected | 1/1, 1 detected | byte-identical: every grade above unchanged |
+| showcase, seed 2422, minutes 30-40 (#82; chosen for content, **not held out**) | 0/2 (both penalties), 0 detected | **2/2, 2 detected** | the same but for player-id accuracy, 0.48 to 0.47: the two goals name no scorer (the first comes before any kickoff has named the tracks; at the second the ball comes back from behind the taker already flying) |
+
+test1 and test2 were re-scored once, after the dev clips and the seam-2 tests passed, and nothing was changed after. Seam-2 whole matches: see [Seam-2 harness](#seam-2-harness-visionharnesspy-offline-only) (401-404 goals 14/19 to 16/19, no new false goal; 201-204 and 501-504 and every other type unchanged).
 
 These grades were measured before lineup assignment (#18), so `from`/`to` were `null` and player-id accuracy 0. Re-running the merged event rules on the dev clips' saved observations (the video stage is unchanged) gives the same detections and grades as above, and player-id accuracy 0.69 / 0.38 / 0.43 (dev1 / dev2 / dev3), against about 0.96 on clean seam-2 observations. With the noise hardening (#19), the same saved observations give player-id accuracy 0.94 / 0.72 / 0.75 ([where names went wrong](#lineup-assignment-visionlineuppy)) and slightly more detections: dev2 passes 16/17 (18 detected), possession changes 0/2 (1); dev3 passes 20/25 (23); dev1 unchanged. Every floor in `THRESHOLDS`, and the kickoff check, still holds on these re-run detections; the floors are still the first grades. test1, re-graded the same way (on the PC), goes from player-id 0.46 before #19 to 0.88, and possession changes from 2/4 to 3/4 (7 detected); its other types are unchanged.

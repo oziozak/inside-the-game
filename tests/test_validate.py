@@ -19,6 +19,16 @@ def test_file_names_select_their_schema(validate):
                      "match_info.json": "match_info", "tracking.jsonl": "tracking", "observations.jsonl": None}
 
 
+def test_a_score_at_start_is_two_counts_or_the_match_info_is_rejected(validate, tmp_path):
+    """#83: a clip cut from mid-match carries the score at its start."""
+    info = json.loads((ROOT / "schemas/examples/match_info.example.json").read_text(encoding="utf-8"))
+    assert info["score_at_start"] == {"home": 0, "away": 0}
+    assert validate.check_file(ROOT / "schemas/examples/match_info.example.json") == []
+    for bad in ({"home": 1}, {"home": -1, "away": 0}, {"home": 1, "away": 0, "minute": 40}):
+        (tmp_path / "match_info.json").write_text(json.dumps({**info, "score_at_start": bad}), encoding="utf-8")
+        assert validate.check_file(tmp_path / "match_info.json"), bad
+
+
 def test_the_examples_pass_and_a_wrongly_hedged_insight_does_not(validate, tmp_path):
     assert validate.check_file(ROOT / "schemas/examples/tactics.example.json") == []
     report = json.loads((ROOT / "schemas/examples/report.example.json").read_text(encoding="utf-8"))

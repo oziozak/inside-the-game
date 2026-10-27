@@ -1,14 +1,17 @@
 import { loadMatch, loadEvents, loadOverlays, loadManifest, loadReport } from './data/loadMatch';
-import { activeOverlays, clock, languageNotice, overlayMentionsPlayer } from './render/schedule';
+import { loadClips, pickClip, clipBase, clipUrl } from './data/clips';
+import { activeOverlays, clock, languageNotice, matchMinute, overlayMentionsPlayer, playerHint, playerMoments } from './render/schedule';
 import { buildCamera } from './render/camera';
 import { buildRoster, drawOverlays, type HitRegion } from './render/draw';
 import { findPlayer, startingPlayers } from './data/identity';
 import { renderEvidence } from './ui/evidence';
 import { renderAnalysis, renderInsightEvidence } from './ui/analysis';
-import { renderHero, renderSummary, renderLineups } from './ui/page';
+import { renderHero, renderSummary } from './ui/page';
+import { renderLineups, renderLineupCard, renderOnPitchPanel } from './ui/lineups';
 import { initScrollGlow } from './ui/scrollGlow';
-import { dropFootballAt, initFootballDrops } from './ui/footballs';
+import { initFootballDrops } from './ui/footballs';
 import { FeedSwitcher, feedsSynchronized } from './playback/feeds';
+import { applyStaticText, ui, type Key } from './i18n';
 import type { Mode, MatchEvent, Overlay } from './types';
 
 initScrollGlow();
@@ -49,6 +52,9 @@ const lineupAway = document.querySelector<HTMLElement>('#lineup-away')!;
 const liveBtn = document.querySelector<HTMLButtonElement>('#live')!;
 const analysisPanel = document.querySelector<HTMLElement>('#analysis')!;
 const analysisBtn = document.querySelector<HTMLButtonElement>('#analysis-open')!;
+const onPitchPanel = document.querySelector<HTMLElement>('#onpitch')!;
+const lineupsBtn = document.querySelector<HTMLButtonElement>('#lineups-open')!;
+const lineupCard = document.querySelector<HTMLElement>('#lineup-card')!;
 
 function wireSegmented(group: HTMLElement, onPick: (value: string) => void) {
   group.querySelectorAll<HTMLButtonElement>('button').forEach(btn => {
@@ -60,8 +66,27 @@ function wireSegmented(group: HTMLElement, onPick: (value: string) => void) {
   });
 }
 
+/** A multi-clip build's picker: switching reloads the page on ?clip=<id>, so no state carries over. */
+function renderClipPicker(clips: { id: string; title: string }[], current: string) {
+  const wrap = document.querySelector<HTMLElement>('#clip-picker')!;
+  const select = wrap.querySelector<HTMLSelectElement>('select')!;
+  select.innerHTML = '';
+  for (const clip of clips) {
+    const option = document.createElement('option');
+    option.value = clip.id;
+    option.textContent = clip.title;
+    option.selected = clip.id === current;
+    select.appendChild(option);
+  }
+  select.addEventListener('change', () => { window.location.href = clipUrl(window.location.href, select.value); });
+  wrap.hidden = false;
+}
+
 async function main() {
-  const base = './sample';
+  const clips = await loadClips('./sample');
+  const clip = clips ? pickClip(clips, window.location.search) : undefined;
+  if (clips && clip) renderClipPicker(clips, clip.id);
+  const base = clipBase('./sample', clip);
   const [match, events, overlays, report] = await Promise.all([
     loadMatch(base), loadEvents(base), loadOverlays(base), loadReport(base),
   ]);
@@ -70,10 +95,18 @@ async function main() {
   const eventsById = new Map<string, MatchEvent>(events.map(e => [e.id, e]));
 
   renderHero(match.info);
-  renderLineups(lineupHome, lineupAway, match.info);
 
   video.src = `${base}/match.mp4`;
   const videoStart = manifest?.start ?? 0;
+
+  // The lineup card shows over the paused video at load; play, SKIP or ~6 s close it, and it never returns mid-play.
+  let lineupCardTimer: ReturnType<typeof setTimeout> | undefined;
+  function hideLineupCard() {
+    lineupCard.hidden = true;
+    clearTimeout(lineupCardTimer);
+  }
+  renderLineupCard(lineupCard, match.info, events, videoStart, hideLineupCard);
+  lineupCardTimer = setTimeout(hideLineupCard, 6000);
   const cameraPreset = manifest?.render.camera ?? 'cv_full_pitch';
 
   let mode: Mode = 'analyst';
@@ -82,6 +115,10 @@ async function main() {
   let hitRegions: HitRegion[] = [];
   let seeking = false;
   let lastSummaryKey = '';
+  let lastLineupKey: string | undefined;
+  /** The substitution and card events up to t: the lineups change only when this does. */
+  const lineupKey = (t: number) => events
+    .filter(e => e.t <= t && (e.type === 'substitution' || e.type === 'yellow_card' || e.type === 'red_card')).map(e => e.id).join();
   let selectedEvidence: Overlay | undefined;
 
   const starters = startingPlayers(match.info);
@@ -95,7 +132,7 @@ async function main() {
     }
   }
 
-  /** Shows/hides the PLAYER-mode picker and, once a player is chosen, the "no moments yet" notice. */
+  /** Shows/hides the PLAYER-mode picker and, once a player is chosen, the hint under the FOLLOWING chip (#96). */
   function updatePlayerPicker() {
     playerPicker.hidden = mode !== 'player_focus';
     playerStatus.hidden = true;
@@ -108,11 +145,15 @@ async function main() {
     followingTab.textContent = chosen.team === 'home' ? match.info.home.short : match.info.away.short;
     followingTab.className = `chip ${chosen.team}`;
     followingName.textContent = chosen.name;
-    const everHas = overlays.some(o => o.mode === 'player_focus' && o.lang === lang && overlayMentionsPlayer(o, eventsById, followedPlayer!));
-    if (!everHas) {
-      playerStatus.hidden = false;
-      playerStatus.textContent = `No moments for ${chosen.name} in this clip yet.`;
-    }
+    playerStatus.hidden = false;
+    updatePlayerHint();
+  }
+  /** Re-words the hint when its count of moments ahead changes; called on every frame while following. */
+  function updatePlayerHint() {
+    const chosen = followedPlayer != null ? findPlayer(match.info, followedPlayer) : undefined;
+    if (mode !== 'player_focus' || !chosen) return;
+    const text = playerHint(playerMoments(overlays, eventsById, chosen.id, lang, matchTime(), clipEnd()), chosen.name, lang);
+    if (playerStatus.textContent !== text) playerStatus.textContent = text;
   }
   updatePlayerPicker();
   const feeds = new FeedSwitcher(broadcast, aiVideo, useAI => {
@@ -125,25 +166,30 @@ async function main() {
   });
   aiToggle.addEventListener('click', () => feeds.switchTo(feeds.active !== aiVideo));
 
+  // The feed line keeps its state's key, so a language switch can re-word it.
+  let feedKey: Key | undefined;
+  function showFeedStatus(key: Key) {
+    feedKey = key;
+    feedStatus.hidden = false;
+    feedStatus.textContent = ui(lang, key);
+  }
   function unavailable() {
     feeds.fail();
     aiToggle.hidden = true;
     aiToggle.disabled = true;
-    feedStatus.hidden = false;
-    feedStatus.textContent = 'AI VIEW unavailable. Broadcast remains available.';
+    showFeedStatus('feed.unavailable');
   }
   aiVideo.addEventListener('error', unavailable);
   // Availability is generated by preparation, avoiding SPA HTML fallbacks for missing MP4s.
   void fetch(`${base}/feeds.json`).then(r => r.json()).then(descriptor => {
     if (!descriptor.aiView) return;
-    feedStatus.hidden = false;
-    feedStatus.textContent = 'Loading AI VIEW…';
+    showFeedStatus('feed.loading');
     const ready = () => {
       if (broadcast.readyState < 1 || aiVideo.readyState < 1) return;
       if (!feedsSynchronized(broadcast.duration, aiVideo.duration, descriptor.duration, descriptor.fps)) { unavailable(); return; }
       aiToggle.hidden = false;
       aiToggle.disabled = false;
-      feedStatus.textContent = 'The AI watches the full-pitch feed. Detection boxes are in that video; browser cards are presentation overlays, not vision input.';
+      showFeedStatus('feed.caption');
     };
     broadcast.addEventListener('loadedmetadata', ready);
     aiVideo.addEventListener('loadedmetadata', ready);
@@ -153,6 +199,10 @@ async function main() {
 
   function matchTime(): number {
     return videoStart + video.currentTime;
+  }
+  /** The clip's last match time: the export's end, else the video's length once known. */
+  function clipEnd(): number {
+    return manifest?.end ?? videoStart + (Number.isFinite(video.duration) ? video.duration : Infinity);
   }
 
   function buildTicks(t: number) {
@@ -198,22 +248,30 @@ async function main() {
     const width = canvas.width, height = canvas.height;
     if (width === 0 || height === 0) return;
     const t = matchTime();
-    const notice = languageNotice(overlays, lang, mode);
+    const notice = languageNotice(overlays, lang, mode, lang);
     if (languageStatus.textContent !== notice) languageStatus.textContent = notice;
     languageStatus.hidden = !notice;
     let visible = activeOverlays(overlays, t, mode, lang)
       .filter(o => o.event_ids.every(id => (eventsById.get(id)?.t ?? Infinity) <= t));
     if (mode === 'player_focus') {
       visible = followedPlayer == null ? [] : visible.filter(o => overlayMentionsPlayer(o, eventsById, followedPlayer!));
+      updatePlayerHint();
     }
     const end = manifest?.end ?? videoStart + (Number.isFinite(video.duration) ? video.duration : 0);
     // Refresh at event boundaries (including fractional seconds), clock ticks, and metadata load.
-    const summaryKey = `${clock(t, match.info.periods)}:${events.filter(e => e.t <= t).length}:${video.duration}`;
+    const summaryKey = `${lang}:${clock(t, match.info.periods)}:${events.filter(e => e.t <= t).length}:${video.duration}`;
     if (summaryKey !== lastSummaryKey) {
-      renderSummary(match.info, events, videoStart, t, end);
+      renderSummary(match.info, events, videoStart, t, end, lang);
       buildTicks(t);
       lastSummaryKey = summaryKey;
     }
+    // Lineups change only at substitutions and cards: re-render then, so hover and focus survive clock ticks.
+    const lineups = `${lang}|${lineupKey(t)}`;
+    if (lineups !== lastLineupKey) {
+      renderLineups(lineupHome, lineupAway, match.info, events, t, lang);
+      lastLineupKey = lineups;
+    }
+    if (!onPitchPanel.classList.contains('hidden') && `${matchMinute(t, match.info.periods)}|${lineups}` !== lastOnPitchKey) openOnPitch();
     if (selectedEvidence?.event_ids.some(id => (eventsById.get(id)?.t ?? Infinity) > t)) {
       evidencePanel.classList.add('hidden');
       selectedEvidence = undefined;
@@ -244,6 +302,7 @@ async function main() {
 
   for (const feed of [broadcast, aiVideo]) {
     feed.addEventListener('loadedmetadata', render);
+    feed.addEventListener('play', hideLineupCard);
     for (const event of ['play', 'pause', 'ended']) feed.addEventListener(event, () => {
       if (feed === video) setPlaying(!feed.paused);
     });
@@ -252,7 +311,7 @@ async function main() {
   function setPlaying(playing: boolean) {
     iconPlay.style.display = playing ? 'none' : '';
     iconPause.style.display = playing ? '' : 'none';
-    playPause.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    playPause.setAttribute('aria-label', ui(lang, playing ? 'console.pause' : 'console.play'));
   }
 
   function playCurrent() {
@@ -277,16 +336,35 @@ async function main() {
     selectedEvidence = undefined;
     evidencePanel.classList.add('hidden');
   }
-  // Match analysis (optional report.json): opens when the clip ends, or from its button at any time.
+  // ON THE PITCH panel: recomputed from the events at the current time while open (live and on seeking back).
+  let lastOnPitchKey = '';
+  function closeOnPitch() {
+    onPitchPanel.classList.add('hidden');
+    lineupsBtn.setAttribute('aria-pressed', 'false');
+  }
+  function openOnPitch() {
+    const t = matchTime();
+    lastOnPitchKey = `${matchMinute(t, match.info.periods)}|${lang}|${lineupKey(t)}`;
+    renderOnPitchPanel(onPitchPanel, match.info, events, t, closeOnPitch, lang);
+    lineupsBtn.setAttribute('aria-pressed', 'true');
+  }
+  lineupsBtn.addEventListener('click', () => {
+    if (!onPitchPanel.classList.contains('hidden')) { closeOnPitch(); return; }
+    closeAnalysis(); closeEvidence(); hideLineupCard();
+    openOnPitch();
+  });
+
+  // Clip analysis (optional report.json): opens when the clip ends, or from its button at any time.
   function closeAnalysis() {
     analysisPanel.classList.add('hidden');
     analysisBtn.setAttribute('aria-pressed', 'false');
   }
   function openAnalysis() {
     if (!report) return;
+    closeOnPitch(); hideLineupCard();
     renderAnalysis(analysisPanel, report, lang, match.info, insight => {
       selectedEvidence = undefined;  // insight evidence is not an overlay's: the playback-time rule is for cards
-      renderInsightEvidence(evidencePanel, insight, report, eventsById, match.info);
+      renderInsightEvidence(evidencePanel, insight, report, eventsById, match.info, lang);
     }, () => { closeAnalysis(); closeEvidence(); });
     analysisBtn.setAttribute('aria-pressed', 'true');
   }
@@ -298,10 +376,21 @@ async function main() {
     for (const feed of [broadcast, aiVideo]) feed.addEventListener('ended', () => { if (feed === video) openAnalysis(); });
   }
 
+  /** The page's own text in the selected language: static markup, the feed line and the play button's label. */
+  function applyLanguage() {
+    document.documentElement.lang = lang;
+    applyStaticText(document, lang);
+    if (feedKey) feedStatus.textContent = ui(lang, feedKey);
+    setPlaying(!video.paused);
+  }
+
   wireSegmented(modeTabs, value => { mode = value as Mode; updatePlayerPicker(); closeEvidence(); render(); });
   wireSegmented(langTabs, value => {
     lang = value; updatePlayerPicker(); closeEvidence();
+    applyLanguage();
     if (!analysisPanel.classList.contains('hidden')) openAnalysis();
+    if (!onPitchPanel.classList.contains('hidden')) openOnPitch();
+    if (!lineupCard.hidden) renderLineupCard(lineupCard, match.info, events, videoStart, hideLineupCard, lang);
     render();
   });
 
@@ -340,9 +429,7 @@ async function main() {
     const hit = hitRegions.find(r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
     if (hit) {
       selectedEvidence = hit.overlay;
-      renderEvidence(evidencePanel, hit.overlay, eventsById, match.info);
-    } else {
-      dropFootballAt(event.clientX, event.clientY);
+      renderEvidence(evidencePanel, hit.overlay, eventsById, match.info, lang);
     }
   });
 }

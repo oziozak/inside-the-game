@@ -15,8 +15,9 @@
   coverage), and only used to reach MIN_INSIGHTS; below HEDGE_MIN it is skipped. Skips are listed with why.
 - **Text** (LLM): one call writes the headline and every insight in every language; the verifier checks each
   as it checks an overlay (no digit, known placeholders, units, number words, no player name), plus: no claim
-  about a topic the insight does not cite, and a hedge where coverage is low. One retry with the problems,
-  then the code template (analyst_templates.py).
+  about a topic the insight does not cite, a hedge where coverage is low, every number with its noun, and (#79)
+  every language saying the same of the same teams with the same placeholders. A part is kept only whole, in
+  every language. One retry with the problems, then the code template (analyst_templates.py).
 - **Numbers**: every value comes from tactics.json or the match stats (the score); `recheck` reads each one
   back from tactics.json before the report is written.
 
@@ -169,11 +170,21 @@ def _sample(topic: str, n: int) -> float:
     return min(1.0, n / FULL_SAMPLE[topic]) if topic in FULL_SAMPLE else 1.0
 
 
+def _gap(topic: str, team: str, segment: str, coverages, reason: str) -> dict:
+    """A topic the facts cannot speak to at all, as a `skipped` entry with why (#83: short clips)."""
+    return {"topic": topic, "team": team, "segment": segment,
+            "coverage": round(min((c or 0.0) for c in coverages), 3), "reason": reason}
+
+
+NO_VALUE = "no value in the facts: too little of the clip seen"
+
+
 def _compare(tactics: dict, names: dict, topic: str, path: str, field_: str, key: str, label: str, what: str,
-             larger: bool = True, events: str | None = None, event_ids=None) -> list[Candidate]:
+             gaps: list[dict], larger: bool = True, events: str | None = None, event_ids=None) -> list[Candidate]:
     """A both-teams comparison of one fact on the whole clip (salience scaled by the smaller team's sample)."""
     facts = {s: fact(tactics, f"whole/{s}/{path}", field_, f"{names[s]}: {what}", f"{s}_{key}", events) for s in SIDES}
     if any(not isinstance(f.value, (int, float)) for f in facts.values()):
+        gaps.append(_gap(topic, "both", "whole", [f.coverage for f in facts.values()], NO_VALUE))
         return []
     vals = {s: f.value for s, f in facts.items()}
     labels = {label: _side_by(vals, LEVEL[topic], larger)}
@@ -183,15 +194,19 @@ def _compare(tactics: dict, names: dict, topic: str, path: str, field_: str, key
                       abs(vals["home"] - vals["away"]) / SCALE[topic] * _sample(topic, n), ids)]
 
 
-def candidates(tactics: dict, match: Match) -> list[Candidate]:
-    """Every insight the facts can support, with its salience (how much it says)."""
+def candidates(tactics: dict, match: Match, gaps: list[dict] | None = None) -> list[Candidate]:
+    """Every insight the facts can support, with its salience (how much it says). The topics they cannot
+    support (no value, or a sample under its threshold) go to `gaps` as `skipped` entries, with why."""
     names = {s: match.team_name(s) for s in SIDES}
     whole = next(s for s in tactics["segments"] if s["id"] == "whole")["teams"]
+    gaps = [] if gaps is None else gaps
     out: list[Candidate] = []
 
     shapes = {s: fact(tactics, f"whole/{s}/shape.all", "value", f"{names[s]}: shape on the pitch", f"{s}_shape")
               for s in SIDES}
-    if all(f.value for f in shapes.values()):
+    if not all(f.value for f in shapes.values()):
+        gaps.append(_gap("shape", "both", "whole", [f.coverage for f in shapes.values()], NO_VALUE))
+    else:
         labels, facts = {}, list(shapes.values())
         for s in SIDES:
             sheet = whole[s]["shape"]["all"]["team_sheet"]
@@ -203,45 +218,58 @@ def candidates(tactics: dict, match: Match) -> list[Candidate]:
                              0.8 + 0.8 * sum(not v for v in labels.values())))
 
     out += _compare(tactics, names, "defensive_line", "defensive_line_m.out_of_possession", "value", "line_m",
-                    "higher_line", "defensive line, out of possession (m from own goal)")
+                    "higher_line", "defensive line, out of possession (m from own goal)", gaps)
     out += _compare(tactics, names, "compactness", "compactness_m.out_of_possession", "value", "compact_m",
-                    "more_compact", "back line to front line, out of possession (m)", larger=False)
+                    "more_compact", "back line to front line, out of possession (m)", gaps, larger=False)
     out += _compare(tactics, names, "width", "attacking_width_m", "value", "width_m", "wider",
-                    "attacking width, in possession (m)")
+                    "attacking width, in possession (m)", gaps)
 
-    if all(whole[s]["long_balls"]["of"] >= MIN_PASSES for s in SIDES):
+    pass_counts = {s: whole[s]["long_balls"]["of"] for s in SIDES}
+    if all(n >= MIN_PASSES for n in pass_counts.values()):
         out += _compare(tactics, names, "directness", "long_balls", "value_pct", "long_pct", "more_direct",
-                        "long balls (passes over 30 m), % of passes", events="event_ids",
+                        "long balls (passes over 30 m), % of passes", gaps, events="event_ids",
                         event_ids=lambda s: whole[s]["long_balls"]["event_ids"])
         out += _compare(tactics, names, "progression", "progressive_passes", "value", "progressive",
-                        "more_progressive", "progressive passes (completed)", events="event_ids",
+                        "more_progressive", "progressive passes (completed)", gaps, events="event_ids",
                         event_ids=lambda s: whole[s]["progressive_passes"]["event_ids"])
+    else:
+        why = (f"too few passes: {names['home']} {pass_counts['home']}, {names['away']} {pass_counts['away']}; "
+               f"each team needs {MIN_PASSES}")
+        gaps += [_gap(topic, "both", "whole", [whole[s][name]["coverage"] for s in SIDES], why)
+                 for topic, name in (("directness", "long_balls"), ("progression", "progressive_passes"))]
 
-    if sum(n for s in SIDES for n in whole[s]["regains"]["value"].values()) >= MIN_REGAINS:
+    regains = sum(n for s in SIDES for n in whole[s]["regains"]["value"].values())
+    if regains >= MIN_REGAINS:
         out += _compare(tactics, names, "pressing", "regains", "value.high", "high_regains", "more_high_regains",
-                        "regains in the final third", events="event_ids",
+                        "regains in the final third", gaps, events="event_ids",
                         event_ids=lambda s: [i for ids in whole[s]["regains"]["event_ids"].values() for i in ids])
+    else:
+        gaps.append(_gap("pressing", "both", "whole", [whole[s]["regains"]["coverage"] for s in SIDES],
+                         f"too few regains: {regains}; both teams together need {MIN_REGAINS}"))
 
     for s in SIDES:
         passes = whole[s]["final_third_flanks"]["passes"]
         total = sum(passes["count"].values())
         if total < MIN_FINAL_THIRD_PASSES:
+            gaps.append(_gap("flanks", s, "whole", [passes["coverage"]], f"too few passes into the final third: "
+                             f"{total}; a team needs {MIN_FINAL_THIRD_PASSES}"))
             continue
         flank = max(("left", "centre", "right"), key=lambda w: (passes["count"][w], w == "centre"))
         ref = f"whole/{s}/final_third_flanks.passes"
-        facts = [fact(tactics, ref, f"value_pct.{flank}", f"{names[s]}: passes into the final third, % {flank}",
+        facts = [fact(tactics, ref, f"value_pct.{flank}",
+                      f"{names[s]}: share of its passes into the final third that went to the {flank}",
                       f"{s}_flank_pct", "event_ids"),
-                 fact(tactics, ref, f"count.{flank}", f"{names[s]}: passes into the final third, {flank}",
+                 fact(tactics, ref, f"count.{flank}", f"{names[s]}: passes into the final third to the {flank}",
                       f"{s}_passes_to_flank", "event_ids")]
         out.append(Candidate("flanks", s, "whole", facts, {"flank": flank},
                              (facts[0].value - 100 / 3) / 20 * _sample("flanks", total),
                              [i for ids in passes["event_ids"].values() for i in ids]))
 
-    out += _changes(tactics, match, names)
+    out += _changes(tactics, match, names, gaps)
     return out
 
 
-def _changes(tactics: dict, match: Match, names: dict) -> list[Candidate]:
+def _changes(tactics: dict, match: Match, names: dict, gaps: list[dict]) -> list[Candidate]:
     """For each goal or red card that splits the clip: the team whose line moved most, before against after."""
     by_id = {e["id"]: e for e in match.events}
     out = []
@@ -250,9 +278,15 @@ def _changes(tactics: dict, match: Match, names: dict) -> list[Candidate]:
         if not seg["id"].startswith("after_") or split not in by_id:
             continue
         before = next(s for s in tactics["segments"] if s["id"] == f"before_{split}")
-        if min(seg["end"] - seg["start"], before["end"] - before["start"]) < MIN_SEGMENT_S:
-            continue
         e = by_id[split]
+        lengths = before["end"] - before["start"], seg["end"] - seg["start"]
+        if min(lengths) < MIN_SEGMENT_S:
+            gaps.append(_gap("change", e["team"] if e.get("team") in SIDES else "both", seg["id"],
+                             [s["teams"][side]["defensive_line_m"]["out_of_possession"]["coverage"]
+                              for s in (before, seg) for side in SIDES],
+                             f"{lengths[0]:.0f} s before and {lengths[1]:.0f} s after the {e['type'].replace('_', ' ')}; "
+                             f"each side needs {MIN_SEGMENT_S:.0f} s"))
+            continue
         best = None
         for s in SIDES:
             path = f"{s}/defensive_line_m.out_of_possession"
@@ -300,7 +334,8 @@ def insight_request(i: int, c: Candidate) -> dict:
     """What the analyst agent sees for one insight (labels name sides; prompt_view names the teams)."""
     return {"id": f"i{i}", "topic": c.topic, "team": c.team, "measures": MEASURES[c.topic],
             "segment": c.segment, "labels": c.labels, "hedged": c.hedged, "values": c.values,
-            "placeholders": [f"{{{k}}}" for k in c.values], "cites": sorted(c.kinds)}
+            "placeholders": [f"{{{k}}}" for k in c.values], "nouns": {f.key: f.label for f in c.facts if f.key},
+            "cites": sorted(c.kinds)}
 
 
 def build_request(picked: list[Candidate], match: Match, langs: list[str], score: dict) -> dict:
@@ -310,6 +345,7 @@ def build_request(picked: list[Candidate], match: Match, langs: list[str], score
     return {"langs": langs, "home": match.team_name("home"), "away": match.team_name("away"),
             "headline": {"values": values, "placeholders": ["{score}"] + [f"{{{k}}}" for k in values
                                                                           if k not in ("score_home", "score_away")],
+                         "nouns": {"score": "the score", **(insights[0]["nouns"] if insights else {})},
                          "top": insights[0] if insights else None, "cites": sorted({k for c in picked for k in c.kinds})},
             "insights": insights}
 
@@ -328,7 +364,8 @@ What an insight may say:
   space but leaves room in behind"), as long as it stays on the insight's topic and never states it as
   something that happened in this match beyond the labels.
 - The headline says in one sentence why the clip went the way it did. It starts with the score line,
-  "<home> {{score}} <away>:", then the first insight in a few words; no other topic than those the insights
+  "<home> {{score}} <away>:", then the first insight in a few words, naming the team it is about ("Bosphorus FC
+  held a higher line", not "higher line"); no other topic than those the insights
   cite (headline `cites`). It may use "{{score}}" and the first insight's placeholders.
 - If an insight is `hedged`, too little of the clip was seen to be sure: say so in its text ("seems",
   "appears", "on limited evidence"; tr "görünüyor", "sınırlı veriye göre"; es "parece", "con datos limitados").
@@ -340,6 +377,9 @@ Numbers:
   number in words ("two", "iki", "dos", "back four"). For both teams write "both teams", tr "takımlar" or
   "her takım" (never "iki takım"), es "ambos equipos" (never "los dos"). Write a number only as a key of the insight's `placeholders`, exactly as given
   ("{{home_line_m}}", "{{home_shape}}"). Fewer numbers beat a forced one.
+- Every number reads with its noun: `placeholders` gives what each one is, in brackets. Write "{{away_flank_pct}}
+  of their passes into the final third", "{{away_passes_to_flank}} passes"; never two numbers joined by a bare
+  "and" or a count with no noun ("with 91% and 10 there", "%91 ve 10 burada", "91 % y 10 allí").
 - Code replaces each placeholder with the number AND its unit or sign: "{{home_line_m}}" becomes "22 m",
   "{{home_long_pct}}" "25%" (tr "%25", es "25 %"). So never write a unit, "%", "yüzde", "por ciento" or
   "metre" next to a placeholder.
@@ -349,6 +389,10 @@ Numbers:
 Length: headline at most {MAX_HEADLINE} characters, title at most {MAX_TITLE}, text at most {MAX_TEXT}, counted
 with numbers filled in; aim for one or two sentences per text. No hashtags, no emoji. Titles start with a
 capital letter, the rest lower case except names. No full stop at the end of a title.
+
+Same meaning in every language: the headline and each insight say the same thing in en, tr and es, about the
+same teams (if one language says "both teams", all do; if one names a single team, all name that team) and with
+the same placeholders. The verifier rejects a headline or insight whose languages differ.
 
 Style: write each language as a native analyst of that language would, not a translation of the English.
 Football words: final third = tr "son üçte birlik bölge" / es "último tercio"; long ball = tr "uzun top" / es
@@ -368,10 +412,12 @@ def prompt_view(req: dict) -> dict:
         return names.get(v, v) if isinstance(v, str) else v
 
     def item(x: dict) -> dict:
-        view = {k: v for k, v in x.items() if k not in ("values", "placeholders", "top")}
+        view = {k: v for k, v in x.items() if k not in ("values", "placeholders", "nouns", "top")}
         view["team"] = named(x.get("team")) if x.get("team") != "both" else "both"
         view["labels"] = {k: named(v) for k, v in x.get("labels", {}).items()} if "labels" in x else None
-        view["placeholders"] = {p: fill(p, x["values"], "en") for p in x["placeholders"]}
+        nouns = x.get("nouns", {})
+        view["placeholders"] = {p: fill(p, x["values"], "en") + (f" ({nouns[p[1:-1]]})" if p[1:-1] in nouns else "")
+                                for p in x["placeholders"]}
         return {k: v for k, v in view.items() if v is not None}
 
     return {"langs": req["langs"], "home": req["home"], "away": req["away"],
@@ -408,11 +454,21 @@ class FoundryAnalyst:
 
 
 def parse_reply(raw: str, req: dict) -> dict:
-    """{lang: {"headline", "insights": {id: {"title", "text"}}}} from the model's JSON; missing parts empty."""
+    """{lang: {"headline", "insights": {id: {"title", "text"}}}} from the model's JSON; missing parts empty.
+    A language left inside another by a misplaced brace ({"en": {..., "tr": {..., "es": {...}}}}) is still read."""
     data = load_json_reply(raw)
+
+    def find(d, lang: str) -> dict:
+        """`lang`'s part at the top of `d`, else nested in another language's."""
+        if not isinstance(d, dict):
+            return {}
+        if isinstance(d.get(lang), dict):
+            return d[lang]
+        return next((p for k in req["langs"] if k != lang and (p := find(d.get(k), lang))), {})
+
     out = {}
     for lang in req["langs"]:
-        part = data.get(lang) if isinstance(data, dict) and isinstance(data.get(lang), dict) else {}
+        part = find(data, lang)
         items = part.get("insights") if isinstance(part.get("insights"), dict) else {}
         out[lang] = {"headline": str(part.get("headline", "")),
                      "insights": {i["id"]: {"title": str((items.get(i["id"]) or {}).get("title", "")),
@@ -428,6 +484,10 @@ def check_item(title: str, text: str, item: dict, lang: str, match: Match, headl
     problems = verifier.check(text, title, item["values"], {}, set(), roster, lang, name_players=False,
                               max_text=MAX_HEADLINE if headline else MAX_TEXT, max_title=MAX_TITLE)
     problems += verifier.uncited_claims(f"{title} {text}", set(item["cites"]), lang, teams)
+    problems += verifier.bare_numbers(text, item["values"])
+    score_line = analyst_templates.score_line({s: match.team_name(s) for s in SIDES})
+    if headline and not text.startswith(score_line):
+        problems.append(f"the headline starts with the score line '{score_line}', then the finding")
     if item.get("hedged"):
         problems += verifier.missing_hedge(text, lang)
     return problems
@@ -435,63 +495,89 @@ def check_item(title: str, text: str, item: dict, lang: str, match: Match, headl
 
 async def write_report_text(req: dict, match: Match, backend, log: dict) -> dict:
     """{lang: {"headline": str, "insights": {id: {"title", "text"}}}}, filled and verified: the backend's
-    text, one retry for what the verifier rejected, then the code template."""
+    text, one retry for what the verifier rejected, then the code template. A part (the headline or an
+    insight) is kept only whole: every language passes and all say the same of the same teams (#79)."""
     langs, items = req["langs"], {i["id"]: i for i in req["insights"]}
     names = {"home": req["home"], "away": req["away"]}
     head = {**req["headline"], "hedged": False}
 
-    def verify(answer: dict, lang: str, part: str) -> tuple[dict | None, list[str], dict]:
-        """(filled {"title", "text"} or None, problems, the raw text) for one part ("headline" or an id)."""
+    def item_of(part: str) -> dict:
+        """The request item a part is checked against."""
+        return head if part == "headline" else items[part]
+
+    def raw_of(answer: dict, lang: str, part: str) -> dict:
+        """The raw {"title", "text"} of one part ("headline" or an id) in one language."""
         a = answer.get(lang, {})
         if part == "headline":
-            raw = {"title": "", "text": a.get("headline", "")}
-            item = head
-        else:
-            raw = (a.get("insights") or {}).get(part, {"title": "", "text": ""})
-            item = items[part]
-        p = check_item(raw["title"], raw["text"], item, lang, match, part == "headline")
-        if p:
-            return None, p, raw
-        return {k: fill(raw[k], item["values"], lang) for k in ("title", "text")}, [], raw
+            return {"title": "", "text": a.get("headline", "")}
+        return (a.get("insights") or {}).get(part, {"title": "", "text": ""})
+
+    def problems(answer: dict, part: str) -> dict[str, list[str]]:
+        """lang -> the verifier's problems with this part in that language."""
+        return {lang: check_item((r := raw_of(answer, lang, part))["title"], r["text"], item_of(part), lang, match,
+                                 part == "headline") for lang in langs}
+
+    def mismatch(raws: dict[str, dict]) -> list[str]:
+        """How the languages of one part disagree (teams, placeholders); empty when they agree."""
+        return verifier.language_mismatch({l: f"{r['title']} {r['text']}" for l, r in raws.items()}, names)
+
+    def keep(part: str, raws: dict[str, dict]) -> None:
+        """Fill and keep these languages of a part."""
+        for lang, raw in raws.items():
+            out[lang][part] = {k: fill(raw[k], item_of(part)["values"], lang) for k in ("title", "text")}
+
+    def rejected(part: str, p: dict[str, list[str]], raws: dict[str, dict]) -> dict[str, list[str]]:
+        """'lang/part' -> problems, the languages' disagreement under 'all/part'."""
+        found = {f"{l}/{part}": v for l, v in p.items() if v}
+        if not found and (m := mismatch(raws)):
+            found[f"all/{part}"] = m
+        return found
 
     parts = (["headline"] if req["insights"] else []) + list(items)
     out = {lang: {} for lang in langs}
     answer = await backend.write(req)
     bad = {}
-    for lang in langs:
-        for part in parts:
-            done, p, raw = verify(answer, lang, part)
-            if done:
-                out[lang][part] = done
-            else:
-                bad[(lang, part)] = (p, raw)
+    for part in parts:
+        p, raws = problems(answer, part), {l: raw_of(answer, l, part) for l in langs}
+        if found := rejected(part, p, raws):
+            bad[part] = (p, raws, found)
+        else:
+            keep(part, raws)
     if bad:
-        log["rejected"].append({"attempt": 1, "problems": {f"{l}/{part}": p for (l, part), (p, _) in bad.items()}})
-        feedback = "; ".join(f"[{l}] {part} {json.dumps(raw, ensure_ascii=False)}: " + ", ".join(p)
-                             for (l, part), (p, raw) in bad.items())
+        log["rejected"].append({"attempt": 1, "problems": {k: v for *_, f in bad.values() for k, v in f.items()}})
+        feedback = "; ".join(f"[{key.split('/')[0]}] {part} "
+                             + json.dumps(raws if key.startswith("all/") else raws[key.split("/")[0]], ensure_ascii=False)
+                             + ": " + ", ".join(v) for part, (_, raws, found) in bad.items() for key, v in found.items())
         retry = await backend.write(req, feedback)
         still = {}
-        for (lang, part) in bad:
-            done, p, raw = verify(retry, lang, part)
-            if done:
-                out[lang][part] = done
-                log["fixed_on_retry"] += 1
+        for part, (p1, raws1, _) in bad.items():
+            p2, raws2 = problems(retry, part), {l: raw_of(retry, l, part) for l in langs}
+            # The retry as one answer, else each language's passing text (first answer first, then the retry
+            # first), kept if they agree.
+            mixes = [{l: (a if not pa[l] else b)[l] for l in langs if not (p1[l] and p2[l])}
+                     for a, pa, b in ((raws1, p1, raws2), (raws2, p2, raws1))]
+            mix = mixes[0]
+            for raws in (raws2 if not any(p2.values()) else None, *mixes):
+                if raws and len(raws) == len(langs) and not mismatch(raws):
+                    keep(part, raws)
+                    log["fixed_on_retry"] += sum(1 for l in langs if p1[l]) or len(langs)
+                    break
             else:
-                still[(lang, part)] = p
+                still[part] = rejected(part, p2, raws2) or {f"all/{part}": mismatch(mix)}
         if still:
-            log["rejected"].append({"attempt": 2, "problems": {f"{l}/{part}": p for (l, part), p in still.items()}})
+            log["rejected"].append({"attempt": 2, "problems": {k: v for f in still.values() for k, v in f.items()}})
         bad = still
-    for (lang, part) in bad:
-        if part == "headline":
-            t = {"title": "", "text": analyst_templates.headline(req["headline"], lang, names)}
+    for part in bad:  # the template in every language, or the part is dropped in every language
+        ts = {lang: {"title": "", "text": analyst_templates.headline(req["headline"], lang, names)}
+              if part == "headline" else analyst_templates.render(items[part], lang, names) for lang in langs}
+        p = {lang: check_item(t["title"], t["text"], item_of(part), lang, match, part == "headline")
+             for lang, t in ts.items()}
+        if any(p.values()):
+            log["dropped"] += [{"lang": lang, "part": part, "problems": v or ["dropped with the other languages"]}
+                               for lang, v in p.items()]
         else:
-            t = analyst_templates.render(items[part], lang, names)
-        done, p, _ = verify({lang: {"headline": t["text"], "insights": {part: t}}}, lang, part)
-        if done:
-            out[lang][part] = done
-            log["template_fallbacks"] += 1
-        else:
-            log["dropped"].append({"lang": lang, "part": part, "problems": p})
+            keep(part, ts)
+            log["template_fallbacks"] += len(langs)
     return out
 
 
@@ -523,7 +609,9 @@ async def analyse(tactics: dict, match: Match, backend, langs: list[str]) -> tup
     state = MatchState(match.info)
     for e in match.events:
         state.update(e)
-    picked, skipped = select(candidates(tactics, match))
+    gaps: list[dict] = []
+    picked, skipped = select(candidates(tactics, match, gaps))
+    skipped += gaps
     req = build_request(picked, match, langs, state.score)
     log = {"rejected": [], "fixed_on_retry": 0, "template_fallbacks": 0, "dropped": []}
     text = await write_report_text(req, match, backend, log)  # FoundryBackend.ask saves each new answer

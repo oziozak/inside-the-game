@@ -29,7 +29,7 @@ A person on a team's roster, identified by a player id from the team sheet.
 _Avoid_: Track, athlete
 
 **Team sheet**:
-The pre-match information a broadcaster would have: both teams' rosters, kits and formations, the pitch size and the periods (`match_info.json`).
+The pre-match information a broadcaster would have: both teams' rosters, kits and formations, the pitch size and the periods (`match_info.json`); for a clip cut from mid-match, also the score when it starts (`score_at_start`), as the scoreboard graphic shows it.
 _Avoid_: Lineup file, metadata, roster file
 
 **Lineup assignment**:

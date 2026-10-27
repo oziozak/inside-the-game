@@ -9,7 +9,7 @@ const web = fileURLToPath(new URL('../', import.meta.url));
 const json = path => JSON.parse(readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8'));
 const info = json('data/fake/sample_a/match_info.json');
 const sampleEvents = json('data/fake/sample_a/events.json');
-const { overlayMentionsPlayer, activeOverlays } = loadTs(`${web}/src/render/schedule.ts`);
+const { overlayMentionsPlayer, activeOverlays, playerMoments, playerHint } = loadTs(`${web}/src/render/schedule.ts`);
 const { startingPlayers, findPlayer } = loadTs(`${web}/src/data/identity.ts`);
 const validOverlay = new Ajv({ strict: false }).compile(json('schemas/overlay.schema.json'));
 
@@ -75,4 +75,55 @@ test('startingPlayers returns exactly each team\'s starting XI, tagged with team
     assert.equal(found.team, p.team);
     assert.equal(found.id, p.id);
   }
+});
+
+// The football easter egg: only empty page background drops a ball, never the player section.
+const { landsOnEmptyBackground } = loadTs(`${web}/src/ui/footballs.ts`);
+
+/** A stand-in DOM element: `chain` lists it and its ancestors as simple selectors ('#id', '.class', 'tag'). */
+function fakeElement(...chain) {
+  return { closest: selector => selector.split(',').map(s => s.trim()).some(s => chain.includes(s)) ? {} : null };
+}
+
+test('footballs drop on empty page background only, never anywhere in the player section', () => {
+  assert.equal(landsOnEmptyBackground(fakeElement('main', 'body')), true);
+  assert.equal(landsOnEmptyBackground(fakeElement('.compare-section', 'main', 'body')), true); // section padding
+  assert.equal(landsOnEmptyBackground(fakeElement('canvas', '#app', '#player', 'main')), false); // video canvas, missed card
+  assert.equal(landsOnEmptyBackground(fakeElement('video', '.stage', '#app', '#player', 'main')), false);
+  assert.equal(landsOnEmptyBackground(fakeElement('.console', '#app', '#player', 'main')), false); // console background
+  assert.equal(landsOnEmptyBackground(fakeElement('p', '#app', '#player', 'main')), false); // status line under the video
+  assert.equal(landsOnEmptyBackground(fakeElement('span', '.lineups-grid', 'main')), false); // a content card
+  assert.equal(landsOnEmptyBackground(fakeElement('button', 'body')), false);
+  assert.equal(landsOnEmptyBackground(null), false);
+});
+
+test('a missing followed id never matches overlays or events that have no player either', () => {
+  const events = new Map([[unidentified.id, unidentified]]);
+  const overlay = { ...base, player: null, event_ids: [unidentified.id] };
+  for (const missing of [null, undefined, 0, NaN]) assert.equal(overlayMentionsPlayer(overlay, events, missing), false);
+});
+
+// Issue 96: the hint under the FOLLOWING chip, since without tracking the pitch stays quiet between a player's cards.
+test('playerMoments counts the followed player\'s cards in the language, and those still ahead', () => {
+  const at = start => ({ ...base, id: `o93${start}`, start, duration: 5, player: null, event_ids: [pass.id] });
+  const overlays = [at(10), at(20), at(30), { ...at(40), lang: 'tr' }, { ...at(50), mode: 'analyst' }];
+  assert.deepEqual(playerMoments(overlays, events, 6, 'en', 0), { total: 3, ahead: 3 });
+  assert.deepEqual(playerMoments(overlays, events, 6, 'en', 20), { total: 3, ahead: 1 });
+  assert.deepEqual(playerMoments(overlays, events, 6, 'en', 30), { total: 3, ahead: 0 });
+  assert.deepEqual(playerMoments(overlays, events, 6, 'tr', 0), { total: 1, ahead: 1 });
+  assert.deepEqual(playerMoments(overlays, events, 7, 'en', 0), { total: 0, ahead: 0 });
+  // only cards inside the clip: one at 30 s is past a clip ending at 25 s
+  assert.deepEqual(playerMoments(overlays, events, 6, 'en', 0, 25), { total: 2, ahead: 2 });
+  assert.deepEqual(playerMoments(overlays, events, 6, 'en', 0, 10), { total: 0, ahead: 0 });
+});
+
+test('playerHint explains the quiet pitch in EN/TR/ES, or says nothing was detected', () => {
+  assert.equal(playerHint({ total: 3, ahead: 2 }, 'A. Kurt', 'en'), 'Cards appear when the AI sees this player on the ball. 2 moments ahead in this clip.');
+  assert.equal(playerHint({ total: 3, ahead: 1 }, 'A. Kurt', 'en'), 'Cards appear when the AI sees this player on the ball. 1 moment ahead in this clip.');
+  assert.equal(playerHint({ total: 3, ahead: 0 }, 'A. Kurt', 'en'), 'Cards appear when the AI sees this player on the ball.');
+  assert.equal(playerHint({ total: 0, ahead: 0 }, 'A. Kurt', 'en'), 'No involvement detected for A. Kurt in this clip.');
+  assert.equal(playerHint({ total: 2, ahead: 2 }, 'A. Kurt', 'tr'), 'Kartlar, yapay zekâ bu oyuncuyu topla gördüğünde çıkar. Bu klipte 2 an daha var.');
+  assert.equal(playerHint({ total: 0, ahead: 0 }, 'A. Kurt', 'tr'), 'Bu klipte A. Kurt için katkı tespit edilmedi.');
+  assert.equal(playerHint({ total: 2, ahead: 1 }, 'A. Kurt', 'es'), 'Las tarjetas aparecen cuando la IA ve a este jugador con el balón. Queda 1 momento en este clip.');
+  assert.equal(playerHint({ total: 0, ahead: 0 }, 'A. Kurt', 'es'), 'No se detectó participación de A. Kurt en este clip.');
 });

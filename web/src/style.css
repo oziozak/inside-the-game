@@ -89,6 +89,14 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 .hero-score-numbers .num { font-size: clamp(2.5rem, 7vw, 4.5rem); }
 .hero-sep { font-family: var(--mono); color: var(--dust); font-size: clamp(2rem, 5vw, 3rem); }
 .hero-meta { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 20px; }
+.clip-picker { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+.clip-picker[hidden] { display: none; }
+.clip-picker select {
+  font-family: var(--mono); font-size: 12px; color: var(--chalk); background: var(--cell);
+  border: 1px solid var(--line-hi); border-radius: 3px; padding: 5px 8px; max-width: min(320px, calc(100vw - 96px));
+  cursor: pointer;
+}
+.clip-picker select:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
 .synthetic-disclosure { font-family: var(--mono); font-size: 11px; line-height: 1.5; color: var(--dust); border: 1px solid var(--line); padding: 3px 8px; border-radius: 3px; }
 
 /* ---------- compare ---------- */
@@ -127,16 +135,14 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
   .lineups-grid { grid-template-columns: 1fr; }
 }
 
+/* Full width, not shrink-to-fit: centred in `main`, a section wider than the viewport would overflow on both sides and its left edge could not be scrolled to. */
+.player-section { width: 100%; }
 #app { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 16px; width: 100%; }
 
 .stage { position: relative; width: min(100%, 1280px); aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
 .stage video, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .stage video[hidden], #ai-view[hidden] { display: none; }
 .stage canvas { pointer-events: auto; cursor: default; }
-
-.wordmark { position: absolute; left: 2.5%; top: 3.9%; display: flex; align-items: center; gap: 10px; pointer-events: none; z-index: 2; }
-.wordmark .corner { display: block; width: 16px; height: 16px; border-top: 3px solid var(--mint); border-left: 3px solid var(--mint); }
-.wordmark span.name { font-weight: 900; font-stretch: 62%; font-size: 1.25rem; letter-spacing: .06em; line-height: 1; text-shadow: 0 1px 8px rgba(0, 0, 0, .7); }
 
 /* ---------- console ---------- */
 .console {
@@ -164,7 +170,7 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 .scrub-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; }
 .scrub-input:disabled { cursor: not-allowed; }
 
-.seg-group { flex: none; display: flex; }
+.seg-group { flex: none; display: flex; flex-wrap: wrap; max-width: 100%; }
 .seg {
   height: 44px; min-width: 44px; padding: 0 12px; margin-left: -1px;
   font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .08em;
@@ -234,12 +240,16 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 }
 
 /* ---------- match analysis panel (report.json) ---------- */
+/* The header (with CLOSE) stays put; only the body scrolls, with room below the last insight. */
 .analysis {
-  position: absolute; inset: 0; z-index: 9; overflow-y: auto;
+  position: absolute; inset: 0; z-index: 9; overflow: hidden;
   background: rgba(7, 9, 11, .97); display: flex; flex-direction: column;
 }
 .analysis.hidden { display: none; }
-.analysis-body { padding: 20px 24px 24px; max-width: 760px; }
+.analysis-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px 48px; overflow-wrap: anywhere;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent); }  /* fade: there is more below; at the end it falls on the padding */
+.analysis-body > * { max-width: 712px; }
+.analysis-window { margin: 0 0 10px; font-size: 10px; letter-spacing: .08em; color: var(--dust); }
 .analysis-headline { margin: 0 0 18px; font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: clamp(20px, 2.6vw, 30px); line-height: 1.15; }
 .analysis-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .insight { display: grid; gap: 6px; width: 100%; text-align: left; padding: 12px 14px; color: var(--chalk); background: transparent; border: 1px solid var(--line); cursor: pointer; }
@@ -257,4 +267,68 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 .fact-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 0; border-top: 1px solid #1E272D; }
 .fact-row .num { font-size: 18px; letter-spacing: 0; }
 .fact-meta { grid-column: 1 / -1; font-size: 10px; color: var(--dust); overflow-wrap: anywhere; }
-@media (max-width: 720px) { .analysis-body { padding: 16px; } }
+/* On a phone the stage is ~190px tall: the analysis, and evidence opened from it, become full-screen sheets. */
+@media (max-width: 720px) {
+  .analysis { position: fixed; z-index: 30; background: var(--ink); }
+  .analysis-body { padding: 16px 16px 48px; }
+  .stage:has(> .analysis:not(.hidden)) > .evidence { position: fixed; z-index: 31; width: 100%; background: var(--ink); }
+}
+
+/* ---------- lineups: marks shared by the section, the ON THE PITCH panel and the lineup card (#88) ---------- */
+.card-mark { display: inline-block; width: 8px; height: 11px; margin-left: 8px; vertical-align: -1px; background: var(--yellow); }
+.card-mark.red { background: var(--red-card); margin: 0 6px 0 0; }
+.lineup-head .lab { margin-left: auto; }
+.lineup-head .lab + .lineup-count { margin-left: 12px; }
+.lineup-count.short { color: var(--red-card); }
+.lineup-on { color: var(--mint); }
+.lineup-off-head { padding: 10px 16px 6px; border-top: 1px solid var(--line); }
+.lineup-off { display: flex; align-items: center; gap: 14px; padding: 8px 16px; color: var(--dust); }
+.lineup-off .lineup-number { color: var(--dust); }
+.lineup-off-why { text-align: right; letter-spacing: .06em; }
+span.lineup-pick { cursor: default; }
+span.lineup-pick:hover { background: none; }
+span.lineup-pick:hover .lineup-name { color: inherit; }
+
+/* ON THE PITCH: a side panel on the left (evidence opens on the right); the header stays, the body scrolls. */
+.onpitch {
+  position: absolute; top: 0; left: 0; bottom: 0; width: min(36%, 380px); z-index: 9; overflow: hidden;
+  background: rgba(7, 9, 11, .97); border-right: 1px solid var(--line); display: flex; flex-direction: column;
+}
+.onpitch.hidden { display: none; }
+.onpitch-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 12px; padding: 12px 12px 32px; align-content: start; }
+.onpitch .lineup-head { font-size: 15px; padding: 10px 12px; flex-wrap: wrap; gap: 8px; }
+.onpitch .lineup-pick, .onpitch .lineup-off { padding: 6px 12px; gap: 10px; font-size: 13px; }
+
+/* Pre-clip lineup card: over the paused video, never over the console (it lives inside the stage). */
+.lineup-card {
+  position: absolute; inset: 4% 4% 4% 4%; z-index: 8; display: flex; flex-direction: column; gap: 1.2%;
+  padding: 1.6% 2%; background: rgba(7, 9, 11, .93); border: 1px solid var(--line);
+  font-size: clamp(8px, 1.15vw, 14px); overflow: hidden; animation: lc-in .35s ease-out;
+}
+.lineup-card[hidden] { display: none; }
+@keyframes lc-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.lc-head { display: flex; align-items: center; gap: 1.2em; }
+.lc-score { font-size: 2em; margin-right: auto; }
+.lc-skip { font-size: .85em; font-weight: 600; letter-spacing: .12em; padding: .5em 1em; border: 1px solid var(--line-hi); color: var(--chalk); background: none; cursor: pointer; }
+.lc-skip:hover, .lc-skip:focus-visible { border-color: var(--mint); color: var(--mint); }
+.lc-teams { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3%; }
+.lc-team { min-width: 0; display: flex; flex-direction: column; }
+.lc-team-head { display: flex; align-items: center; gap: .8em; padding-bottom: .5em; border-bottom: 3px solid; font-weight: 800; font-stretch: 75%; font-size: 1.25em; }
+.lc-team-head .chip { font-size: .6em; height: 1.6em; width: 3.2em; }
+.lc-team-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-formation { margin-left: auto; font-family: var(--mono); font-size: .65em; font-weight: 500; color: var(--dust); white-space: nowrap; }
+.lc-list { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; display: flex; flex-direction: column; justify-content: space-evenly; }
+.lc-list li { display: flex; align-items: center; gap: .9em; line-height: 1.25; border-top: 1px solid #1a2229; padding: .1em 0; }
+.lc-list .lineup-number { width: 1.8em; flex: none; }
+.lc-list .lineup-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-list .lineup-name .card-mark { width: .6em; height: .85em; margin-left: .5em; }
+.lc-list .lineup-on { font-family: var(--mono); font-size: .75em; }
+.lineup-pos { font-family: var(--mono); font-size: .75em; color: var(--dust); white-space: nowrap; }
+.lc-list .lineup-off { padding: .1em 0; gap: .9em; }
+
+@media (max-width: 720px) {
+  .onpitch { width: 100%; }
+  .lineup-card { inset: 0; padding: 6px 8px; border: none; }
+  .lc-teams { gap: 10px; }
+  .lc-team-head .chip { display: none; }
+}

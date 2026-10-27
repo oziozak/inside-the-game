@@ -60,6 +60,18 @@ test('explicit score snapshots restore missing history without counting goals tw
   assert.deepEqual(scoreAt([later, goal], 106, 90), { home: 3, away: 3 });
 });
 
+test('a clip cut from mid-match starts from match_info.score_at_start (#83)', () => {
+  const opening = { home: 3, away: 0 };
+  const goal = { ...events.find(e => e.type === 'goal'), t: 2614, score: { home: 4, away: 0 } };
+  const unsnapshotted = { ...goal, id: 'e9004', t: 2700, team: 'away', score: undefined };
+  assert.deepEqual(scoreAt([], 2400, 2400, opening), { home: 3, away: 0 });
+  assert.deepEqual(scoreAt([goal, unsnapshotted], 2614, 2400, opening), { home: 4, away: 0 });
+  assert.deepEqual(scoreAt([goal, unsnapshotted], 2701, 2400, opening), { home: 4, away: 1 });
+  assert.deepEqual(scoreAt([goal, unsnapshotted], 2500, 2400, opening), { home: 3, away: 0 });
+  // An event before the clip (a full-match events.json) does not undo the opening score.
+  assert.deepEqual(scoreAt(events, 2400, 2400, opening), { home: 3, away: 0 });
+});
+
 test('halftime clock boundaries preserve score and context when seeking across halves', () => {
   const second = info.periods.find(p => p.period === 2).start;
   assert.equal(clock(second, info.periods), '45:00');
@@ -127,9 +139,13 @@ test('hero and clip-stat UI recompute at nonzero offsets and exclude source-end 
   assert.equal(elements.get('#hero-home-score').textContent, '0');
   renderSummary(info, events, 0, 43.73, 43.73);
   assert.equal(elements.get('#hero-home-score').textContent, '0');
+  renderSummary({ ...info, score_at_start: { home: 2, away: 1 } }, [], 2400, 2401, 3000);
+  assert.equal(elements.get('#hero-home-score').textContent, '2');
+  assert.equal(elements.get('#hero-away-score').textContent, '1');
+  assert.doesNotMatch(elements.get('#hero-clock').textContent, /unavailable/);
 });
 
-test('standard, dual-team and player-following cards all render cited provenance', () => {
+test('standard, dual-team and player-following cards all render a source chip, never a SOURCE block', () => {
   const { drawOverlays, buildRoster } = loadTs(`${web}/src/render/draw.ts`);
   const { buildCamera } = loadTs(`${web}/src/render/camera.ts`);
   const first = JSON.parse(readFileSync(new URL('../../data/fake/sample_a/tracking.jsonl', import.meta.url), 'utf8').split('\n')[0]);
@@ -143,8 +159,8 @@ test('standard, dual-team and player-following cards all render cited provenance
       position: graphic === 'player_tag' ? 'follow-player' : 'bottom-left', title: 'Long fixture title '.repeat(40), values: { shots_home: 1, shots_away: 0 } };
     const regions = drawOverlays(ctx, 1920, 1080, [o], buildRoster(info), map, match, 10, camera);
     assert.equal(regions.length, 1, graphic);
-    assert.ok(drawn.some(text => text.includes('SOURCE CV+SIM')), graphic);
-    assert.ok(drawn.some(text => text.includes('76%')), graphic);
+    assert.ok(drawn.includes('AI · 76% + SIM'), graphic);
+    assert.ok(drawn.every(text => !/SOURCE|SIMULATOR/.test(text)), graphic);
     assert.ok(drawn.every(text => !text.includes('undefined')), graphic);
   }
 });

@@ -85,10 +85,10 @@ def _render(req: dict, lang: str, n: dict[str, str]) -> tuple[str, str]:
     if topic == "flanks":
         s = req["team"]
         way = pick(lang, *FLANK[labels["flank"]])
-        pct = _p(f"{s}_flank_pct")
-        return title, pick(lang, f"{n[s]} attacked mostly {way}: {pct} of their passes into the final third went there",
-                           f"{n[s]} son üçte birlik bölgeye en çok {way} girdi: bu paslarının oranı {pct}",
-                           f"{n[s]} atacó sobre todo {way}: el {pct} de sus pases al último tercio")
+        pct, count = _p(f"{s}_flank_pct"), _p(f"{s}_passes_to_flank")
+        return title, pick(lang, f"{n[s]} attacked mostly {way}: {count} passes, {pct} of all their passes into the final third",
+                           f"{n[s]} son üçte birlik bölgeye en çok {way} girdi: {count} pas, bu bölgeye attığı paslarda oran {pct}",
+                           f"{n[s]} atacó sobre todo {way}: {count} pases, el {pct} de todos sus pases al último tercio")
 
     if topic == "change":
         ev = labels["event"]
@@ -185,6 +185,11 @@ HEADLINE = {
 }
 
 
+def score_line(names: dict[str, str]) -> str:
+    """How every headline starts, in every language: "<home> {score} <away>:"."""
+    return f"{names['home']} {{score}} {names['away']}:"
+
+
 def headline(req: dict, lang: str, names: dict[str, str]) -> str:
     """The headline: the score line, then what the top insight (req["top"]) says, in a phrase."""
     home, away = names["home"], names["away"]
@@ -213,4 +218,4 @@ def headline(req: dict, lang: str, names: dict[str, str]) -> str:
         sides = _sides(top, COMPARE[topic][0])
         side_text, level_text = HEADLINE[topic]
         phrase = pick(lang, *side_text).format(X=names[sides[0]]) if sides else pick(lang, *level_text)
-    return f"{home} {{score}} {away}: {phrase}"
+    return f"{score_line(names)} {phrase}"

@@ -1,7 +1,7 @@
 import { mkdir, copyFile, rename, rm, stat, readFile, realpath, mkdtemp, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { dirname, resolve, relative, isAbsolute, join, sep } from 'node:path';
+import { basename, dirname, resolve, relative, isAbsolute, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -91,50 +91,97 @@ async function validateBundle(folder) {
   }
 }
 
-/** Copy a complete, validated asset set; never publish a mix of old and new matches. */
+/** The files to publish for one selected folder: the five required, then whichever optional ones exist. */
+async function folderSources(repoRoot, outputDir, match) {
+  if (!match.trim() || isAbsolute(match) || !inside(repoRoot, resolve(repoRoot, match))) {
+    throw new Error('MATCH must be a non-empty path relative to the repository root, within that repository');
+  }
+  let folder;
+  try { folder = await realpath(resolve(repoRoot, match)); }
+  catch (error) { throw new Error(`MATCH folder not found: ${match} (${error.message})`); }
+  if (!inside(repoRoot, folder) || inside(resolve(outputDir), folder)) throw new Error('MATCH must resolve within the repository and outside web/public/sample');
+  const sources = REQUIRED.map(name => [join(folder, name), name]);
+  if (await isFile(join(folder, 'tracking.jsonl'))) sources.push([join(folder, 'tracking.jsonl'), 'tracking.jsonl']);
+  for (const name of ['ai_view.mp4', 'ai_view.mp4.manifest.json', 'report.json']) {
+    if (await isFile(join(folder, name))) sources.push([join(folder, name), name]);
+  }
+  return { folder, sources };
+}
+
+/** Copy `sources` into `dir`, then validate them as one bundle and write its feeds.json. */
+async function stageBundle(dir, sources, label) {
+  const missing = [];
+  for (const [source, name] of sources) if (!await isFile(source)) missing.push(`${name}: ${source}`);
+  if (missing.length) throw new Error(`Missing required assets for ${label}:\n${missing.join('\n')}`);
+  await mkdir(dir, { recursive: true });
+  for (const [source, name] of sources) await copyFile(source, join(dir, name));
+  await validateBundle(dir);
+  await writeFile(join(dir, 'feeds.json'), JSON.stringify(await prepareFeeds(dir)));
+}
+
+const CLIP_ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
+
+/** A clip's picker label: the first line of the folder's optional title.txt, else its id. */
+async function clipTitle(folder, id) {
+  if (!await isFile(join(folder, 'title.txt'))) return id;
+  const line = (await readFile(join(folder, 'title.txt'), 'utf8')).split(/\r?\n/)[0].trim();
+  return line.slice(0, 80) || id;
+}
+
+/**
+ * Copy a complete, validated asset set; never publish a mix of old and new matches.
+ *
+ * `match` is one folder (published at the output root, as before) or several separated by commas
+ * ("data/demo/test2,data/demo/hl1"): each is validated on its own and published in a subfolder named
+ * after the folder ("hl1"), with clips.json listing them in order for the page's clip picker.
+ */
 export async function prepareMatch({ repoRoot = ROOT, outputDir = OUTPUT, match } = {}) {
   repoRoot = await realpath(repoRoot);
   outputDir = resolve(outputDir);
   const selected = match !== undefined;
+  const list = selected && match.includes(',') ? match.split(',').map(m => m.trim()) : undefined;
   // Do not remove a caller-selected source that is itself inside the generated directory.
-  if (selected && inside(resolve(outputDir), resolve(repoRoot, match))) {
-    throw new Error('MATCH must not point into web/public/sample (generated output)');
+  for (const m of list ?? (selected ? [match] : [])) {
+    if (m && inside(resolve(outputDir), resolve(repoRoot, m))) {
+      throw new Error('MATCH must not point into web/public/sample (generated output)');
+    }
   }
   await rm(outputDir, { recursive: true, force: true });
   let staging;
   try {
-    let sources;
-    if (selected) {
-      if (!match.trim() || isAbsolute(match) || !inside(repoRoot, resolve(repoRoot, match))) {
-        throw new Error('MATCH must be a non-empty path relative to the repository root, within that repository');
-      }
-      let folder;
-      try { folder = await realpath(resolve(repoRoot, match)); }
-      catch (error) { throw new Error(`MATCH folder not found: ${match} (${error.message})`); }
-      if (!inside(repoRoot, folder) || inside(resolve(outputDir), folder)) throw new Error('MATCH must resolve within the repository and outside web/public/sample');
-      sources = REQUIRED.map(name => [join(folder, name), name]);
-      if (await isFile(join(folder, 'tracking.jsonl'))) sources.push([join(folder, 'tracking.jsonl'), 'tracking.jsonl']);
-      for (const name of ['ai_view.mp4', 'ai_view.mp4.manifest.json', 'report.json']) {
-        if (await isFile(join(folder, name))) sources.push([join(folder, name), name]);
-      }
-    } else {
-      sources = [
-        ['data/fake/sample_a/match_info.json', 'match_info.json'],
-        ['data/fake/sample_a/tracking.jsonl', 'tracking.jsonl'],
-        ['data/fake/sample_a/events.json', 'events.json'],
-        ['data/generated/sample_a/overlays.json', 'overlays.json'],
-        ['data/renders/sample_a-60s.mp4', 'match.mp4'],
-        ['data/renders/sample_a-60s.mp4.manifest.json', 'match.mp4.manifest.json'],
-      ].map(([source, name]) => [join(repoRoot, source), name]);
-    }
-    const missing = [];
-    for (const [source, name] of sources) if (!await isFile(source)) missing.push(`${name}: ${source}`);
-    if (missing.length) throw new Error(`Missing required assets for ${selected ? `MATCH=${match}` : 'default sample_a'}:\n${missing.join('\n')}`);
     await mkdir(dirname(outputDir), { recursive: true });
+    if (list) {
+      if (list.some(m => !m)) throw new Error('MATCH lists an empty path (check the commas)');
+      const clips = [];
+      const resolved = [];
+      for (const m of list) {
+        const { folder, sources } = await folderSources(repoRoot, outputDir, m);
+        const id = basename(folder).toLowerCase();
+        if (!CLIP_ID.test(id)) throw new Error(`MATCH folder name "${basename(folder)}" must be a short id: letters, digits, - or _`);
+        if (clips.some(c => c.id === id)) throw new Error(`MATCH lists two folders named "${id}"; clip ids must be unique`);
+        clips.push({ id, title: await clipTitle(folder, id) });
+        resolved.push([m, id, sources]);
+      }
+      staging = await mkdtemp(`${outputDir}.tmp-`);
+      for (const [m, id, sources] of resolved) {
+        try { await stageBundle(join(staging, id), sources, `MATCH entry ${m}`); }
+        catch (error) { throw new Error(error.message.startsWith('Missing') ? error.message : `MATCH entry ${m}: ${error.message}`); }
+      }
+      await writeFile(join(staging, 'clips.json'), JSON.stringify({ clips }));
+      await rename(staging, outputDir);
+      console.log(`Prepared ${clips.length} clips: ${clips.map(c => c.id).join(', ')}`);
+      return;
+    }
+    const sources = selected ? (await folderSources(repoRoot, outputDir, match)).sources : [
+      ['data/fake/sample_a/match_info.json', 'match_info.json'],
+      ['data/fake/sample_a/tracking.jsonl', 'tracking.jsonl'],
+      ['data/fake/sample_a/events.json', 'events.json'],
+      ['data/generated/sample_a/overlays.json', 'overlays.json'],
+      ['data/renders/sample_a-60s.mp4', 'match.mp4'],
+      ['data/renders/sample_a-60s.mp4.manifest.json', 'match.mp4.manifest.json'],
+    ].map(([source, name]) => [join(repoRoot, source), name]);
     staging = await mkdtemp(`${outputDir}.tmp-`);
-    for (const [source, name] of sources) await copyFile(source, join(staging, name));
-    await validateBundle(staging);
-    await writeFile(join(staging, 'feeds.json'), JSON.stringify(await prepareFeeds(staging)));
+    await stageBundle(staging, sources, selected ? `MATCH=${match}` : 'default sample_a');
     await rename(staging, outputDir);
     console.log(`Prepared ${selected ? `MATCH=${match}` : 'default sample_a'} (${sources.length} assets)`);
   } finally {

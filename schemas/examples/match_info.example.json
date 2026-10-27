@@ -4,6 +4,7 @@
   "pitch": [105, 68],
   "origin": "bottom-left",
   "kickoff_direction": { "home": "left_to_right" },
+  "score_at_start": { "home": 0, "away": 0 },
   "home": {
     "name": "Bosphorus FC",
     "short": "BOS",

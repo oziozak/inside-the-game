@@ -4,8 +4,9 @@ import { projectToCanvas } from './camera';
 import { sample } from '../data/loadMatch';
 import { COLOR, REF_WIDTH } from './theme';
 import { clock } from './schedule';
-import { overlayProvenance, provenanceText } from '../data/provenance';
+import { sourceChipText } from '../data/provenance';
 import { overlayIdentity, type OverlayIdentity } from '../data/identity';
+import { ui, trMaybe, type Key } from '../i18n';
 
 export interface HitRegion { overlay: Overlay; x: number; y: number; w: number; h: number }
 
@@ -27,17 +28,30 @@ const CORNERS: Record<Exclude<OverlayPosition, 'follow-player'>, { x: number; y:
   'bottom-center': { x: 0, y: -24, align: 'center', grow: -1 },
 };
 
-const KIND: Partial<Record<Overlay['graphic'], string>> = {
-  pass_card: 'PASS', shot_card: 'SHOT', goal_banner: 'GOAL', insight_text: 'INSIGHT',
-  player_tag: 'PLAYER', speed_badge: 'SPEED', distance_badge: 'DISTANCE',
-};
+const KIND = new Set<Overlay['graphic']>(['pass_card', 'shot_card', 'goal_banner', 'insight_text', 'player_tag', 'speed_badge', 'distance_badge', 'stat_compare', 'momentum_bar']);
 
-const CELL_KEYS: [key: string, label: string, unit: string][] = [
-  ['distance_m', 'DISTANCE', 'm'],
-  ['goal_distance_m', 'RANGE', 'm'],
-  ['speed_kmh', 'BALL SPEED', 'km/h'],
-  ['difficulty', 'DIFFICULTY', '/10'],
-  ['xg', 'XG', ''],
+/** The label key for a card: a card banner is named from the card event it cites (a second yellow is a red). */
+function cardKindKey(overlay: Overlay, events: Map<string, MatchEvent>): Key | undefined {
+  if (overlay.graphic === 'card_banner') {
+    const cited = overlay.event_ids.map(id => events.get(id));
+    if (cited.some(e => e?.type === 'red_card')) return 'kind.red_card';
+    if (cited.some(e => e?.type === 'yellow_card')) return 'kind.yellow_card';
+    return undefined;
+  }
+  return KIND.has(overlay.graphic) ? `kind.${overlay.graphic}` as Key : undefined;
+}
+
+/**
+ * The header label viewers see, in the card's own language. An unknown graphic gets no label, never its internal
+ * type name.
+ */
+export function cardKind(overlay: Overlay, events: Map<string, MatchEvent>): string {
+  const key = cardKindKey(overlay, events);
+  return key ? ui(overlay.lang, key) : '';
+}
+
+const CELL_KEYS: [key: string, unit: string][] = [
+  ['distance_m', 'm'], ['goal_distance_m', 'm'], ['speed_kmh', 'km/h'], ['difficulty', '/10'], ['xg', ''],
 ];
 
 function px(ref: number, scale: number): number { return ref * scale; }
@@ -70,11 +84,32 @@ function labText(ctx: CanvasRenderingContext2D, text: string, x: number, y: numb
   ctx.fillText(text.toUpperCase(), x, y);
 }
 
-function cellValueUnits(overlay: Overlay): [string, string, string][] {
+/** Data cells for a standard card. `minute` is left out: the header already shows the clock, and two times read as a clash. */
+function cellValueUnits(overlay: Overlay): [key: string, label: string, value: string, unit: string][] {
   const values = overlay.values ?? {};
   const known = CELL_KEYS.filter(([key]) => key in values).slice(0, 3);
-  if (known.length) return known.map(([key, label, unit]) => [label, String(values[key]), unit]);
-  return Object.entries(values).slice(0, 3).map(([key, v]) => [key.replace(/_/g, ' ').toUpperCase(), String(v), '']);
+  if (known.length) return known.map(([key, unit]) => [key, ui(overlay.lang, `cell.${key}` as Key), String(values[key]), unit]);
+  return Object.entries(values).filter(([key]) => key !== 'minute').slice(0, 3)
+    .map(([key, v]) => [key, trMaybe(overlay.lang, `cell.${key}`, key.replace(/_/g, ' ').toUpperCase()), String(v), '']);
+}
+
+const CHIP_FONT = (s: number) => `700 ${px(9, s)}px ${COLOR_FONT_MONO}`;
+
+/** Width of a source chip (0 without one); set `ctx.font` is clobbered. */
+function chipWidth(ctx: CanvasRenderingContext2D, text: string | undefined, s: number): number {
+  if (!text) return 0;
+  ctx.font = CHIP_FONT(s);
+  return ctx.measureText(text).width + px(12, s);
+}
+
+/** A small outlined source chip ("AI · 73%" / "SIM"), its left edge at x and vertically centered on cy. */
+function drawChip(ctx: CanvasRenderingContext2D, text: string, x: number, cy: number, s: number): number {
+  const w = chipWidth(ctx, text, s), h = px(16, s);
+  ctx.strokeStyle = COLOR.lineHi; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, cy - h / 2 + 0.5, w - 1, h - 1);
+  ctx.fillStyle = text.startsWith('AI') ? COLOR.mint : COLOR.dust; ctx.font = CHIP_FONT(s);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + px(6, s), cy + px(1, s));
+  return w;
 }
 
 /** Pitch-position ruler: only when the cited event carries real start/end meters (pass-like events). */
@@ -91,7 +126,7 @@ export interface TextBlock { size: number; lines: string[]; lineHeight: number }
 /** Every measurement a standard card needs before drawing, so stacking and drawing agree on its height. */
 export interface StandardCardLayout {
   w: number; h: number; headH: number; nameH: number; cellsH: number; rulerH: number;
-  title: TextBlock; body: TextBlock; cells: [string, string, string][]; ruler?: MatchEvent;
+  title: TextBlock; body: TextBlock; cells: [key: string, label: string, value: string, unit: string][]; ruler?: MatchEvent;
 }
 
 /** A title may shrink to this fraction of its size before it wraps. */
@@ -136,8 +171,9 @@ function drawStandardCard(
   const { w, h, headH, nameH, cellsH, title, body, cells, ruler } = layout;
   const team = identity.team;
   const tabColor = team ? info[team].kit.shirt : COLOR.mint;
-  const tabLabel = team ? info[team].short : 'INFO';
-  const kind = KIND[overlay.graphic] ?? overlay.graphic.replace(/_/g, ' ').toUpperCase();
+  const tabLabel = team ? info[team].short : ui(overlay.lang, 'cell.info');
+  const kindKey = cardKindKey(overlay, events);
+  const kind = kindKey ? ui(overlay.lang, kindKey) : '';
   const left = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x;
 
   ctx.save();
@@ -146,26 +182,20 @@ function drawStandardCard(
   ctx.fillStyle = COLOR.card; ctx.fillRect(left, y, w, h);
   ctx.strokeStyle = 'rgba(237,240,234,0.22)'; ctx.lineWidth = Math.max(1, px(1, s)); ctx.strokeRect(left + 0.5, y + 0.5, w - 1, h - 1);
 
-  // header: team tab · kind · timecode · source chevron
-  teamTab(ctx, left, y, team || overlay.player == null ? px(56, s) : px(56, s), headH, tabColor, tabLabel, s);
-  labText(ctx, kind, left + px(68, s), y + headH / 2 + px(4, s), s, COLOR.chalk);
-  const tcText = clock(overlay.start, periods);
-  ctx.font = `700 ${px(13, s)}px ${COLOR_FONT_MONO}`; ctx.fillStyle = COLOR.chalk; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-  const sourceW = px(124, s);
-  ctx.fillText(tcText, left + w - sourceW - px(12, s), y + headH / 2 + px(1, s));
-  if (sourceW) {
-    ctx.strokeStyle = COLOR.line; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(left + w - sourceW, y); ctx.lineTo(left + w - sourceW, y + headH); ctx.stroke();
-    const source = overlayProvenance(overlay, events);
-    const sourceX = left + w - sourceW + px(8, s), sourceTextW = sourceW - px(28, s);
-    ctx.font = `600 ${px(9, s)}px ${COLOR_FONT_MONO}`; ctx.fillStyle = COLOR.chalk; ctx.textAlign = 'left';
-    ctx.fillText(truncate(ctx, `SOURCE ${source.label}`, sourceTextW), sourceX, y + px(10, s));
-    ctx.fillStyle = COLOR.dust;
-    ctx.fillText(truncate(ctx, source.confidence ?? (source.label === 'SIM' ? 'SIMULATOR' : 'EVENT EVIDENCE'), sourceTextW), sourceX, y + px(23, s));
-    ctx.fillStyle = COLOR.mint;
-    const ax = left + w - px(16, s), ay = y + headH / 2;
-    ctx.beginPath(); ctx.moveTo(ax, ay - px(5, s)); ctx.lineTo(ax + px(4, s), ay); ctx.lineTo(ax, ay + px(5, s)); ctx.fill();
+  // header: team tab · card glyph · kind · timecode · source chip
+  teamTab(ctx, left, y, px(56, s), headH, tabColor, tabLabel, s);
+  let kindX = left + px(68, s);
+  if (kindKey === 'kind.red_card' || kindKey === 'kind.yellow_card') {
+    ctx.fillStyle = kindKey === 'kind.red_card' ? COLOR.redCard : COLOR.yellow;
+    ctx.fillRect(kindX, y + headH / 2 - px(7, s), px(10, s), px(14, s));
+    kindX += px(18, s);
   }
+  if (kind) labText(ctx, kind, kindX, y + headH / 2 + px(4, s), s, COLOR.chalk);
+  const chip = sourceChipText(overlay, events);
+  const chipW = chipWidth(ctx, chip, s);
+  if (chip) drawChip(ctx, chip, left + w - chipW - px(10, s), y + headH / 2, s);
+  ctx.font = `700 ${px(13, s)}px ${COLOR_FONT_MONO}`; ctx.fillStyle = COLOR.chalk; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.fillText(clock(overlay.start, periods), left + w - chipW - px(chip ? 20 : 12, s), y + headH / 2 + px(1, s));
 
   // name / title, then body, each line on its own baseline
   ctx.fillStyle = COLOR.chalk; ctx.font = titleFont(title.size, s); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
@@ -186,11 +216,11 @@ function drawStandardCard(
     const cw = w / cells.length;
     ctx.strokeStyle = COLOR.line; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(left, cy); ctx.lineTo(left + w, cy); ctx.stroke();
-    cells.forEach(([label, value, unit], i) => {
+    cells.forEach(([key, label, value, unit], i) => {
       const cx = left + i * cw;
       ctx.fillStyle = COLOR.cell; ctx.fillRect(cx + (i ? 0.5 : 0), cy, cw - (i ? 0.5 : 0), cellsH);
       labText(ctx, label, cx + px(14, s), cy + px(22, s), s);
-      const isDiff = label === 'DIFFICULTY';
+      const isDiff = key === 'difficulty';
       ctx.fillStyle = isDiff ? COLOR.mint : COLOR.chalk;
       ctx.font = `700 ${px(36, s)}px ${COLOR_FONT_MONO}`; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
       ctx.fillText(value, cx + px(14, s), cy + px(58, s));
@@ -207,7 +237,7 @@ function drawStandardCard(
   if (ruler?.start && ruler?.end) {
     ctx.strokeStyle = COLOR.line; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(left, cy); ctx.lineTo(left + w, cy); ctx.stroke();
-    labText(ctx, 'PITCH POSITION', left + px(16, s), cy + px(20, s), s);
+    labText(ctx, ui(overlay.lang, 'cell.pitch'), left + px(16, s), cy + px(20, s), s);
     ctx.font = `600 ${px(11, s)}px ${COLOR_FONT_MONO}`; ctx.fillStyle = COLOR.chalk; ctx.textAlign = 'right';
     ctx.fillText(`${Math.round(ruler.start[0])} → ${Math.round(ruler.end[0])} m`, left + w - px(16, s), cy + px(20, s));
     const trackY = cy + px(44, s), trackX0 = left + px(16, s), trackX1 = left + w - px(16, s), trackW = trackX1 - trackX0;
@@ -235,9 +265,9 @@ const labelFont = (size: number, s: number) => `500 ${px(size, s)}px ${COLOR_FON
 function dualCardLayout(ctx: CanvasRenderingContext2D, overlay: Overlay, s: number): DualCardLayout {
   const w = px(420, s), rowH = px(76, s);
   const labelW = w - px(2 * 56 + 2 * 64 + 8, s), textW = w - px(32, s);
-  const titleText = (overlay.title ?? overlay.graphic).toUpperCase();
+  const titleText = (overlay.title ?? (KIND.has(overlay.graphic) ? ui(overlay.lang, `kind.${overlay.graphic}` as Key) : '')).toUpperCase();
   const titleFit = fitTitle(ctx, titleText, labelW, size => labelFont(size, s), DUAL_TITLE_SIZE);
-  // Without a title the label shows the graphic name, so the text always goes in the body.
+  // Without a title the label shows the graphic's label (STATS / MOMENTUM), so the text always goes in the body.
   const bodyFit = fitText(ctx, overlay.text, textW, size => bodyFont(size, s), BODY_SIZE, BODY_MIN, 3);
   const title = { size: titleFit.size, lines: titleFit.lines, lineHeight: titleFit.size * 1.2 };
   const body = { size: bodyFit.size, lines: bodyFit.lines, lineHeight: BODY_LINE * bodyFit.size / BODY_SIZE };
@@ -285,8 +315,8 @@ function drawDualCard(
     ctx.fillStyle = info.away.kit.shirt; ctx.fillRect(bodyX0 + homeW, y + px(42, s), bodyW - homeW, px(8, s));
   }
 
-  ctx.font = `500 ${px(9, s)}px ${COLOR_FONT_MONO}`; ctx.fillStyle = COLOR.dust; ctx.textAlign = 'left';
-  ctx.fillText(truncate(ctx, `SOURCE ${provenanceText(overlayProvenance(overlay, events))}`, bodyW - px(8, s)), bodyX0 + px(4, s), y + px(67, s));
+  const chip = sourceChipText(overlay, events);
+  if (chip) drawChip(ctx, chip, bodyX0 + px(4, s), y + px(63, s), s);
 
   if (body.lines.length) {
     ctx.strokeStyle = COLOR.line; ctx.lineWidth = 1;
@@ -396,8 +426,8 @@ export function drawOverlays(
       ctx.fillText(String(info.number), left + numW / 2, top + h / 2 + px(1, s));
       ctx.fillStyle = COLOR.chalk; ctx.font = `800 ${px(16, s)}px ${COLOR_FONT_DISPLAY}`; ctx.textAlign = 'left';
       ctx.fillText(truncate(ctx, info.name.split(' ').pop() ?? info.name, w - numW - px(20, s)), left + numW + px(10, s), top + px(23, s));
-      ctx.font = `500 ${px(8, s)}px ${COLOR_FONT_MONO}`; ctx.fillStyle = COLOR.dust;
-      ctx.fillText(truncate(ctx, `SOURCE ${provenanceText(overlayProvenance(overlay, events))}`, w - numW - px(16, s)), left + numW + px(8, s), top + px(43, s));
+      const chip = sourceChipText(overlay, events);
+      if (chip) drawChip(ctx, chip, left + numW + px(10, s), top + px(39, s), s);
       ctx.restore();
       regions.push({ overlay, x: left, y: top, w, h });
       continue;
