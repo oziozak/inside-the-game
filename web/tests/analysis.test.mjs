@@ -39,8 +39,40 @@ test('a language the report lacks says so instead of falling back to another', (
   const p = fresh();
   assert.equal(hasLanguage(example, 'de'), false);
   renderAnalysis(p, example, 'de', info, () => {}, () => {});
-  assert.match(p.innerHTML, /No match analysis in DE/);
+  assert.match(p.innerHTML, /No clip analysis in DE/);
   assert.ok(!p.innerHTML.includes(esc(example.headline.en)));
+});
+
+test('the panel is the clip\'s analysis: its window in match minutes, from what the AI saw (#83)', () => {
+  const p = fresh();
+  renderAnalysis(p, example, 'en', info, () => {}, () => {});   // the dev1 clip, 0:00-2:00
+  assert.match(p.innerHTML, /<h2>CLIP ANALYSIS<\/h2>/);
+  assert.doesNotMatch(p.innerHTML, /MATCH ANALYSIS/i);
+  assert.match(p.innerHTML, /CLIP 1'–2' · WHAT THE AI SAW/);
+  assert.match(p.innerHTML, /aria-label="Close clip analysis"/);
+  assert.match(p.innerHTML, /this clip only, from the vision AI's tracking and events/);
+  const second = info.periods.find(q => q.period === 2).start;   // sample_a: 2 x 5 minutes
+  const late = { ...example, start: second + 60, end: second + 179.96 };
+  renderAnalysis(p, late, 'en', info, () => {}, () => {});
+  assert.match(p.innerHTML, /CLIP 47'–48'/);
+});
+
+test('a clip with no insight says why: too short under 5 minutes, else too little seen (#83)', () => {
+  const empty = { ...example, headline: {}, insights: [] };
+  for (const lang of ['en', 'tr']) {
+    const p = fresh();
+    renderAnalysis(p, empty, lang, info, () => {}, () => {});
+    assert.match(p.innerHTML, /This clip is too short for a tactical read\./, lang);
+    assert.doesNotMatch(p.innerHTML, /No clip analysis in|too little/i, lang);
+  }
+  const p = fresh();
+  renderAnalysis(p, { ...empty, end: 600 }, 'en', info, () => {}, () => {});
+  assert.match(p.innerHTML, /Too little of the clip was seen for a tactical insight\./);
+  // Insights in other languages only: not "too short", which would be untrue.
+  const enOnly = { ...example, insights: example.insights.map(i => ({ ...i, text: { en: i.text.en } })) };
+  renderAnalysis(p, enOnly, 'tr', info, () => {}, () => {});
+  assert.match(p.innerHTML, /No insight in TR\./);
+  assert.doesNotMatch(p.innerHTML, /too short/);
 });
 
 test('agent text is escaped before it reaches the page', () => {
@@ -88,4 +120,33 @@ test('an insight with no events (frame facts) says where its evidence is', () =>
   renderInsightEvidence(p, insight, example, new Map(), info);
   assert.match(p.innerHTML, /Frame facts: no single event/);
   assert.match(p.innerHTML, /frames/);
+});
+
+/** Declarations of `selector`'s rule in style.css, inside `@media (max-width: 720px)` when `phone`. */
+function css(selector, phone = false) {
+  const style = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  const media = style.lastIndexOf('@media (max-width: 720px) {\n  .analysis');
+  const scope = phone ? style.slice(media) : style.slice(0, media);
+  const body = new RegExp(`(?:^|\\n)\\s*${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`).exec(scope)?.[1];
+  assert.ok(body, `${selector} rule${phone ? ' (phone)' : ''}`);
+  return Object.fromEntries(body.split(';').map(d => d.split(':').map(s => s.trim())).filter(([k, v]) => k && v));
+}
+
+test('the analysis panel keeps CLOSE outside its scrolling body, which has room below the last insight', () => {
+  const p = fresh();
+  renderAnalysis(p, example, 'en', info, () => {}, () => {});
+  const head = p.innerHTML.indexOf('class="evidence-head"'), close = p.innerHTML.indexOf('id="analysis-close"'), body = p.innerHTML.indexOf('class="analysis-body"');
+  assert.ok(head < close && close < body, 'CLOSE is in the header, before the body');
+  assert.equal(css('.analysis').overflow, 'hidden');
+  const scroller = css('.analysis-body');
+  assert.equal(scroller['overflow-y'], 'auto');
+  assert.equal(scroller['min-height'], '0');
+  assert.ok(Number.parseInt(scroller.padding.split(' ')[2]) >= 32, 'bottom padding');
+  assert.equal(css('.analysis-body', true).padding.split(' ')[2], scroller.padding.split(' ')[2]);
+});
+
+test('the panel cannot be pushed past the viewport\'s left edge, and is a full-screen sheet on a phone', () => {
+  assert.equal(css('.player-section').width, '100%');  // a shrink-to-fit section centred in <main> overflows on both sides
+  assert.equal(css('.analysis', true).position, 'fixed');
+  assert.equal(css('.stage:has(> .analysis:not(.hidden)) > .evidence', true).position, 'fixed');
 });

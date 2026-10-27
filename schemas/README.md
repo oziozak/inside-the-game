@@ -17,6 +17,7 @@ Examples of each are in [`examples/`](examples/).
 
 - **Time:** `t` is seconds since kick-off, as a decimal. 2052.4 = 34:12.4. Convert to `mm:ss` only when displaying.
 - **Halves:** the clock is continuous; the second half starts right after the first ends (the break is cut, like a broadcast). `match_info.periods` gives each half's start and end. Second-half display minute = 45:00 + (t - second half start).
+- **Clips from mid-match:** `match_info.score_at_start` (optional, `{home, away}`) is the score when the clip starts: broadcast metadata, like the team sheet. Absent means 0-0 at kick-off. Event `score` fields are the running score from there, so in a clip that starts at 3-0 the next home goal reads 4-0.
 - **Directions:** home attacks toward x = 105 in the first half and toward x = 0 in the second.
 - **Positions:** meters on a 105 x 68 m pitch. `(0, 0)` is the bottom-left corner. `x` runs goal to goal (0-105), `y` sideline to sideline (0-68).
 - **Ball height:** tracking `ball` is `[x, y, z]`; `z` is meters above the grass.

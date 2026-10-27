@@ -20,6 +20,9 @@ The event stage. It sees only frame observations and the team sheet
 - **Goal**: a shot reaches the goal line between the posts with no player at
   the ball (that is a save), and comes to rest on or behind the line between
   the posts, not wide of the goal.
+- **Penalty**: a kick from near a penalty spot after the ball rested on it.
+  The ball is dead after the foul, but the goal line is still watched, and the
+  keeper standing on the line is a save only if right at the ball.
 - **Kickoff**: the ball rests on the center spot with each team in its own
   half, then is played. At a half start the broadcast cuts straight to the
   kickoff, so the ball on the spot in the period's first frame is enough.
@@ -101,6 +104,11 @@ GOAL_REST_M = 0.8           # ... and rests in the goal this close to the line o
 OUT_M = 0.2                 # the ball center this far over a line is out of play
 GOAL_CONFIRM_S = 0.5        # a ball at the goal line is decided this long after
 SAVE_FRAMES = 3             # a track within reach this soon after the ball reaches the line: a save
+PENALTY_SPOT_X_M = 11.0     # the penalty spot: this far from the goal line, on the center line
+PENALTY_SPOT_M = 1.0        # a ball resting this close to it ...
+PENALTY_STILL_S = 1.0       # ... this long in the last STILL_S + 1 s, then kicked ...
+PENALTY_KICK_M = 4.0        # ... from this close to it (the taker may carry it a step): a penalty
+PENALTY_SAVE_M = 0.7        # at a penalty the keeper waits on the line: a save only this close
 SHOOTER_M = 3.5             # a shot redirected with no track within reach: its team's track this near is the shooter
 INTERCEPT_S = 1.0           # a failed pass taken by an opponent within this time: an interception
 TACKLE_S = 0.5              # a ball taken this soon after the other team last had it: a tackle
@@ -143,6 +151,7 @@ class _Flight:
     restart: bool                       # a set piece: not reported as a pass
     redirect: bool = False              # started by a touch in flight
     kickoff: bool = False               # played from the center spot at a kickoff
+    penalty: bool = False               # kicked from the penalty spot (see _penalty)
     watched: bool = False               # checked for reaching a goal line in an earlier frame
     stop: tuple[float, tuple[float, float]] | None = None   # (t, pos) where it came to rest
     balls: list[tuple[float, tuple[float, float], float]] = field(default_factory=list)  # (t, pos, conf)
@@ -179,6 +188,7 @@ class _GoalWatch:
     pos: tuple[float, float]
     period: int
     confidence: float
+    penalty: bool = False               # a penalty kick: the keeper must be right at the ball
     frames_left: int = SAVE_FRAMES      # frames in which a track at the ball makes it a save
     saved: bool = False
     rest: tuple[float, float] | None = None
@@ -210,7 +220,8 @@ class EventRules:
         self.center_spot = (self.length / 2, self.width / 2)
         direction = team_sheet.get("kickoff_direction", {}).get("home", "left_to_right")
         self.home_right_first = direction == "left_to_right"
-        self.score = {"home": 0, "away": 0}
+        # A clip cut from mid-match starts from the scoreboard's score (broadcast metadata, like the sheet).
+        self.score = dict(team_sheet.get("score_at_start") or {"home": 0, "away": 0})
         self.lineup = Lineup(team_sheet)        # kept across periods: tracks outlive the cut
         self._reset_period(None)
 
@@ -254,13 +265,14 @@ class EventRules:
             self._watch_goal(frame, ball)
             if frame.t - self.pending_goal.t > GOAL_CONFIRM_S:
                 out += self._confirm_goal()
-        elif ball is not None and self.flight is not None and not self.dead:
+        elif ball is not None and self.flight is not None and (not self.dead or self.flight.penalty):
             # On the flight's first frame, where the ball was before does not count:
             # a shot from right in front of goal may already be near the line then.
             crossing = self._goal_line_crossing(prev_ball if self.flight.watched else None, (frame.t, ball))
             self.flight.watched = True
             if crossing is not None:            # decided by where it rests and who is there
-                self.pending_goal = _GoalWatch(*crossing, frame.period, frame.ball.confidence)
+                self.pending_goal = _GoalWatch(*crossing, frame.period, frame.ball.confidence,
+                                               penalty=self.flight.penalty)
                 self._watch_goal(frame, ball)
         if self.pending_goal:
             if not self.pending_goal.saved:
@@ -435,6 +447,7 @@ class EventRules:
         """The holder has lost the ball: a flight starts where it last had it."""
         k, self.holder = self.holder, None
         self.flight = _Flight(k, self.period, restart=self._restart(k.last_t, k.last_pos),
+                              penalty=self._penalty(k.last_t, k.last_pos),
                               balls=[b for b in self.balls if b[0] > k.last_t])
 
     def _restart(self, t: float, pos: tuple[float, float]) -> bool:
@@ -447,6 +460,23 @@ class EventRules:
         center = math.dist(pos, self.center_spot) <= CENTER_SPOT_M
         corner = any(math.dist(pos, c) <= CORNER_M for c in self._corners())
         return self.dead or still or center or corner
+
+    def _penalty(self, t: float, pos: tuple[float, float]) -> bool:
+        """Whether a kick at `t` from `pos` is a penalty: from within
+        PENALTY_KICK_M of a penalty spot, after the ball rested within
+        PENALTY_SPOT_M of it for PENALTY_STILL_S of the recent visible frames."""
+        for spot in self._penalty_spots():
+            if math.dist(pos, spot) > PENALTY_KICK_M:
+                continue
+            on_spot = sum(1 for bt, p, _ in self.balls if bt <= t and math.dist(p, spot) <= PENALTY_SPOT_M)
+            if on_spot >= PENALTY_STILL_S * 25:
+                return True
+        return False
+
+    def _penalty_spots(self):
+        """The two penalty spots."""
+        cy = self.width / 2
+        return [(PENALTY_SPOT_X_M, cy), (self.length - PENALTY_SPOT_X_M, cy)]
 
     def _corners(self):
         """The four corner flags."""
@@ -480,7 +510,7 @@ class EventRules:
         after = [s for s in f.balls if s[0] > tm]
         events = self._resolve(tm, m, receiver=toucher if p is not None else None)
         self.flight = _Flight(toucher, f.period, restart=self._restart(tm, m), redirect=True,
-                              balls=after)
+                              penalty=self._penalty(tm, m), balls=after)
         return events
 
     def _resolve(self, t: float, pos: tuple[float, float], receiver: _Possession | None,
@@ -673,7 +703,9 @@ class EventRules:
             return
         if g.frames_left > 0:
             g.frames_left -= 1
-            g.saved = g.saved or self._nearest(frame.players, ball) is not None
+            near = self._nearest(frame.players, ball)
+            reach = PENALTY_SAVE_M if g.penalty else REACH_M
+            g.saved = g.saved or (near is not None and math.dist(near.pos, ball) <= reach)
         v = self._ball_velocity()
         if g.rest is None and v is not None and math.hypot(*v) < STOP_V:
             g.rest = ball

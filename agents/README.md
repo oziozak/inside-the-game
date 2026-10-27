@@ -30,7 +30,7 @@ events.json ──► stats.py ──► director.py ──► explainer.py ─�
 | `fill.py` | Fills placeholders (`{distance_m}`, `{speed_kmh}`, `{score}`, `{minute}`, any `values` key) with numbers formatted per language (`28 m`; `km/h`, tr `km/sa`; `62%`, tr `%62`, es `62 %`; `2-1`; `7/10`; `34'`), then normalises apostrophes and spacing. Every backend's text goes through it once the verifier passes it: templates and the LLM both write placeholders | No |
 | `templates.py` | Code-written text per graphic, mode and language (en, tr, es), numbers as placeholders. Mock backend + fallback | No |
 | `tactics.py` | Tactical facts from frame observations + detected events: shape vs team sheet, line height, compactness, width, flanks, regains by third, long balls, progressive passes, each with its coverage and frames / event ids ([Tactical facts](#tactical-facts-67)) | No |
-| `analyst.py` | Post-match report: insight candidates from `tactics.json` (code), selection by salience and coverage, the analyst agent's headline + insights in every language, the same verifier plus uncited claims and missing hedges, every number read back from `tactics.json` ([Analyst report](#analyst-report-69)) | Yes |
+| `analyst.py` | Post-match report: insight candidates from `tactics.json` (code), selection by salience and coverage, the analyst agent's headline + insights in every language, the same verifier plus uncited claims, missing hedges, numbers without their noun and languages that disagree, every number read back from `tactics.json` ([Analyst report](#analyst-report-69)) | Yes |
 | `analyst_templates.py` | Code-written report text per topic and language: mock backend + fallback | No |
 | `run.py` | CLI | |
 
@@ -226,6 +226,10 @@ python scripts/validate.py data/demo/$C
 (cd web && MATCH=data/demo/$C npm run build)
 ```
 
+The showcase clip (#82, `C=showcase`, chosen for content, not held out) is built the same way, with the events
+of the #87 rules (penalty goals) and the tactics and analyst steps below; the merge adds 4 fouls, 2 yellow cards and
+a red card (`sim`). Foundry: 61 paid calls, 116k input + 8.3k output tokens, about $0.14.
+
 `python -m vision.grade_footage $C` writes the same `runs/footage/$C/events.json` (it runs `python -m vision` as a
 child process) and grades it; test1's events are the ones saved by its single vision grade (#22). The merge adds
 3 fouls to test1 and nothing to dev1. Final code: commit `bada623`.
@@ -326,7 +330,7 @@ Where lineup assignment swaps two players (#56), their mean positions mix, which
 ## Analyst report (#69)
 
 After the clip, the analyst writes `report.json` (`schemas/report.schema.json`): a headline and 3-5 tactical
-insights in every language, shown by the web player's Match analysis panel.
+insights in every language, shown by the web player's Clip analysis panel.
 
 ```bash
 C=dev1
@@ -349,14 +353,33 @@ python scripts/validate.py data/demo/$C
    Below, it is `hedged` and used only to reach 3 insights: the text must say so (the verifier checks for a
    hedge in each language) and the evidence panel shows "Based on 40% of the clip, below 60%: hedged". Below
    `HEDGE_MIN` (0.3) it is skipped. Every left-out candidate is in `skipped` with its reason. On dev3 the line,
-   width and compactness insights (coverage 0.40) are skipped, as enough confident ones remain.
+   width and compactness insights (coverage 0.40) are skipped, as enough confident ones remain. So is every
+   topic the facts cannot speak to at all (#83), with why: no value ("too little of the clip seen"), or a
+   sample under its threshold ("too few passes: Bosphorus FC 1, Thames United 6; each team needs 8", too few
+   regains or passes into the final third, under a minute either side of a goal). Thresholds stay as they are
+   on short clips: a 2-minute highlight often gets 0-1 insights, and the web panel then says the clip is too
+   short for a tactical read. Mock runs on 2-minute windows of test2: 47:40-49:40 (a 3000-frame window with no
+   goal) gives 0 insights and 9 skips with their reasons; 40:00-42:00 gives one (flanks), headlined "Bosphorus FC
+   3-0 Thames United: ...".
 3. **Text** (LLM). One call for the headline and every insight, all languages; JSON mode. The verifier is the
    overlays' (no digit, placeholders only, units, number words, no player name) with longer limits, plus an
    **uncited claim** check: each fact kind has the words that make a claim about it in en/tr/es
    (`verifier.TOPIC_TERMS`: "wide", "pressed", "long ball", "kanat", "presión"...), and an insight may only use
    those of the facts it cites; the headline those of all insights. Formations are placeholders too
-   (`{home_shape}` -> "4-3-3"). One retry with the problems, then the template.
-4. **Numbers.** `values` are the cited facts rounded for the screen; the score comes from `stats.MatchState`.
+   (`{home_shape}` -> "4-3-3"). The headline starts with the score line ("Bosphorus FC {score} Thames United:").
+   **Every number reads with its noun** (#79): the model sees each placeholder with what it is
+   (`"{away_flank_pct}": "91% (Thames United: share of its passes into the final third that went to the
+   centre)"`), and `verifier.bare_numbers` rejects a share and a count joined by a bare "and" ("with 91% and 10
+   there", tr "%91 ve 10 burada") or a count followed only by "there".
+   **Same meaning in every language** (#79): a part (the headline, or an insight) is kept only whole, when every
+   language passes and `verifier.language_mismatch` finds they speak of the same teams ("both teams" in one
+   language is both in all; a language naming no team agrees with any) with the same placeholders. On test2 the
+   tr headline had fallen back to the template (Thames United only) while en and es kept the model's (both teams).
+   One retry with the problems (a retried language is kept only if it agrees with the others), then the template
+   in every language of that part.
+4. **Numbers.** `values` are the cited facts rounded for the screen; the score comes from `stats.MatchState`:
+   the score at the clip's end, counted on from `match_info.score_at_start` (#83), so a clip that starts at 1-1
+   with no goal in it says 1-1, not 0-0.
    `recheck` reads every fact back from `tactics.json` and every value against its fact; the report is not
    written if anything differs.
 
@@ -369,6 +392,9 @@ prompt.
 | 2 | dev1 | 3 | 5 | 2 | 4 | 1 | 2 | 3.0k + 1.3k |
 | **3 (final)** | **dev1** | 3 | 5 | 1 | 2 | **0** | 2 | 2.9k + 1.2k |
 | **final (held out)** | **test1** | 5 | 4 | 1 | 3 | **0** | 2 | 3.4k + 1.8k |
+| #79 | dev1 | 3 | 5 | 1 | 4 | **0** | 2 | 3.6k + 1.2k |
+| #79 | test1 | 5 | 4 | 1 | 3 | **0** | 2 | 4.0k + 1.7k, retry re-run 2.2k + 1.0k |
+| #79 | test2 | 3 | 6 | 1 | 3 | **0** | 2 | 3.6k + 1.2k |
 
 About $0.03 in all. Run 1: the reply dropped a closing brace and nothing parsed, so the analyst agent asks for
 JSON mode. Runs 1-2: the score written as "0-0", Turkish "iki takım" and Spanish "los dos" (number words), and a
@@ -376,6 +402,13 @@ plain insight hedged; the prompt now says how to write each. test1's one rejecti
 "narrow" and "wide" in a flank insight (width is not cited); the retry fixed it. Reading test1 showed one
 placeholder read wrongly: the flank count (passes to that flank, 17) was read as the total ("17 pasın %94'ü"),
 so the key is now `{side}_passes_to_flank` and the topic says what it counts. test1 was not re-run after this.
+
+#79 regenerated dev1, test1 and test2 (8 paid calls over the iterations, 25k + 9k tokens, about $0.05). The
+`#79` rows are the reports in `data/demo/`. Reading them led to three more fixes, none a threshold: dev1's
+headline dropped its subject ("higher line, while Thames...": the prompt now asks to name the team), test2's
+reply nested `tr` and `es` inside `en` (a misplaced brace; `parse_reply` now finds a nested language), and
+test1's retried headline began "0-0:" (the score line is now checked). Rejections left: uncited claims
+("compact", "narrow", "direct" in a line, flank or headline text), fixed on retry.
 
 ## Next steps (P3 backlog)
 

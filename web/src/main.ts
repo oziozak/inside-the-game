@@ -1,4 +1,5 @@
 import { loadMatch, loadEvents, loadOverlays, loadManifest, loadReport } from './data/loadMatch';
+import { loadClips, pickClip, clipBase, clipUrl } from './data/clips';
 import { activeOverlays, clock, languageNotice, overlayMentionsPlayer } from './render/schedule';
 import { buildCamera } from './render/camera';
 import { buildRoster, drawOverlays, type HitRegion } from './render/draw';
@@ -60,8 +61,27 @@ function wireSegmented(group: HTMLElement, onPick: (value: string) => void) {
   });
 }
 
+/** A multi-clip build's picker: switching reloads the page on ?clip=<id>, so no state carries over. */
+function renderClipPicker(clips: { id: string; title: string }[], current: string) {
+  const wrap = document.querySelector<HTMLElement>('#clip-picker')!;
+  const select = wrap.querySelector<HTMLSelectElement>('select')!;
+  select.innerHTML = '';
+  for (const clip of clips) {
+    const option = document.createElement('option');
+    option.value = clip.id;
+    option.textContent = clip.title;
+    option.selected = clip.id === current;
+    select.appendChild(option);
+  }
+  select.addEventListener('change', () => { window.location.href = clipUrl(window.location.href, select.value); });
+  wrap.hidden = false;
+}
+
 async function main() {
-  const base = './sample';
+  const clips = await loadClips('./sample');
+  const clip = clips ? pickClip(clips, window.location.search) : undefined;
+  if (clips && clip) renderClipPicker(clips, clip.id);
+  const base = clipBase('./sample', clip);
   const [match, events, overlays, report] = await Promise.all([
     loadMatch(base), loadEvents(base), loadOverlays(base), loadReport(base),
   ]);
@@ -277,7 +297,7 @@ async function main() {
     selectedEvidence = undefined;
     evidencePanel.classList.add('hidden');
   }
-  // Match analysis (optional report.json): opens when the clip ends, or from its button at any time.
+  // Clip analysis (optional report.json): opens when the clip ends, or from its button at any time.
   function closeAnalysis() {
     analysisPanel.classList.add('hidden');
     analysisBtn.setAttribute('aria-pressed', 'false');

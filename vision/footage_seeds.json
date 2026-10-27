@@ -1,5 +1,5 @@
 {
- "rule": "Dev, test and training seeds are disjoint: no seed appears in more than one clip, so no seed has two roles. Checked by python -m vision.footage check (and pytest). Each clip is `minutes` of a full 90-minute match from `start_minute` (default 0, the kickoff). Dev seeds were picked for having a shot in their first 2 minutes. test1's seed was fixed without looking at its events. test2's rule was fixed before any rendering or grading (#35): the first seed after test1's (2101), unused in any role, whose minutes 40-50 hold at least 1 goal, same pairing as test1; found by running the simulator only, no vision code or grader (python -m vision.footage find-seed --after 2101 --home bosphorus --away thames --start-minute 40 --minutes 10 --goals 1). Training uses 6 clips (18,000 frames, about 22 players each) covering six further pairings; add clips if detector recall needs more.",
+ "rule": "Dev, test, training, highlight and showcase seeds are disjoint: no seed appears in more than one clip, so no seed has two roles. Checked by python -m vision.footage check (and pytest). Each clip is `minutes` of a full 90-minute match from `start_minute` (default 0, the kickoff). Dev seeds were picked for having a shot in their first 2 minutes. test1's seed was fixed without looking at its events. test2's rule was fixed before any rendering or grading (#35): the first seed after test1's (2101), unused in any role, whose minutes 40-50 hold at least 1 goal, same pairing as test1; found by running the simulator only, no vision code or grader (python -m vision.footage find-seed --after 2101 --home bosphorus --away thames --start-minute 40 --minutes 10 --goals 1). The showcase clip (#82) is chosen for its content, not held out, and is never a grade to report as accuracy: of seeds 2301-2500 (unused in any role), pairing Bosphorus v Thames, the 10-minute window starting on a whole minute and ending by minute 58 ranked best by action (a red card, 2+ goals, a yellow card, a second-yellow red, then goals + cards, then the margin of the first and last of them from the window edges; ties to the lower seed and earlier start); natural engine rates, no preset; found with the simulator only (python -m vision.footage find-showcase --first 2301 --last 2500). Training uses 6 clips (18,000 frames, about 22 players each) covering six further pairings; add clips if detector recall needs more. Highlights are picked for their content from seeds 3001+ (scripts/find_highlights.py, simulator only), so they are not held out and never graded as test clips.",
  "clips": [
   {"name": "dev1", "role": "dev", "seed": 2007, "home": "bosphorus", "away": "thames", "minutes": 2,
    "note": "red v blue"},
@@ -11,6 +11,8 @@
    "note": "held out: never used for dev or training"},
   {"name": "test2", "role": "test", "seed": 2102, "home": "bosphorus", "away": "thames", "start_minute": 40,
    "minutes": 10, "note": "held out: goals, half-time and the second-half kickoff; seed by the test2 rule (#35)"},
+  {"name": "showcase", "role": "showcase", "seed": 2422, "home": "bosphorus", "away": "thames", "start_minute": 30,
+   "minutes": 10, "note": "showcase, not held out: chosen for content by the showcase rule (#82); 2 goals (32:43, 37:07, both Bosphorus penalties), a yellow (34:36) and a second-yellow red (36:01); no preset"},
   {"name": "train1", "role": "training", "seed": 2201, "home": "thames", "away": "caldera", "minutes": 2,
    "note": "blue v white"},
   {"name": "train2", "role": "training", "seed": 2202, "home": "saltmarsh", "away": "bosphorus", "minutes": 2,
@@ -22,6 +24,14 @@
   {"name": "train5", "role": "training", "seed": 2205, "home": "bosphorus", "away": "caldera", "minutes": 2,
    "note": "red v white"},
   {"name": "train6", "role": "training", "seed": 2206, "home": "saltmarsh", "away": "thames", "minutes": 2,
-   "note": "green v white"}
+   "note": "green v white"},
+  {"name": "hl1", "role": "highlight", "seed": 3329, "home": "bosphorus", "away": "thames", "start_minute": 0,
+   "minutes": 1, "note": "highlight: A. Kurt opens the scoring for Bosphorus, 1'"},
+  {"name": "hl2", "role": "highlight", "seed": 3523, "home": "bosphorus", "away": "thames", "start_minute": 17.06,
+   "minutes": 1.5, "note": "highlight: second yellow and red card for E. Demir (Bosphorus), 18'"},
+  {"name": "hl3", "role": "highlight", "seed": 3102, "home": "caldera", "away": "saltmarsh", "start_minute": 0,
+   "minutes": 1, "note": "highlight: T. Penhallow scores for Saltmarsh, 1', after a yellow card"},
+  {"name": "hl4", "role": "highlight", "seed": 3120, "home": "saltmarsh", "away": "thames", "start_minute": 39.03,
+   "minutes": 1, "note": "highlight: A. Haddow's go-ahead goal from 1-1, the match winner (3-1), 40'"}
  ]
 }

@@ -89,6 +89,14 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 .hero-score-numbers .num { font-size: clamp(2.5rem, 7vw, 4.5rem); }
 .hero-sep { font-family: var(--mono); color: var(--dust); font-size: clamp(2rem, 5vw, 3rem); }
 .hero-meta { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 20px; }
+.clip-picker { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+.clip-picker[hidden] { display: none; }
+.clip-picker select {
+  font-family: var(--mono); font-size: 12px; color: var(--chalk); background: var(--cell);
+  border: 1px solid var(--line-hi); border-radius: 3px; padding: 5px 8px; max-width: min(320px, calc(100vw - 96px));
+  cursor: pointer;
+}
+.clip-picker select:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
 .synthetic-disclosure { font-family: var(--mono); font-size: 11px; line-height: 1.5; color: var(--dust); border: 1px solid var(--line); padding: 3px 8px; border-radius: 3px; }
 
 /* ---------- compare ---------- */
@@ -127,6 +135,8 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
   .lineups-grid { grid-template-columns: 1fr; }
 }
 
+/* Full width, not shrink-to-fit: centred in `main`, a section wider than the viewport would overflow on both sides and its left edge could not be scrolled to. */
+.player-section { width: 100%; }
 #app { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 16px; width: 100%; }
 
 .stage { position: relative; width: min(100%, 1280px); aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
@@ -164,7 +174,7 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 .scrub-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; }
 .scrub-input:disabled { cursor: not-allowed; }
 
-.seg-group { flex: none; display: flex; }
+.seg-group { flex: none; display: flex; flex-wrap: wrap; max-width: 100%; }
 .seg {
   height: 44px; min-width: 44px; padding: 0 12px; margin-left: -1px;
   font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .08em;
@@ -234,12 +244,16 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 }
 
 /* ---------- match analysis panel (report.json) ---------- */
+/* The header (with CLOSE) stays put; only the body scrolls, with room below the last insight. */
 .analysis {
-  position: absolute; inset: 0; z-index: 9; overflow-y: auto;
+  position: absolute; inset: 0; z-index: 9; overflow: hidden;
   background: rgba(7, 9, 11, .97); display: flex; flex-direction: column;
 }
 .analysis.hidden { display: none; }
-.analysis-body { padding: 20px 24px 24px; max-width: 760px; }
+.analysis-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px 48px; overflow-wrap: anywhere;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent); }  /* fade: there is more below; at the end it falls on the padding */
+.analysis-body > * { max-width: 712px; }
+.analysis-window { margin: 0 0 10px; font-size: 10px; letter-spacing: .08em; color: var(--dust); }
 .analysis-headline { margin: 0 0 18px; font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: clamp(20px, 2.6vw, 30px); line-height: 1.15; }
 .analysis-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .insight { display: grid; gap: 6px; width: 100%; text-align: left; padding: 12px 14px; color: var(--chalk); background: transparent; border: 1px solid var(--line); cursor: pointer; }
@@ -257,4 +271,9 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 .fact-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 0; border-top: 1px solid #1E272D; }
 .fact-row .num { font-size: 18px; letter-spacing: 0; }
 .fact-meta { grid-column: 1 / -1; font-size: 10px; color: var(--dust); overflow-wrap: anywhere; }
-@media (max-width: 720px) { .analysis-body { padding: 16px; } }
+/* On a phone the stage is ~190px tall: the analysis, and evidence opened from it, become full-screen sheets. */
+@media (max-width: 720px) {
+  .analysis { position: fixed; z-index: 30; background: var(--ink); }
+  .analysis-body { padding: 16px 16px 48px; }
+  .stage:has(> .analysis:not(.hidden)) > .evidence { position: fixed; z-index: 31; width: 100%; background: var(--ink); }
+}

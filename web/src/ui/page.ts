@@ -15,7 +15,7 @@ export function renderHero(info: MatchInfo): void {
 
 /** Recompute on either playback or seeking; never carry mutable score state between frames. */
 export function renderSummary(info: MatchInfo, events: MatchEvent[], start: number, t: number, end: number): void {
-  const score = scoreAt(events.filter(e => e.t < end), t, start);
+  const score = scoreAt(events.filter(e => e.t < end), t, start, info.score_at_start);
   document.querySelector('#hero-home-score')!.textContent = score ? String(score.home) : '—';
   document.querySelector('#hero-away-score')!.textContent = score ? String(score.away) : '—';
   document.querySelector('#hero-clock')!.textContent = `MATCH ${clock(t, info.periods)}${score ? '' : ' · Score unavailable'}`;

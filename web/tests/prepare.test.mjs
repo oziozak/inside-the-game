@@ -186,3 +186,57 @@ test('corrupt AI media and mismatched source interval/identity fail preparation'
   await writeFile(join(f.selected, 'match.mp4.manifest.json'), JSON.stringify({ ...manifest, end: 11 }));
   await assert.rejects(prepareMatch(f), /matching duration, frame rate/);
 });
+
+/** A second selectable folder, copied from the fixture's (same match, so it validates on its own). */
+async function secondFolder(f, name) {
+  const folder = join(f.repoRoot, 'data/demo', name);
+  await mkdir(folder, { recursive: true });
+  for (const file of required) await copyFile(join(f.selected, file), join(folder, file));
+  return `data/demo/${name}`;
+}
+
+test('a comma-separated MATCH publishes each clip in its own folder, in order, with clips.json', async t => {
+  const f = await fixture(t);
+  const hl1 = await secondFolder(f, 'hl1');
+  await writeFile(join(f.repoRoot, hl1, 'title.txt'), 'Highlight: red card 51\'\nignored second line');
+  await copyFile(join(ROOT, 'renderer/fixtures/calibration/tracking.jsonl'), join(f.repoRoot, hl1, 'tracking.jsonl'));
+  await prepareMatch({ ...f, match: `${hl1}, ${f.match}` });
+  assert.deepEqual((await readdir(f.outputDir)).sort(), ['clips.json', 'hl1', 'second']);
+  assert.deepEqual(JSON.parse(await readFile(join(f.outputDir, 'clips.json'), 'utf8')),
+    { clips: [{ id: 'hl1', title: 'Highlight: red card 51\'' }, { id: 'second', title: 'second' }] });
+  assert.deepEqual((await readdir(join(f.outputDir, 'second'))).sort(), prepared);
+  assert.deepEqual((await readdir(join(f.outputDir, 'hl1'))).sort(), [...prepared, 'tracking.jsonl'].sort());
+  for (const name of required) {
+    assert.deepEqual(await readFile(join(f.outputDir, 'second', name)), await readFile(join(f.selected, name)));
+  }
+});
+
+test('switching from several clips back to one restores the single-clip layout', async t => {
+  const f = await fixture(t);
+  await prepareMatch({ ...f, match: `${await secondFolder(f, 'hl1')},${f.match}` });
+  await prepareMatch(f);
+  assert.deepEqual((await readdir(f.outputDir)).sort(), prepared);
+});
+
+test('a bad clip in the list publishes nothing and names the clip', async t => {
+  const f = await fixture(t);
+  await prepareMatch({ repoRoot: f.repoRoot, outputDir: f.outputDir });
+  const bad = await secondFolder(f, 'bad');
+  await writeFile(join(f.repoRoot, bad, 'overlays.json'), JSON.stringify([{ id: 'o9', event_ids: ['nope'] }]));
+  await assert.rejects(prepareMatch({ ...f, match: `${f.match},${bad}` }), /MATCH entry data\/demo\/bad: .*cites an event missing/);
+  await assert.rejects(access(f.outputDir));
+  await rm(join(f.repoRoot, bad, 'match.mp4'));
+  await assert.rejects(prepareMatch({ ...f, match: `${f.match},${bad}` }), /Missing required assets for MATCH entry data\/demo\/bad/);
+});
+
+test('a clip list rejects empty entries, duplicate ids and names that are not ids', async t => {
+  const f = await fixture(t);
+  await assert.rejects(prepareMatch({ ...f, match: `${f.match},` }), /empty path/);
+  const twin = join(f.repoRoot, 'other/second');
+  await mkdir(twin, { recursive: true });
+  for (const file of required) await copyFile(join(f.selected, file), join(twin, file));
+  await assert.rejects(prepareMatch({ ...f, match: `${f.match},other/second` }), /two folders named "second"/);
+  const odd = await secondFolder(f, 'has space');
+  await assert.rejects(prepareMatch({ ...f, match: `${f.match},${odd}` }), /must be a short id/);
+  await assert.rejects(prepareMatch({ ...f, match: `${f.match},../outside` }), /within that repository/);
+});
