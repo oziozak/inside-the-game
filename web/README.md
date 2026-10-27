@@ -48,6 +48,7 @@ MATCH=data/demo/test2,data/demo/showcase,data/demo/hl1,data/demo/hl2 npm run bui
 - Folder names are the clip ids: lowercase letters, digits, `-` or `_`, unique across the list.
 - The picker label is the first line of an optional `title.txt` in the folder (e.g. `Highlight: red card, 51'`), else the folder name.
 - A single folder (no comma) keeps the layout above, with no `clips.json` and no picker.
+- Switching clips starts the new clip fresh: ANALYST mode and nobody followed in PLAYER mode, since the rosters may differ.
 
 Metadata, events, video and sidecar must describe the same match and source interval. Preparation checks metadata/manifest/event match IDs and overlay evidence references. It copies the video and sidecar from the same selected folder together; the producer must supply the correct original sidecar (a video's match identity cannot be inferred from its filename). Keep source files unchanged while preparation runs. Browser schema validation still applies to JSON/tracking. When tracking is supplied, its frame match IDs must match the metadata.
 

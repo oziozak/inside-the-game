@@ -1,16 +1,19 @@
 import { loadMatch, loadEvents, loadOverlays, loadManifest, loadReport } from './data/loadMatch';
 import { loadClips, pickClip, clipBase, clipUrl } from './data/clips';
-import { activeOverlays, clock, languageNotice } from './render/schedule';
+import { activeOverlays, clock, languageNotice, overlayMentionsPlayer } from './render/schedule';
 import { buildCamera } from './render/camera';
 import { buildRoster, drawOverlays, type HitRegion } from './render/draw';
+import { findPlayer, startingPlayers } from './data/identity';
 import { renderEvidence } from './ui/evidence';
 import { renderAnalysis, renderInsightEvidence } from './ui/analysis';
 import { renderHero, renderSummary, renderLineups } from './ui/page';
 import { initScrollGlow } from './ui/scrollGlow';
+import { initFootballDrops } from './ui/footballs';
 import { FeedSwitcher, feedsSynchronized } from './playback/feeds';
 import type { Mode, MatchEvent, Overlay } from './types';
 
 initScrollGlow();
+initFootballDrops();
 
 let video = document.querySelector<HTMLVideoElement>('#broadcast')!;
 const broadcast = video;
@@ -33,6 +36,17 @@ const scrubMinutes = document.querySelector<HTMLElement>('#scrub-minutes')!;
 const modeTabs = document.querySelector<HTMLElement>('#modeTabs')!;
 const langTabs = document.querySelector<HTMLElement>('#langTabs')!;
 const languageStatus = document.querySelector<HTMLElement>('#overlay-language-status')!;
+const playerPicker = document.querySelector<HTMLElement>('#playerPicker')!;
+const playerSelect = document.querySelector<HTMLSelectElement>('#playerSelect')!;
+const playerOptHome = document.querySelector<HTMLOptGroupElement>('#playerOptHome')!;
+const playerOptAway = document.querySelector<HTMLOptGroupElement>('#playerOptAway')!;
+const followingChip = document.querySelector<HTMLElement>('#followingChip')!;
+const followingTab = document.querySelector<HTMLElement>('#followingTab')!;
+const followingName = document.querySelector<HTMLElement>('#followingName')!;
+const followingClear = document.querySelector<HTMLButtonElement>('#followingClear')!;
+const playerStatus = document.querySelector<HTMLElement>('#player-status')!;
+const lineupHome = document.querySelector<HTMLElement>('#lineup-home')!;
+const lineupAway = document.querySelector<HTMLElement>('#lineup-away')!;
 const liveBtn = document.querySelector<HTMLButtonElement>('#live')!;
 const analysisPanel = document.querySelector<HTMLElement>('#analysis')!;
 const analysisBtn = document.querySelector<HTMLButtonElement>('#analysis-open')!;
@@ -76,11 +90,7 @@ async function main() {
   const eventsById = new Map<string, MatchEvent>(events.map(e => [e.id, e]));
 
   renderHero(match.info);
-  renderLineups(
-    document.querySelector<HTMLElement>('#lineup-home')!,
-    document.querySelector<HTMLElement>('#lineup-away')!,
-    match.info,
-  );
+  renderLineups(lineupHome, lineupAway, match.info);
 
   video.src = `${base}/match.mp4`;
   const videoStart = manifest?.start ?? 0;
@@ -88,10 +98,43 @@ async function main() {
 
   let mode: Mode = 'analyst';
   let lang = 'en';
+  let followedPlayer: number | null = null;
   let hitRegions: HitRegion[] = [];
   let seeking = false;
   let lastSummaryKey = '';
   let selectedEvidence: Overlay | undefined;
+
+  const starters = startingPlayers(match.info);
+  for (const [team, group] of [['home', playerOptHome], ['away', playerOptAway]] as const) {
+    group.label = match.info[team].name;
+    for (const p of starters.filter(p => p.team === team)) {
+      const opt = document.createElement('option');
+      opt.value = String(p.id);
+      opt.textContent = `${p.number} ${p.name}`;
+      group.appendChild(opt);
+    }
+  }
+
+  /** Shows/hides the PLAYER-mode picker and, once a player is chosen, the "no moments yet" notice. */
+  function updatePlayerPicker() {
+    playerPicker.hidden = mode !== 'player_focus';
+    playerStatus.hidden = true;
+    if (mode !== 'player_focus') return;
+    const chosen = followedPlayer != null ? findPlayer(match.info, followedPlayer) : undefined;
+    playerSelect.hidden = !!chosen;
+    followingChip.hidden = !chosen;
+    playerSelect.value = followedPlayer != null ? String(followedPlayer) : '';
+    if (!chosen) return;
+    followingTab.textContent = chosen.team === 'home' ? match.info.home.short : match.info.away.short;
+    followingTab.className = `chip ${chosen.team}`;
+    followingName.textContent = chosen.name;
+    const everHas = overlays.some(o => o.mode === 'player_focus' && o.lang === lang && overlayMentionsPlayer(o, eventsById, followedPlayer!));
+    if (!everHas) {
+      playerStatus.hidden = false;
+      playerStatus.textContent = `No moments for ${chosen.name} in this clip yet.`;
+    }
+  }
+  updatePlayerPicker();
   const feeds = new FeedSwitcher(broadcast, aiVideo, useAI => {
     video = feeds.active;
     aiToggle.setAttribute('aria-pressed', String(useAI));
@@ -178,8 +221,11 @@ async function main() {
     const notice = languageNotice(overlays, lang, mode);
     if (languageStatus.textContent !== notice) languageStatus.textContent = notice;
     languageStatus.hidden = !notice;
-    const visible = activeOverlays(overlays, t, mode, lang)
+    let visible = activeOverlays(overlays, t, mode, lang)
       .filter(o => o.event_ids.every(id => (eventsById.get(id)?.t ?? Infinity) <= t));
+    if (mode === 'player_focus') {
+      visible = followedPlayer == null ? [] : visible.filter(o => overlayMentionsPlayer(o, eventsById, followedPlayer!));
+    }
     const end = manifest?.end ?? videoStart + (Number.isFinite(video.duration) ? video.duration : 0);
     // Refresh at event boundaries (including fractional seconds), clock ticks, and metadata load.
     const summaryKey = `${clock(t, match.info.periods)}:${events.filter(e => e.t <= t).length}:${video.duration}`;
@@ -272,12 +318,33 @@ async function main() {
     for (const feed of [broadcast, aiVideo]) feed.addEventListener('ended', () => { if (feed === video) openAnalysis(); });
   }
 
-  wireSegmented(modeTabs, value => { mode = value as Mode; closeEvidence(); render(); });
+  wireSegmented(modeTabs, value => { mode = value as Mode; updatePlayerPicker(); closeEvidence(); render(); });
   wireSegmented(langTabs, value => {
-    lang = value; closeEvidence();
+    lang = value; updatePlayerPicker(); closeEvidence();
     if (!analysisPanel.classList.contains('hidden')) openAnalysis();
     render();
   });
+
+  function pickPlayer(id: number | null) {
+    followedPlayer = id;
+    updatePlayerPicker();
+    closeEvidence();
+    render();
+  }
+  playerSelect.addEventListener('change', () => pickPlayer(playerSelect.value ? Number(playerSelect.value) : null));
+  followingClear.addEventListener('click', () => pickPlayer(null));
+
+  // Clicking a name in Starting XI follows that player and switches to PLAYER mode.
+  for (const lineup of [lineupHome, lineupAway]) {
+    lineup.addEventListener('click', event => {
+      const btn = (event.target as HTMLElement).closest<HTMLElement>('[data-player-id]');
+      if (!btn) return;
+      mode = 'player_focus';
+      modeTabs.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-value') === 'player_focus')));
+      pickPlayer(Number(btn.dataset.playerId));
+      document.querySelector('#player')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
 
   liveBtn.addEventListener('click', () => {
     const isLive = liveBtn.getAttribute('aria-pressed') !== 'true';

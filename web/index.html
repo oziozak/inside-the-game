@@ -14,6 +14,7 @@
   </head>
   <body>
     <div class="scroll-glow" aria-hidden="true"></div>
+    <div id="football-layer" class="football-layer" aria-hidden="true"></div>
     <header class="site-header">
       <a class="wordmark-link" href="#top">
         <span class="corner"></span>
@@ -109,7 +110,21 @@
               <button id="ai-view" class="seg" aria-pressed="false" aria-label="AI VIEW" aria-describedby="feed-status" hidden disabled>AI VIEW</button>
             </div>
           </div>
+          <div id="playerPicker" class="player-picker" hidden>
+            <select id="playerSelect" class="player-select" aria-label="Pick a player to follow">
+              <option value="">Pick a player to follow</option>
+              <optgroup label="Home" id="playerOptHome"></optgroup>
+              <optgroup label="Away" id="playerOptAway"></optgroup>
+            </select>
+            <span id="followingChip" class="chip-following" hidden>
+              <span class="lab">FOLLOWING</span>
+              <span id="followingTab" class="chip"></span>
+              <span id="followingName"></span>
+              <button id="followingClear" class="chip-clear" type="button" aria-label="Stop following">&times;</button>
+            </span>
+          </div>
           <p id="overlay-language-status" class="overlay-language-status" role="status" aria-live="polite" hidden></p>
+          <p id="player-status" class="overlay-language-status" role="status" aria-live="polite" hidden></p>
           <p id="feed-status" class="overlay-language-status" role="status" aria-live="polite" hidden></p>
         </div>
       </section>
