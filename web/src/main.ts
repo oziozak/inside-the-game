@@ -8,7 +8,7 @@ import { renderEvidence } from './ui/evidence';
 import { renderAnalysis, renderInsightEvidence } from './ui/analysis';
 import { renderHero, renderSummary, renderLineups } from './ui/page';
 import { initScrollGlow } from './ui/scrollGlow';
-import { dropFootballAt, initFootballDrops } from './ui/footballs';
+import { initFootballDrops } from './ui/footballs';
 import { FeedSwitcher, feedsSynchronized } from './playback/feeds';
 import type { Mode, MatchEvent, Overlay } from './types';
 
@@ -361,8 +361,6 @@ async function main() {
     if (hit) {
       selectedEvidence = hit.overlay;
       renderEvidence(evidencePanel, hit.overlay, eventsById, match.info);
-    } else {
-      dropFootballAt(event.clientX, event.clientY);
     }
   });
 }

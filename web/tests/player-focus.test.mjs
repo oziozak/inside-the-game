@@ -76,3 +76,29 @@ test('startingPlayers returns exactly each team\'s starting XI, tagged with team
     assert.equal(found.id, p.id);
   }
 });
+
+// The football easter egg: only empty page background drops a ball, never the player section.
+const { landsOnEmptyBackground } = loadTs(`${web}/src/ui/footballs.ts`);
+
+/** A stand-in DOM element: `chain` lists it and its ancestors as simple selectors ('#id', '.class', 'tag'). */
+function fakeElement(...chain) {
+  return { closest: selector => selector.split(',').map(s => s.trim()).some(s => chain.includes(s)) ? {} : null };
+}
+
+test('footballs drop on empty page background only, never anywhere in the player section', () => {
+  assert.equal(landsOnEmptyBackground(fakeElement('main', 'body')), true);
+  assert.equal(landsOnEmptyBackground(fakeElement('.compare-section', 'main', 'body')), true); // section padding
+  assert.equal(landsOnEmptyBackground(fakeElement('canvas', '#app', '#player', 'main')), false); // video canvas, missed card
+  assert.equal(landsOnEmptyBackground(fakeElement('video', '.stage', '#app', '#player', 'main')), false);
+  assert.equal(landsOnEmptyBackground(fakeElement('.console', '#app', '#player', 'main')), false); // console background
+  assert.equal(landsOnEmptyBackground(fakeElement('p', '#app', '#player', 'main')), false); // status line under the video
+  assert.equal(landsOnEmptyBackground(fakeElement('span', '.lineups-grid', 'main')), false); // a content card
+  assert.equal(landsOnEmptyBackground(fakeElement('button', 'body')), false);
+  assert.equal(landsOnEmptyBackground(null), false);
+});
+
+test('a missing followed id never matches overlays or events that have no player either', () => {
+  const events = new Map([[unidentified.id, unidentified]]);
+  const overlay = { ...base, player: null, event_ids: [unidentified.id] };
+  for (const missing of [null, undefined, 0, NaN]) assert.equal(overlayMentionsPlayer(overlay, events, missing), false);
+});

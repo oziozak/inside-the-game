@@ -13,6 +13,7 @@ export function activeOverlays(overlays: Overlay[], t: number, mode: Mode, lang:
  * (null or omitted `player`/`from`/`to`) never matches any real id — it is excluded for everyone.
  */
 export function overlayMentionsPlayer(overlay: Overlay, events: Map<string, MatchEvent>, playerId: number): boolean {
+  if (!Number.isInteger(playerId) || playerId <= 0) return false;  // a missing id must not equal a missing player
   if (overlay.player === playerId) return true;
   return overlay.event_ids.some(id => {
     const event = events.get(id);
