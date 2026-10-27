@@ -4,6 +4,8 @@ import { overlayProvenance, provenanceText } from '../data/provenance';
 
 /** Cited events listed in an insight's evidence before the rest are summarised as a count. */
 export const MAX_EVENTS_SHOWN = 12;
+/** Under this many seconds a clip with no insight is too short for a tactical read, not badly seen (#83). */
+export const SHORT_CLIP_S = 300;
 
 const TOPIC: Record<Insight['topic'], string> = {
   shape: 'SHAPE', defensive_line: 'LINE HEIGHT', compactness: 'COMPACTNESS', width: 'WIDTH', flanks: 'FLANKS',
@@ -35,12 +37,25 @@ export function hasLanguage(report: Report, lang: string): boolean {
   return Boolean(report.headline[lang]) || report.insights.some(i => i.text[lang]);
 }
 
-/** The Match analysis panel: headline and insights in `lang`; clicking an insight calls `onPick`. */
+/** Broadcast minute of match time t: 1-based, the second half counting on from 46'. */
+function minute(t: number, info: MatchInfo): number {
+  const second = info.periods?.find(p => p.period === 2);
+  return second && t >= second.start ? 45 + Math.floor((t - second.start) / 60) + 1 : Math.floor(t / 60) + 1;
+}
+
+/** Why a report has no insight: a short highlight is too short for a tactical read; a long clip was badly seen. */
+function emptyNote(report: Report): string {
+  return report.end - report.start < SHORT_CLIP_S
+    ? 'This clip is too short for a tactical read.' : 'Too little of the clip was seen for a tactical insight.';
+}
+
+/** The Clip analysis panel: headline and insights in `lang`; clicking an insight calls `onPick`. */
 export function renderAnalysis(panel: HTMLElement, report: Report, lang: string, info: MatchInfo,
                                onPick: (insight: Insight) => void, onClose: () => void): void {
   const insights = report.insights.filter(i => i.text[lang]);
-  const body = !hasLanguage(report, lang)
-    ? `<p class="analysis-empty">No match analysis in ${esc(lang.toUpperCase())} for this clip.</p>`
+  const body = !report.insights.length ? `<p class="analysis-empty">${emptyNote(report)}</p>`
+    : !hasLanguage(report, lang)
+    ? `<p class="analysis-empty">No clip analysis in ${esc(lang.toUpperCase())}.</p>`
     : `${report.headline[lang] ? `<h3 class="analysis-headline">${esc(report.headline[lang])}</h3>` : ''}
        ${insights.length ? `<ol class="analysis-list">${insights.map(i => `
          <li><button class="insight${i.hedged ? ' hedged' : ''}" data-insight="${esc(i.id)}">
@@ -49,14 +64,15 @@ export function renderAnalysis(panel: HTMLElement, report: Report, lang: string,
            <span class="insight-title">${esc(i.title[lang] ?? '')}</span>
            <span class="insight-text">${esc(i.text[lang])}</span>
          </button></li>`).join('')}</ol>`
-         : '<p class="analysis-empty">Too little of the clip was seen for a tactical insight.</p>'}`;
+         : `<p class="analysis-empty">No insight in ${esc(lang.toUpperCase())}.</p>`}`;
   panel.innerHTML = `
     <div class="evidence-head">
-      <h2>MATCH ANALYSIS</h2>
-      <button id="analysis-close" class="evidence-close mono" aria-label="Close match analysis"><span>CLOSE</span></button>
+      <h2>CLIP ANALYSIS</h2>
+      <button id="analysis-close" class="evidence-close mono" aria-label="Close clip analysis"><span>CLOSE</span></button>
     </div>
-    <div class="analysis-body">${body}
-      <p class="analysis-note mono">Written by the analyst agent from tactical facts computed by code; every number is from those facts. Click an insight for its evidence.</p>
+    <div class="analysis-body">
+      <p class="analysis-window mono">CLIP ${minute(report.start, info)}'–${minute(report.end, info)}' · WHAT THE AI SAW</p>${body}
+      <p class="analysis-note mono">Covers this clip only, from the vision AI's tracking and events. Written by the analyst agent from tactical facts computed by code; every number is from those facts. Click an insight for its evidence.</p>
     </div>`;
   panel.classList.remove('hidden');
   panel.querySelector('#analysis-close')?.addEventListener('click', onClose);

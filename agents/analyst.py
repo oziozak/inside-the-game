@@ -170,11 +170,21 @@ def _sample(topic: str, n: int) -> float:
     return min(1.0, n / FULL_SAMPLE[topic]) if topic in FULL_SAMPLE else 1.0
 
 
+def _gap(topic: str, team: str, segment: str, coverages, reason: str) -> dict:
+    """A topic the facts cannot speak to at all, as a `skipped` entry with why (#83: short clips)."""
+    return {"topic": topic, "team": team, "segment": segment,
+            "coverage": round(min((c or 0.0) for c in coverages), 3), "reason": reason}
+
+
+NO_VALUE = "no value in the facts: too little of the clip seen"
+
+
 def _compare(tactics: dict, names: dict, topic: str, path: str, field_: str, key: str, label: str, what: str,
-             larger: bool = True, events: str | None = None, event_ids=None) -> list[Candidate]:
+             gaps: list[dict], larger: bool = True, events: str | None = None, event_ids=None) -> list[Candidate]:
     """A both-teams comparison of one fact on the whole clip (salience scaled by the smaller team's sample)."""
     facts = {s: fact(tactics, f"whole/{s}/{path}", field_, f"{names[s]}: {what}", f"{s}_{key}", events) for s in SIDES}
     if any(not isinstance(f.value, (int, float)) for f in facts.values()):
+        gaps.append(_gap(topic, "both", "whole", [f.coverage for f in facts.values()], NO_VALUE))
         return []
     vals = {s: f.value for s, f in facts.items()}
     labels = {label: _side_by(vals, LEVEL[topic], larger)}
@@ -184,15 +194,19 @@ def _compare(tactics: dict, names: dict, topic: str, path: str, field_: str, key
                       abs(vals["home"] - vals["away"]) / SCALE[topic] * _sample(topic, n), ids)]
 
 
-def candidates(tactics: dict, match: Match) -> list[Candidate]:
-    """Every insight the facts can support, with its salience (how much it says)."""
+def candidates(tactics: dict, match: Match, gaps: list[dict] | None = None) -> list[Candidate]:
+    """Every insight the facts can support, with its salience (how much it says). The topics they cannot
+    support (no value, or a sample under its threshold) go to `gaps` as `skipped` entries, with why."""
     names = {s: match.team_name(s) for s in SIDES}
     whole = next(s for s in tactics["segments"] if s["id"] == "whole")["teams"]
+    gaps = [] if gaps is None else gaps
     out: list[Candidate] = []
 
     shapes = {s: fact(tactics, f"whole/{s}/shape.all", "value", f"{names[s]}: shape on the pitch", f"{s}_shape")
               for s in SIDES}
-    if all(f.value for f in shapes.values()):
+    if not all(f.value for f in shapes.values()):
+        gaps.append(_gap("shape", "both", "whole", [f.coverage for f in shapes.values()], NO_VALUE))
+    else:
         labels, facts = {}, list(shapes.values())
         for s in SIDES:
             sheet = whole[s]["shape"]["all"]["team_sheet"]
@@ -204,29 +218,41 @@ def candidates(tactics: dict, match: Match) -> list[Candidate]:
                              0.8 + 0.8 * sum(not v for v in labels.values())))
 
     out += _compare(tactics, names, "defensive_line", "defensive_line_m.out_of_possession", "value", "line_m",
-                    "higher_line", "defensive line, out of possession (m from own goal)")
+                    "higher_line", "defensive line, out of possession (m from own goal)", gaps)
     out += _compare(tactics, names, "compactness", "compactness_m.out_of_possession", "value", "compact_m",
-                    "more_compact", "back line to front line, out of possession (m)", larger=False)
+                    "more_compact", "back line to front line, out of possession (m)", gaps, larger=False)
     out += _compare(tactics, names, "width", "attacking_width_m", "value", "width_m", "wider",
-                    "attacking width, in possession (m)")
+                    "attacking width, in possession (m)", gaps)
 
-    if all(whole[s]["long_balls"]["of"] >= MIN_PASSES for s in SIDES):
+    pass_counts = {s: whole[s]["long_balls"]["of"] for s in SIDES}
+    if all(n >= MIN_PASSES for n in pass_counts.values()):
         out += _compare(tactics, names, "directness", "long_balls", "value_pct", "long_pct", "more_direct",
-                        "long balls (passes over 30 m), % of passes", events="event_ids",
+                        "long balls (passes over 30 m), % of passes", gaps, events="event_ids",
                         event_ids=lambda s: whole[s]["long_balls"]["event_ids"])
         out += _compare(tactics, names, "progression", "progressive_passes", "value", "progressive",
-                        "more_progressive", "progressive passes (completed)", events="event_ids",
+                        "more_progressive", "progressive passes (completed)", gaps, events="event_ids",
                         event_ids=lambda s: whole[s]["progressive_passes"]["event_ids"])
+    else:
+        why = (f"too few passes: {names['home']} {pass_counts['home']}, {names['away']} {pass_counts['away']}; "
+               f"each team needs {MIN_PASSES}")
+        gaps += [_gap(topic, "both", "whole", [whole[s][name]["coverage"] for s in SIDES], why)
+                 for topic, name in (("directness", "long_balls"), ("progression", "progressive_passes"))]
 
-    if sum(n for s in SIDES for n in whole[s]["regains"]["value"].values()) >= MIN_REGAINS:
+    regains = sum(n for s in SIDES for n in whole[s]["regains"]["value"].values())
+    if regains >= MIN_REGAINS:
         out += _compare(tactics, names, "pressing", "regains", "value.high", "high_regains", "more_high_regains",
-                        "regains in the final third", events="event_ids",
+                        "regains in the final third", gaps, events="event_ids",
                         event_ids=lambda s: [i for ids in whole[s]["regains"]["event_ids"].values() for i in ids])
+    else:
+        gaps.append(_gap("pressing", "both", "whole", [whole[s]["regains"]["coverage"] for s in SIDES],
+                         f"too few regains: {regains}; both teams together need {MIN_REGAINS}"))
 
     for s in SIDES:
         passes = whole[s]["final_third_flanks"]["passes"]
         total = sum(passes["count"].values())
         if total < MIN_FINAL_THIRD_PASSES:
+            gaps.append(_gap("flanks", s, "whole", [passes["coverage"]], f"too few passes into the final third: "
+                             f"{total}; a team needs {MIN_FINAL_THIRD_PASSES}"))
             continue
         flank = max(("left", "centre", "right"), key=lambda w: (passes["count"][w], w == "centre"))
         ref = f"whole/{s}/final_third_flanks.passes"
@@ -239,11 +265,11 @@ def candidates(tactics: dict, match: Match) -> list[Candidate]:
                              (facts[0].value - 100 / 3) / 20 * _sample("flanks", total),
                              [i for ids in passes["event_ids"].values() for i in ids]))
 
-    out += _changes(tactics, match, names)
+    out += _changes(tactics, match, names, gaps)
     return out
 
 
-def _changes(tactics: dict, match: Match, names: dict) -> list[Candidate]:
+def _changes(tactics: dict, match: Match, names: dict, gaps: list[dict]) -> list[Candidate]:
     """For each goal or red card that splits the clip: the team whose line moved most, before against after."""
     by_id = {e["id"]: e for e in match.events}
     out = []
@@ -252,9 +278,15 @@ def _changes(tactics: dict, match: Match, names: dict) -> list[Candidate]:
         if not seg["id"].startswith("after_") or split not in by_id:
             continue
         before = next(s for s in tactics["segments"] if s["id"] == f"before_{split}")
-        if min(seg["end"] - seg["start"], before["end"] - before["start"]) < MIN_SEGMENT_S:
-            continue
         e = by_id[split]
+        lengths = before["end"] - before["start"], seg["end"] - seg["start"]
+        if min(lengths) < MIN_SEGMENT_S:
+            gaps.append(_gap("change", e["team"] if e.get("team") in SIDES else "both", seg["id"],
+                             [s["teams"][side]["defensive_line_m"]["out_of_possession"]["coverage"]
+                              for s in (before, seg) for side in SIDES],
+                             f"{lengths[0]:.0f} s before and {lengths[1]:.0f} s after the {e['type'].replace('_', ' ')}; "
+                             f"each side needs {MIN_SEGMENT_S:.0f} s"))
+            continue
         best = None
         for s in SIDES:
             path = f"{s}/defensive_line_m.out_of_possession"
@@ -577,7 +609,9 @@ async def analyse(tactics: dict, match: Match, backend, langs: list[str]) -> tup
     state = MatchState(match.info)
     for e in match.events:
         state.update(e)
-    picked, skipped = select(candidates(tactics, match))
+    gaps: list[dict] = []
+    picked, skipped = select(candidates(tactics, match, gaps))
+    skipped += gaps
     req = build_request(picked, match, langs, state.score)
     log = {"rejected": [], "fixed_on_retry": 0, "template_fallbacks": 0, "dropped": []}
     text = await write_report_text(req, match, backend, log)  # FoundryBackend.ask saves each new answer

@@ -34,7 +34,7 @@ data/demo/test1/
   tracking.jsonl              # optional; needed only for tags anchored over players
   ai_view.mp4                 # optional; synchronized full-pitch detection video
   ai_view.mp4.manifest.json   # optional original AI-feed sidecar, if available
-  report.json                 # optional; the analyst's post-match report (Match analysis panel)
+  report.json                 # optional; the analyst's post-match report (Clip analysis panel)
 ```
 
 Metadata, events, video and sidecar must describe the same match and source interval. Preparation checks metadata/manifest/event match IDs and overlay evidence references. It copies the video and sidecar from the same selected folder together; the producer must supply the correct original sidecar (a video's match identity cannot be inferred from its filename). Keep source files unchanged while preparation runs. Browser schema validation still applies to JSON/tracking. When tracking is supplied, its frame match IDs must match the metadata.
@@ -95,18 +95,25 @@ Every card, including dual-team cards and projected tags, labels its cited event
 - Bespoke per-type art from the design (goal-mouth shot placement, score banner, head-to-head stat rows) isn't built — see "Design" above.
 - No deploy step yet (plan: Azure Static Web Apps).
 
-## Match analysis (optional report.json)
+## Clip analysis (optional report.json)
 
 When the bundle has `report.json` (`python -m agents.analyst`, see `agents/README.md`), preparation copies it and
 checks that its `match_id` is the metadata's and that every insight cites events in `events.json`; the browser
 validates it against `schemas/report.schema.json`. Without it, nothing changes and no button appears.
 
-The panel (`src/ui/analysis.ts`) opens when the video ends and from the ANALYSIS button at any time: the headline
+The panel (`src/ui/analysis.ts`) is titled CLIP ANALYSIS (#83): the analyst reads only this clip, from what the
+vision AI saw, so it gives the clip's window in match minutes (`CLIP 41'–50' · WHAT THE AI SAW`, from the report's
+`start` and `end`) and says so in its note. It opens when the video ends and from the ANALYSIS button at any time: the headline
 and 3-5 insights in the selected language (no fallback to another; it says when the language is missing), each
 with its team, topic and how much of the clip it rests on. Hedged insights (coverage below the report's
 `coverage_min`) are marked. Clicking an insight opens its evidence: the coverage note, every cited fact with its
 value, coverage, frames or events and `tactics.json` path, and the cited events (first 12, then a count) with
-their CV/SIM provenance. Agent text is escaped. Changing language re-renders an open panel.
+their CV/SIM provenance. Agent text is escaped. Changing language re-renders an open panel. A report with no
+insight says why: "This clip is too short for a tactical read." under 5 minutes (a highlight falls under the
+analyst's sample thresholds), else "Too little of the clip was seen for a tactical insight."
+
+The scoreboard starts from `match_info.score_at_start` when the clip was cut from mid-match (#83), then counts
+the clip's goals; without it a clip from kick-off starts at 0-0 and a later one shows "—" until a goal's score.
 
 ## Optional AI VIEW feed
 

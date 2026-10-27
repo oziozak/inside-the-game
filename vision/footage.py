@@ -5,6 +5,7 @@
     python -m vision.footage render dev1 test1          # simulate, export, validate
     python -m vision.footage render --role dev [--force]
     python -m vision.footage render --all
+    python -m vision.footage info dev1 test2            # add score_at_start to a rendered clip
     python -m vision.footage find-seed --after 2101 --start-minute 40 --minutes 10
 
 A clip is `minutes` of a full 90-minute match (seeded, `full` profile), from
@@ -170,19 +171,46 @@ def clip_tracking(m: Match, start: float, end: float) -> Iterator[dict]:
     return (f for f in iter_tracking(m, 0, min(end, m.t)) if f["frame"] >= first)
 
 
+def score_at(events: list[dict], t: float) -> dict:
+    """The score just before t: the last goal's score before it, else 0-0."""
+    goals = [e for e in events if e["type"] == "goal" and e["t"] < t]
+    return dict(goals[-1]["score"]) if goals else {"home": 0, "away": 0}
+
+
+def clip_match_info(m: Match, start: float) -> dict:
+    """The clip's match_info.json: the team sheet and the score when the clip
+    starts, which the broadcast's scoreboard shows like it shows the teams (#83)."""
+    return {**m.match_info(), "score_at_start": score_at(m.events, start)}
+
+
+def refresh_info(clip: dict, root: Path = OUT) -> dict:
+    """Rewrite a rendered clip's match_info.json with score_at_start (clips
+    rendered before #83 lack it); returns the score. Re-simulates the match,
+    so it raises ValueError, writing nothing, if any other field would change."""
+    path = Path(root) / clip["name"] / "match_info.json"
+    old = json.loads(path.read_text(encoding="utf-8"))
+    new = json.loads(json.dumps(clip_match_info(simulate(clip), window(clip)[0])))   # as written: tuples are lists
+    changed = sorted(k for k in old.keys() | new.keys() if k != "score_at_start" and old.get(k) != new.get(k))
+    if changed:
+        raise ValueError(f"{path}: {', '.join(changed)} would change; not this clip's team sheet?")
+    write_json(path, new)
+    return new["score_at_start"]
+
+
 def prepare_clip(clip: dict, root: Path) -> ClipPlan:
     """Simulate a clip's match into root/<name>/ and plan its export to
     root/<name>/<name>.mp4: the clip's window of the match (see window()).
 
-    match_info.json (the team sheet) goes next to the video. The truth goes to
-    truth/: events.json (true events in the window, ids unchanged),
-    events.full.json (the whole match) and tracking.jsonl (the window only)."""
+    match_info.json (the team sheet, and the score when the clip starts)
+    goes next to the video. The truth goes to truth/: events.json (true
+    events in the window, ids unchanged), events.full.json (the whole match)
+    and tracking.jsonl (the window only)."""
     folder = Path(root) / clip["name"]
     truth = folder / "truth"
     m = simulate(clip)
     start, end = window(clip)
     metadata, tracking = folder / "match_info.json", truth / "tracking.jsonl"
-    write_json(metadata, m.match_info())
+    write_json(metadata, clip_match_info(m, start))
     write_json(truth / "events.full.json", m.events)
     write_json(truth / "events.json", [e for e in m.events if start <= e["t"] < end])
     write_jsonl(tracking, clip_tracking(m, start, end))
@@ -269,11 +297,13 @@ def main(argv=None) -> int:
     find.add_argument("--minutes", type=float, required=True)
     find.add_argument("--goals", type=int, default=1, help="minimum goals in the window")
     render = sub.add_parser("render", help="render clips from the seed record")
-    render.add_argument("names", nargs="*", help="clip names, e.g. dev1 test1")
-    render.add_argument("--role", choices=ROLES, help="every clip with this role")
-    render.add_argument("--all", action="store_true", help="every clip in the record")
+    info = sub.add_parser("info", help="add score_at_start to rendered clips' match_info.json (#83)")
+    for p in (render, info):
+        p.add_argument("names", nargs="*", help="clip names, e.g. dev1 test1")
+        p.add_argument("--role", choices=ROLES, help="every clip with this role")
+        p.add_argument("--all", action="store_true", help="every clip in the record")
+        p.add_argument("--out", type=Path, default=OUT, help=f"output root (default {OUT})")
     render.add_argument("--force", action="store_true", help="rebuild clips already rendered")
-    render.add_argument("--out", type=Path, default=OUT, help=f"output root (default {OUT})")
     args = ap.parse_args(argv)
 
     record = load_record()
@@ -314,7 +344,11 @@ def main(argv=None) -> int:
         print("error: name clips, or pass --role or --all", file=sys.stderr)
         return 2
     for c in clips:
-        render_clip(c, args.out, args.force)
+        if args.command == "info":
+            score = refresh_info(c, args.out)
+            print(f"{c['name']}: score_at_start {score['home']}-{score['away']}")
+        else:
+            render_clip(c, args.out, args.force)
     return 0
 
 

@@ -200,6 +200,7 @@ main { display: flex; flex-direction: column; align-items: center; gap: 64px; pa
 .analysis-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px 48px; overflow-wrap: anywhere;
   mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent); }  /* fade: there is more below; at the end it falls on the padding */
 .analysis-body > * { max-width: 712px; }
+.analysis-window { margin: 0 0 10px; font-size: 10px; letter-spacing: .08em; color: var(--dust); }
 .analysis-headline { margin: 0 0 18px; font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: clamp(20px, 2.6vw, 30px); line-height: 1.15; }
 .analysis-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .insight { display: grid; gap: 6px; width: 100%; text-align: left; padding: 12px 14px; color: var(--chalk); background: transparent; border: 1px solid var(--line); cursor: pointer; }
