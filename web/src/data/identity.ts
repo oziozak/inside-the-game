@@ -1,4 +1,5 @@
 import type { MatchEvent, MatchInfo, Overlay } from '../types';
+import { ui } from '../i18n';
 
 export type Side = 'home' | 'away';
 export type PlayerRef = MatchInfo['home']['players'][number] & { team: Side };
@@ -37,11 +38,9 @@ export function overlayIdentity(overlay: Overlay, events: Map<string, MatchEvent
   let description;
   if (!player && event && (event.type === 'pass' || event.type === 'shot')) {
     // These are deterministic UI labels, not generated or translated agent explanations.
-    const words = ({ en: { pass: 'pass', shot: 'shot', team: 'Team' }, tr: { pass: 'pas', shot: 'şut', team: 'Takım' }, es: { pass: 'pase', shot: 'tiro', team: 'Equipo' } } as const);
-    const labels = words[overlay.lang as keyof typeof words] ?? words.en;
     const distance = typeof event.distance_m === 'number' && Number.isFinite(event.distance_m) && event.distance_m >= 0
       ? `, ${Math.round(event.distance_m)} m` : '';
-    description = `${team ? info[team].name : labels.team} ${labels[event.type]}${distance}`;
+    description = `${team ? info[team].name : ui(overlay.lang, 'card.team')} ${ui(overlay.lang, `event.${event.type}`)}${distance}`;
   }
   return { player, team, description };
 }

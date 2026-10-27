@@ -94,6 +94,8 @@ Mode (`analyst` / `casual` / `player_focus`) and language (`EN` / `TR` / `ES`) a
 
 The hero always displays a small "Synthetic match" disclosure alongside its clock. Team formations remain visible.
 
+The page's own words (navigation, console, head-to-head stats, lineups, the analysis and evidence panels, the labels drawn on cards, event types, the *How it works* section) come from one EN/TR/ES table, `src/i18n.ts` (#95). Static markup carries `data-i18n` / `data-i18n-aria` keys; switching language re-words it live, without a reload. Cards are labelled in their own `lang`. Player and team names, and agent-written text, are never translated by the page; the analysis report's fact labels are code-written in English and stay English.
+
 When a cited pass/shot has no identified actor (null, omitted, or out-of-roster ID), the card uses the event's team name/abbreviation and a deterministic description such as "Bosphorus FC pass, 28 m". The small action labels are localized UI text (`pass`/`pas`/`pase`, `shot`/`şut`/`tiro`), not fabricated agent explanations. Actual team names, abbreviations and kits come from match metadata. Follow-player graphics fall back to bottom-left cards if the actor, tracking sample or visible anchor is unavailable; valid projected tags still work. Evidence shows the known team and only genuinely identified player chips, preserving each event's CV/SIM attribution and confidence. Short clips do not need halftime/fulltime recap events. Without an identified team either, the fallback stays generic rather than inventing a club or player.
 
 ## Playback time, scores and evidence
@@ -130,7 +132,7 @@ validates it against `schemas/report.schema.json`. Without it, nothing changes a
 
 The panel (`src/ui/analysis.ts`) is titled CLIP ANALYSIS (#83): the analyst reads only this clip, from what the
 vision AI saw, so it gives the clip's window in match minutes (`CLIP 41'–50' · WHAT THE AI SAW`, from the report's
-`start` and `end`) and says so in its note. It opens when the video ends and from the ANALYSIS button at any time: the headline
+`start` and `end`) and says so in its note. The report covers the whole clip, so a second line says `FULL-CLIP REPORT · FINAL SCORE SHOWN` (#95): opened mid-clip, its headline can carry the final score. It opens when the video ends and from the ANALYSIS button at any time: the headline
 and 3-5 insights in the selected language (no fallback to another; it says when the language is missing), each
 with its team, topic and how much of the clip it rests on. Hedged insights (coverage below the report's
 `coverage_min`) are marked. Clicking an insight opens its evidence: the coverage note, every cited fact with its
