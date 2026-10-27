@@ -226,6 +226,10 @@ python scripts/validate.py data/demo/$C
 (cd web && MATCH=data/demo/$C npm run build)
 ```
 
+The showcase clip (#82, `C=showcase`, chosen for content, not held out) is built the same way, with the events
+of the #87 rules (penalty goals) and the tactics and analyst steps below; the merge adds 4 fouls, 2 yellow cards and
+a red card (`sim`). Foundry: 61 paid calls, 116k input + 8.3k output tokens, about $0.14.
+
 `python -m vision.grade_footage $C` writes the same `runs/footage/$C/events.json` (it runs `python -m vision` as a
 child process) and grades it; test1's events are the ones saved by its single vision grade (#22). The merge adds
 3 fouls to test1 and nothing to dev1. Final code: commit `bada623`.

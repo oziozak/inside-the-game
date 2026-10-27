@@ -199,6 +199,7 @@ python -m vision.footage list                  # clips with role, seed, pairing,
 python -m vision.footage render dev1           # one clip (skipped if already rendered)
 python -m vision.footage render --role dev     # or --all; --force rebuilds
 python -m vision.footage find-seed --after 2101 --start-minute 40 --minutes 10   # a test seed rule, simulator only
+python -m vision.footage find-showcase --first 2301 --last 2500                  # the showcase rule, simulator only
 ```
 
 | Role | Clips | Purpose |
@@ -206,9 +207,10 @@ python -m vision.footage find-seed --after 2101 --start-minute 40 --minutes 10  
 | dev | `dev1`-`dev3`, 2 min each | develop the pipeline; red v blue, orange v white (away kit), green v orange |
 | test | `test1`, minutes 0-10; `test2`, minutes 40-50 | held-out grades; their seeds are never used for dev or training. test2 adds a goal, the kickoff after it, half-time and the second-half kickoff (teams switch ends) |
 | training | `train1`-`train6`, 2 min each | reserved for fine-tuning the player detector; the other six pairings. Unused: pretrained recall sufficed (#21) |
+| showcase | `showcase`, minutes 30-40 | the demo clip with the most action (#82): 2 goals, a yellow and a second-yellow red. Chosen for its content, so **not held out**: its grade is a showcase number, never an accuracy claim |
 
-Dev, test and training seeds are disjoint. `check` (and `pytest`) fails if a
-seed is used by two clips, if a role has no clip, or if the dev clips show
+Dev, test, training, highlight and showcase seeds are disjoint. `check` (and `pytest`) fails if a
+seed is used by two clips, if a dev, test, training or highlight role has no clip (showcase is optional), or if the dev clips show
 fewer than three kit combinations or no white away kit.
 
 Each clip is **`minutes` of a full 90-minute match** (seeded, `full`
@@ -542,6 +544,8 @@ First grades (2026-10-24, pretrained yolo11s, v1 render settings), precision / r
 Matched events in test1: pass success right 92 %, pass subtype 85 %, shot and possession-change subtype 100 %, mean timing error 0.03 s, distance error 0.8 m, speed error 7 km/h. The dev clips were graded on an M-series Mac (MPS), test1 on an RTX 5070 (CUDA); a second dev run on the Mac gave byte-identical events.
 
 test2 was graded once, with the event rules of #19 and #65 already in, and nothing was changed after: the goal (Bosphorus, 43:34) and both kickoffs, including the second-half kickoff with the teams switched ends, are found; player-id accuracy is 0.52 because nobody is named before the 44:23 kickoff ([split](#accuracy-the-demo-numbers)). Matched events: pass success right 98 %, pass subtype 79 %, shot and possession-change subtype 100 %, mean timing error 0.03 s, distance error 0.3 m, speed error 6.7 km/h. Of the 4 unmatched detections, 2 are a possession change and a shot at 2578 s, 1 a possession change at 2859 s and 1 a pass at 2899 s, 0.44 s and 5.5 m from a missed true pass (just outside the 5 m tolerance). Rendered at `eecef1b` and graded at `4d19dd9` (the footage code is the same in both) on the RTX PC: Ubuntu on WSL2, NVIDIA GeForce RTX 5070 Ti, driver 610.88, CUDA; one `python -m vision.grade_footage test2` run, which also wrote `ai_view.mp4`.
+
+**Showcase (#82): a showcase number, not a held-out result.** The clip was chosen for its content (2 goals, a yellow, a second-yellow red, all in minutes 30-40 of seed 2422), so its grade is never an accuracy claim; those stay on test1 and test2. Rendered and traced on an M-series Mac (MPS): render 33 min, tracer + AI view 51 min. Precision / recall (matched / true, detected): kickoff 1.00 / 1.00 (2/2, 2), pass 0.95 / 0.88 (74/84, 78), possession change 0.33 / 0.33 (2/6, 6), shot 0.75 / 1.00 (3/3, 4), goal **1.00 / 1.00 (2/2, 2)** with the penalty rule of #87 (0/2 before it: both goals are penalties); player-id accuracy 0.47, timing error 0.03 s. Cards and fouls are not seen by video: the demo takes them from the simulator (`source: sim`).
 
 **Penalty goals (#87), before / after**, the event rules alone re-run on each clip's saved observations (no video re-run; develop's rules at `b40b53e` against the #87 rules):
 
