@@ -36,7 +36,10 @@ const STRINGS = {
   'player.pick': { en: 'Pick a player to follow', tr: 'Takip edilecek oyuncuyu seç', es: 'Elige un jugador para seguir' },
   'player.following': { en: 'FOLLOWING', tr: 'TAKİPTE', es: 'SIGUIENDO' },
   'player.stop': { en: 'Stop following', tr: 'Takibi bırak', es: 'Dejar de seguir' },
-  'player.none': { en: 'No moments for {name} in this clip yet.', tr: 'Bu klipte henüz {name} için an yok.', es: 'Aún no hay momentos de {name} en este clip.' },
+  'player.none': { en: 'No involvement detected for {name} in this clip.', tr: 'Bu klipte {name} için katkı tespit edilmedi.', es: 'No se detectó participación de {name} en este clip.' },
+  'player.hint': { en: 'Cards appear when the AI sees this player on the ball.', tr: 'Kartlar, yapay zekâ bu oyuncuyu topla gördüğünde çıkar.', es: 'Las tarjetas aparecen cuando la IA ve a este jugador con el balón.' },
+  'player.ahead1': { en: '1 moment ahead in this clip.', tr: 'Bu klipte 1 an daha var.', es: 'Queda 1 momento en este clip.' },
+  'player.aheadN': { en: '{n} moments ahead in this clip.', tr: 'Bu klipte {n} an daha var.', es: 'Quedan {n} momentos en este clip.' },
   'feed.unavailable': { en: 'AI VIEW unavailable. Broadcast remains available.', tr: 'YZ GÖRÜNÜMÜ kullanılamıyor. Yayın görüntüsü açık.', es: 'VISTA IA no disponible. La retransmisión sigue disponible.' },
   'feed.loading': { en: 'Loading AI VIEW…', tr: 'YZ GÖRÜNÜMÜ yükleniyor…', es: 'Cargando VISTA IA…' },
   'feed.caption': {
