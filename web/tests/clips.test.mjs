@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { loadTs } from './support/load-ts.mjs';
 
@@ -46,4 +47,14 @@ test('loadClips treats a missing file or an HTML fallback as a one-clip build', 
   assert.equal(await loadClips('./sample'), undefined);
   globalThis.fetch = reply(200, 'application/json', JSON.stringify({ clips }));
   assert.deepEqual(await loadClips('./sample'), clips);
+});
+
+test('the deployed demo (build:demo): seven clips, showcase first and the default, dev1 left out (#97)', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const ids = /MATCH=(\S+)/.exec(pkg.scripts['build:demo'])[1].split(',').map(path => path.split('/').pop());
+  assert.deepEqual(ids, ['showcase', 'test2', 'test1', 'hl1', 'hl2', 'hl3', 'hl4']);
+  const demo = parseClips({ clips: ids.map(id => ({ id, title: id })) });
+  assert.equal(pickClip(demo, '').id, 'showcase');
+  assert.equal(pickClip(demo, '?clip=dev1').id, 'showcase');   // an old link falls back, it does not break
+  assert.equal(pickClip(demo, '?clip=hl2').id, 'hl2');
 });
