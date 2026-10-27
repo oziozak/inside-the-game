@@ -1,4 +1,5 @@
 import type { MatchEvent, Mode, Overlay } from '../types';
+import { ui, trMaybe } from '../i18n';
 
 /** Overlays visible at match time t for the selected mode/language, highest priority first. */
 export function activeOverlays(overlays: Overlay[], t: number, mode: Mode, lang: string): Overlay[] {
@@ -21,11 +22,11 @@ export function overlayMentionsPlayer(overlay: Overlay, events: Map<string, Matc
   });
 }
 
-/** Language availability is explicit; gaps in the timeline never trigger another language. */
-export function languageNotice(overlays: Overlay[], lang: string, mode: Mode): string {
-  const name = ({ en: 'English', tr: 'Turkish', es: 'Spanish' } as Record<string, string>)[lang] ?? lang;
-  if (!overlays.some(o => o.lang === lang)) return `${name} overlays are not available for this match.`;
-  if (!overlays.some(o => o.lang === lang && o.mode === mode)) return `${name} overlays are not available for this mode.`;
+/** Language availability is explicit; gaps in the timeline never trigger another language. The notice is in `uiLang`. */
+export function languageNotice(overlays: Overlay[], lang: string, mode: Mode, uiLang = 'en'): string {
+  const language = trMaybe(uiLang, `language.${lang}`, lang);
+  if (!overlays.some(o => o.lang === lang)) return ui(uiLang, 'notice.match', { language });
+  if (!overlays.some(o => o.lang === lang && o.mode === mode)) return ui(uiLang, 'notice.mode', { language });
   return '';
 }
 

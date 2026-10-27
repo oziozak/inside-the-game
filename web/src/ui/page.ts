@@ -1,6 +1,7 @@
 import type { MatchInfo, MatchEvent } from '../types';
 import { scoreAt, compareRows } from '../data/summary';
 import { clock } from '../render/schedule';
+import { ui, trMaybe } from '../i18n';
 
 export function renderHero(info: MatchInfo): void {
   document.querySelector('#hero-home-name')!.textContent = info.home.name;
@@ -14,12 +15,12 @@ export function renderHero(info: MatchInfo): void {
 }
 
 /** Recompute on either playback or seeking; never carry mutable score state between frames. */
-export function renderSummary(info: MatchInfo, events: MatchEvent[], start: number, t: number, end: number): void {
+export function renderSummary(info: MatchInfo, events: MatchEvent[], start: number, t: number, end: number, lang = 'en'): void {
   const score = scoreAt(events.filter(e => e.t < end), t, start, info.score_at_start);
   document.querySelector('#hero-home-score')!.textContent = score ? String(score.home) : '—';
   document.querySelector('#hero-away-score')!.textContent = score ? String(score.away) : '—';
-  document.querySelector('#hero-clock')!.textContent = `MATCH ${clock(t, info.periods)}${score ? '' : ' · Score unavailable'}`;
-  document.querySelector('#compare-scope')!.textContent = `${clock(start, info.periods)}–${clock(Math.min(t, end), info.periods)} · so far`;
+  document.querySelector('#hero-clock')!.textContent = `${ui(lang, 'hero.match')} ${clock(t, info.periods)}${score ? '' : ` · ${ui(lang, 'hero.noScore')}`}`;
+  document.querySelector('#compare-scope')!.textContent = `${clock(start, info.periods)}–${clock(Math.min(t, end), info.periods)} · ${ui(lang, 'compare.soFar')}`;
   const container = document.querySelector<HTMLElement>('#compare-rows')!;
   const rows = compareRows(events, start, t, end);
   container.innerHTML = rows.map(row => {
@@ -29,7 +30,7 @@ export function renderSummary(info: MatchInfo, events: MatchEvent[], start: numb
       <div class="compare-row">
         <span class="num">${row.home}</span>
         <div class="compare-mid">
-          <span class="lab">${row.label}</span>
+          <span class="lab">${trMaybe(lang, `stat.${row.label}`, row.label)}</span>
           <div class="compare-bar">
             <span class="fill home" style="width:${homePct}%"></span>
             <span class="fill away" style="width:${100 - homePct}%"></span>

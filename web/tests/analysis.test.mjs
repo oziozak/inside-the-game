@@ -59,11 +59,13 @@ test('the panel is the clip\'s analysis: its window in match minutes, from what 
 
 test('a clip with no insight says why: too short under 5 minutes, else too little seen (#83)', () => {
   const empty = { ...example, headline: {}, insights: [] };
-  for (const lang of ['en', 'tr']) {
+  // The panel's own words follow the selected language (#95).
+  const tooShort = { en: /This clip is too short for a tactical read\./, tr: /Bu klip taktik bir okuma için çok kısa\./, es: /Este clip es demasiado corto para una lectura táctica\./ };
+  for (const [lang, note] of Object.entries(tooShort)) {
     const p = fresh();
     renderAnalysis(p, empty, lang, info, () => {}, () => {});
-    assert.match(p.innerHTML, /This clip is too short for a tactical read\./, lang);
-    assert.doesNotMatch(p.innerHTML, /No clip analysis in|too little/i, lang);
+    assert.match(p.innerHTML, note, lang);
+    assert.doesNotMatch(p.innerHTML, /No clip analysis in|too little|klip analizi yok|muy poco/i, lang);
   }
   const p = fresh();
   renderAnalysis(p, { ...empty, end: 600 }, 'en', info, () => {}, () => {});
@@ -71,8 +73,8 @@ test('a clip with no insight says why: too short under 5 minutes, else too littl
   // Insights in other languages only: not "too short", which would be untrue.
   const enOnly = { ...example, insights: example.insights.map(i => ({ ...i, text: { en: i.text.en } })) };
   renderAnalysis(p, enOnly, 'tr', info, () => {}, () => {});
-  assert.match(p.innerHTML, /No insight in TR\./);
-  assert.doesNotMatch(p.innerHTML, /too short/);
+  assert.match(p.innerHTML, /TR dilinde çıkarım yok\./);
+  assert.doesNotMatch(p.innerHTML, /çok kısa/);
 });
 
 test('agent text is escaped before it reaches the page', () => {
