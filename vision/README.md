@@ -199,6 +199,7 @@ python -m vision.footage list                  # clips with role, seed, pairing,
 python -m vision.footage render dev1           # one clip (skipped if already rendered)
 python -m vision.footage render --role dev     # or --all; --force rebuilds
 python -m vision.footage find-seed --after 2101 --start-minute 40 --minutes 10   # a test seed rule, simulator only
+python -m vision.footage find-showcase --first 2301 --last 2500                  # the showcase rule, simulator only
 ```
 
 | Role | Clips | Purpose |
@@ -206,9 +207,10 @@ python -m vision.footage find-seed --after 2101 --start-minute 40 --minutes 10  
 | dev | `dev1`-`dev3`, 2 min each | develop the pipeline; red v blue, orange v white (away kit), green v orange |
 | test | `test1`, minutes 0-10; `test2`, minutes 40-50 | held-out grades; their seeds are never used for dev or training. test2 adds a goal, the kickoff after it, half-time and the second-half kickoff (teams switch ends) |
 | training | `train1`-`train6`, 2 min each | reserved for fine-tuning the player detector; the other six pairings. Unused: pretrained recall sufficed (#21) |
+| showcase | `showcase`, minutes 30-40 | the demo clip with the most action (#82): 2 goals, a yellow and a second-yellow red. Chosen for its content, so **not held out**: its grade is a showcase number, never an accuracy claim |
 
-Dev, test and training seeds are disjoint. `check` (and `pytest`) fails if a
-seed is used by two clips, if a role has no clip, or if the dev clips show
+Dev, test, training and showcase seeds are disjoint. `check` (and `pytest`) fails if a
+seed is used by two clips, if a dev, test or training role has no clip (showcase is optional), or if the dev clips show
 fewer than three kit combinations or no white away kit.
 
 Each clip is **`minutes` of a full 90-minute match** (seeded, `full`

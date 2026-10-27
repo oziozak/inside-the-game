@@ -49,6 +49,14 @@ def test_duplicate_clip_name_is_an_error():
     assert any("dev1" in e for e in footage.check_record(record))
 
 
+def test_showcase_role_is_optional_and_its_seed_disjoint():
+    record = copy.deepcopy(VALID)
+    record["clips"].append(clip("showcase", "showcase", 6, start_minute=30, minutes=10))
+    assert footage.check_record(record) == []
+    record["clips"][-1]["seed"] = 4                    # reuses test1's seed
+    assert any("seed 4" in e and "showcase" in e and "test" in e for e in footage.check_record(record))
+
+
 def test_dev_needs_three_kit_combinations():
     record = copy.deepcopy(VALID)
     record["clips"][2].update(home="bosphorus", away="thames")   # same kits as dev1
@@ -86,6 +94,7 @@ def test_committed_seed_record_is_valid():
     assert [(c["name"], footage.window(c)) for c in by_role["test"]] == \
         [("test1", (0, 600)), ("test2", (2400, 3000))]
     assert all(c["minutes"] == 2 for c in by_role["training"])
+    assert [(c["name"], footage.window(c)) for c in by_role["showcase"]] == [("showcase", (1800, 2400))]
     assert "disjoint" in record["rule"]
 
 
@@ -201,6 +210,33 @@ def test_test2_seed_follows_its_rule():
     assert footage.window(test2) == (2400, 3000)
     assert test2["seed"] == footage.find_seed(test1["seed"], test2["home"], test2["away"], 40, 10, used)
     assert "test2" in footage.load_record()["rule"]
+
+
+def event(t, type_, subtype=None):
+    return {"t": t, "type": type_, **({"subtype": subtype} if subtype else {})}
+
+
+def test_action_rank_puts_a_red_card_first_then_goals_then_cards():
+    red = [event(100, "red_card", "straight_red")]
+    two_goals = [event(100, "goal"), event(200, "goal")]
+    second_yellow = [event(100, "yellow_card"), event(100, "red_card", "second_yellow")]
+    rank = lambda events: footage.action_rank(events, 0, 600)
+    assert rank(red) > rank(two_goals) > rank([event(100, "yellow_card")]) > rank([])
+    assert rank(second_yellow + two_goals) > rank(red + [event(150, "yellow_card")] + two_goals)
+    assert rank([event(600, "red_card")]) == rank([])               # the window is [start, end)
+    assert rank([event(300, "goal")]) > rank([event(30, "goal")])   # centered beats near the edge
+
+
+def test_showcase_seed_follows_its_rule():
+    """#82: of seeds 2301-2500 unused in any role, Bosphorus v Thames, the 10-minute window
+    with the most action (action_rank), found with the simulator only; natural rates."""
+    clips = footage.load_record()["clips"]
+    show = next(c for c in clips if c["role"] == "showcase")
+    used = {c["seed"] for c in clips if c is not show}
+    seed, start, rank = footage.find_showcase(2301, 2500, show["home"], show["away"], 10, used)
+    assert (show["seed"], show.get("start_minute"), show["minutes"]) == (seed, start, 10)
+    assert rank[:4] == (True, True, True, True)            # red, 2+ goals, yellow, second yellow
+    assert "showcase" in footage.load_record()["rule"]
 
 
 def test_prepare_clip_is_deterministic(tmp_path):

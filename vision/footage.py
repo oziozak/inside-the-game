@@ -7,6 +7,7 @@
     python -m vision.footage render --all
     python -m vision.footage info dev1 test2            # add score_at_start to a rendered clip
     python -m vision.footage find-seed --after 2101 --start-minute 40 --minutes 10
+    python -m vision.footage find-showcase --first 2301 --last 2500
 
 A clip is `minutes` of a full 90-minute match (seeded, `full` profile), from
 `start_minute` (default 0, the kickoff), so [start_minute, start_minute +
@@ -20,7 +21,10 @@ are never committed.
 
 `find-seed` applies a test clip's selection rule using the simulator only: the
 first seed after --after, used by no clip, whose window holds at least --goals
-goals.
+goals. `find-showcase` applies the showcase rule, also simulator only: of the
+seeds --first..--last used by no clip, the 10-minute window (whole-minute
+start, ending by 58') with the most action (see action_rank). The showcase
+clip is chosen for its content, so it is never a held-out grade.
 """
 
 from __future__ import annotations
@@ -44,7 +48,9 @@ ROOT = Path(__file__).resolve().parent.parent
 RECORD = Path(__file__).with_name("footage_seeds.json")
 OUT = ROOT / "data" / "renders" / "footage"          # ignored by git
 FIELDS = ("name", "role", "seed", "home", "away", "minutes")   # plus optional start_minute
-ROLES = ("dev", "test", "training")
+REQUIRED_ROLES = ("dev", "test", "training")
+ROLES = REQUIRED_ROLES + ("showcase",)               # showcase: chosen for content, never held out
+ACTION = ("goal", "yellow_card", "red_card")         # what a showcase window is ranked by
 MIN_DEV_KIT_COMBINATIONS = 3
 HALF = 45 * 60                                        # clips are cut from regulation matches
 SUBS_FROM = 58                                        # minute of the earliest substitution
@@ -84,7 +90,7 @@ def check_record(record: dict) -> list[str]:
         errors += clip_errors
         if not clip_errors:
             playable.append(c)
-    for role in ROLES:
+    for role in REQUIRED_ROLES:
         if not any(c["role"] == role for c in clips):
             errors.append(f"no {role} clip")
     clips_by_seed: dict[int, list[dict]] = {}
@@ -244,6 +250,40 @@ def find_seed(after: int, home: str, away: str, start_minute: float, minutes: fl
     raise ValueError(f"no seed in {after + 1}..{after + tries} has {goals} goal(s) in the window")
 
 
+def action_rank(events: list[dict], start: float, end: float) -> tuple:
+    """How much action the window [start, end) shows, as a sort key (higher is
+    better): a red card, 2+ goals, a yellow card, a second-yellow red, then the
+    number of goals and cards, then how far the first and last of them sit from
+    the window's edges (seconds; a centered window shows the build-up and the
+    restart after)."""
+    inside = [e for e in events if start <= e["t"] < end and e["type"] in ACTION]
+    n = Counter(e["type"] for e in inside)
+    second_yellow = any(e["type"] == "red_card" and e.get("subtype") == "second_yellow" for e in inside)
+    margin = min(inside[0]["t"] - start, end - inside[-1]["t"]) if inside else 0.0
+    return (n["red_card"] >= 1, n["goal"] >= 2, n["yellow_card"] >= 1, second_yellow,
+            len(inside), margin)
+
+
+def find_showcase(first: int, last: int, home: str, away: str, minutes: float,
+                  used: set[int]) -> tuple[int, int, tuple]:
+    """The showcase rule: of seeds first..last not in `used`, the (seed,
+    start_minute, rank) of the window with the best action_rank, over windows
+    of `minutes` starting on a whole minute and ending by SUBS_FROM. Ties go to
+    the lower seed, then the earlier start. Runs the simulator only."""
+    best = None
+    for seed in range(first, last + 1):
+        if seed in used:
+            continue
+        events = simulate({"name": f"seed{seed}", "seed": seed, "home": home, "away": away}).events
+        for start in range(0, int(SUBS_FROM - minutes) + 1):
+            rank = action_rank(events, start * 60, (start + minutes) * 60)
+            if best is None or rank > best[2]:
+                best = (seed, start, rank)
+    if best is None:
+        raise ValueError(f"no unused seed in {first}..{last}")
+    return best
+
+
 def render_clip(clip: dict, root: Path = OUT, force: bool = False) -> Path:
     """Simulate, export and validate one clip; returns its folder. A finished
     clip (clip.json present) is kept unless force; anything else is rebuilt."""
@@ -296,6 +336,13 @@ def main(argv=None) -> int:
     find.add_argument("--start-minute", type=float, default=0)
     find.add_argument("--minutes", type=float, required=True)
     find.add_argument("--goals", type=int, default=1, help="minimum goals in the window")
+    show = sub.add_parser("find-showcase", help="the unused seed and window with the most goals and "
+                                                "cards (simulator only)")
+    show.add_argument("--first", type=int, required=True, help="first seed to search")
+    show.add_argument("--last", type=int, required=True, help="last seed to search")
+    show.add_argument("--home", default="bosphorus")
+    show.add_argument("--away", default="thames")
+    show.add_argument("--minutes", type=float, default=10)
     render = sub.add_parser("render", help="render clips from the seed record")
     info = sub.add_parser("info", help="add score_at_start to rendered clips' match_info.json (#83)")
     for p in (render, info):
@@ -329,6 +376,18 @@ def main(argv=None) -> int:
                 "start_minute": args.start_minute, "minutes": args.minutes}
         times = ", ".join(f"{g['t']:g} s ({g['team']})" for g in goals_in_window(clip))
         print(f"seed {seed}: goals in the window at {times}")
+        return 0
+    if args.command == "find-showcase":
+        used = {c["seed"] for c in record["clips"]}
+        seed, start, rank = find_showcase(args.first, args.last, args.home, args.away, args.minutes, used)
+        clip = {"name": f"seed{seed}", "seed": seed, "home": args.home, "away": args.away,
+                "start_minute": start, "minutes": args.minutes}
+        lo, hi = window(clip)
+        print(f"seed {seed}: minutes {start}-{hi / 60:g} (rank {rank[:-1]}, margin {rank[-1]:.1f} s)")
+        for e in simulate(clip).events:
+            if lo <= e["t"] < hi and e["type"] in ACTION:
+                print(f"  {int(e['t'] // 60)}:{e['t'] % 60:04.1f}  {e['type']}"
+                      f"{' (' + e['subtype'] + ')' if e.get('subtype') else ''}  {e['team']}  {e['from']}")
         return 0
 
     by_name = {c["name"]: c for c in record["clips"]}
