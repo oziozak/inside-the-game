@@ -16,7 +16,7 @@ npm run dev
 
 ```bash
 MATCH=data/demo/test1 npm run dev
-MATCH=data/demo/dev1 npm run build
+MATCH=data/demo/showcase npm run build
 npm test
 ```
 
@@ -44,6 +44,8 @@ data/demo/test1/
 ```bash
 MATCH=data/demo/test2,data/demo/showcase,data/demo/hl1,data/demo/hl2 npm run build
 ```
+
+The deployed demo is `npm run build:demo` (#97): seven clips, showcase first and so the default, then test2, test1 and hl1-hl4. dev1 is left out: its first two minutes add nothing for judges and it has no CASUAL cards. An old `?clip=dev1` link opens showcase.
 
 - Folder names are the clip ids: lowercase letters, digits, `-` or `_`, unique across the list.
 - The picker label is the first line of an optional `title.txt` in the folder (e.g. `Highlight: red card, 51'`), else the folder name.
