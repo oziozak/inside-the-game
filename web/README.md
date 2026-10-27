@@ -37,6 +37,18 @@ data/demo/test1/
   report.json                 # optional; the analyst's post-match report (Clip analysis panel)
 ```
 
+### Several clips in one build (clip picker)
+
+`MATCH` may list several folders, separated by commas. Each is prepared and validated exactly as a single folder, then published in its own subfolder named after the folder (`public/sample/hl1/`), with `public/sample/clips.json` listing them in order. The page then shows a **CLIP** picker under the score; choosing a clip reloads the page on `?clip=<id>`, so a link can open a specific clip. With no or an unknown `?clip=`, the first clip in the list plays. One bad folder fails the whole build and publishes nothing.
+
+```bash
+MATCH=data/demo/test2,data/demo/showcase,data/demo/hl1,data/demo/hl2 npm run build
+```
+
+- Folder names are the clip ids: lowercase letters, digits, `-` or `_`, unique across the list.
+- The picker label is the first line of an optional `title.txt` in the folder (e.g. `Highlight: red card, 51'`), else the folder name.
+- A single folder (no comma) keeps the layout above, with no `clips.json` and no picker.
+
 Metadata, events, video and sidecar must describe the same match and source interval. Preparation checks metadata/manifest/event match IDs and overlay evidence references. It copies the video and sidecar from the same selected folder together; the producer must supply the correct original sidecar (a video's match identity cannot be inferred from its filename). Keep source files unchanged while preparation runs. Browser schema validation still applies to JSON/tracking. When tracking is supplied, its frame match IDs must match the metadata.
 
 The five-file bundle supports video playback, timed cards, language/mode switching, and evidence. Without tracking, `follow-player` overlays appear as ordinary bottom-left cards; no player positions are invented. With tracking, existing projected tags are retained. Include tracking for the video's interval plus camera history if precise projected placement is needed. Changing `MATCH` requires restarting `npm run dev` (or rebuilding); it is a preparation-time selection, not an in-page picker. Run dev/build preparation sequentially: one checkout has one shared `public/sample/` bundle.
