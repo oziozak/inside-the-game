@@ -231,7 +231,7 @@ async function main() {
     selectedEvidence = undefined;
     evidencePanel.classList.add('hidden');
   }
-  // Match analysis (optional report.json): opens when the clip ends, or from its button at any time.
+  // Clip analysis (optional report.json): opens when the clip ends, or from its button at any time.
   function closeAnalysis() {
     analysisPanel.classList.add('hidden');
     analysisBtn.setAttribute('aria-pressed', 'false');

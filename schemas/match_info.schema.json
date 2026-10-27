@@ -79,6 +79,25 @@
           }
         }
       }
+    },
+    "score_at_start": {
+      "type": "object",
+      "description": "Optional. The score when this clip starts, for a clip cut from mid-match: broadcast metadata, like the team sheet (the scoreboard graphic already shows it). Absent means 0-0 at kick-off.",
+      "required": [
+        "home",
+        "away"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "home": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "away": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     }
   },
   "$defs": {

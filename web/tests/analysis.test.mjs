@@ -39,8 +39,40 @@ test('a language the report lacks says so instead of falling back to another', (
   const p = fresh();
   assert.equal(hasLanguage(example, 'de'), false);
   renderAnalysis(p, example, 'de', info, () => {}, () => {});
-  assert.match(p.innerHTML, /No match analysis in DE/);
+  assert.match(p.innerHTML, /No clip analysis in DE/);
   assert.ok(!p.innerHTML.includes(esc(example.headline.en)));
+});
+
+test('the panel is the clip\'s analysis: its window in match minutes, from what the AI saw (#83)', () => {
+  const p = fresh();
+  renderAnalysis(p, example, 'en', info, () => {}, () => {});   // the dev1 clip, 0:00-2:00
+  assert.match(p.innerHTML, /<h2>CLIP ANALYSIS<\/h2>/);
+  assert.doesNotMatch(p.innerHTML, /MATCH ANALYSIS/i);
+  assert.match(p.innerHTML, /CLIP 1'–2' · WHAT THE AI SAW/);
+  assert.match(p.innerHTML, /aria-label="Close clip analysis"/);
+  assert.match(p.innerHTML, /this clip only, from the vision AI's tracking and events/);
+  const second = info.periods.find(q => q.period === 2).start;   // sample_a: 2 x 5 minutes
+  const late = { ...example, start: second + 60, end: second + 179.96 };
+  renderAnalysis(p, late, 'en', info, () => {}, () => {});
+  assert.match(p.innerHTML, /CLIP 47'–48'/);
+});
+
+test('a clip with no insight says why: too short under 5 minutes, else too little seen (#83)', () => {
+  const empty = { ...example, headline: {}, insights: [] };
+  for (const lang of ['en', 'tr']) {
+    const p = fresh();
+    renderAnalysis(p, empty, lang, info, () => {}, () => {});
+    assert.match(p.innerHTML, /This clip is too short for a tactical read\./, lang);
+    assert.doesNotMatch(p.innerHTML, /No clip analysis in|too little/i, lang);
+  }
+  const p = fresh();
+  renderAnalysis(p, { ...empty, end: 600 }, 'en', info, () => {}, () => {});
+  assert.match(p.innerHTML, /Too little of the clip was seen for a tactical insight\./);
+  // Insights in other languages only: not "too short", which would be untrue.
+  const enOnly = { ...example, insights: example.insights.map(i => ({ ...i, text: { en: i.text.en } })) };
+  renderAnalysis(p, enOnly, 'tr', info, () => {}, () => {});
+  assert.match(p.innerHTML, /No insight in TR\./);
+  assert.doesNotMatch(p.innerHTML, /too short/);
 });
 
 test('agent text is escaped before it reaches the page', () => {

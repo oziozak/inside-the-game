@@ -142,6 +142,31 @@ def test_prepare_clip_cuts_truth_and_tracking_to_a_later_window(tmp_path):
     assert (args[args.index("--start") + 1], args[args.index("--end") + 1]) == ("60", "120")
 
 
+def test_match_info_carries_the_score_at_the_clips_start(tmp_path):
+    """#83: the scoreboard's score when the clip starts, from the goals before its window."""
+    plan = footage.prepare_clip(clip("seven", "dev", 7), tmp_path)
+    assert json.loads(plan.metadata.read_text())["score_at_start"] == {"home": 0, "away": 0}
+    full = json.loads((tmp_path / "seven" / "truth" / "events.full.json").read_text())
+    goal = next(e for e in full if e["type"] == "goal")
+    late = clip("late", "dev", 7, minutes=1, start_minute=int(goal["t"] // 60) + 1)
+    plan = footage.prepare_clip(late, tmp_path)
+    assert json.loads(plan.metadata.read_text())["score_at_start"] == goal["score"]
+
+
+def test_refresh_info_adds_the_score_to_a_clip_rendered_before_it_and_changes_nothing_else(tmp_path):
+    late = clip("late", "dev", 7, minutes=1, start_minute=40)
+    plan = footage.prepare_clip(late, tmp_path)
+    info = json.loads(plan.metadata.read_text())
+    old = {k: v for k, v in info.items() if k != "score_at_start"}
+    plan.metadata.write_text(json.dumps(old))                     # as rendered before #83
+    assert footage.refresh_info(late, tmp_path) == info["score_at_start"]
+    assert json.loads(plan.metadata.read_text()) == info
+    plan.metadata.write_text(json.dumps({**old, "match_id": "other"}))
+    with pytest.raises(ValueError, match="match_id"):
+        footage.refresh_info(late, tmp_path)                     # not this clip's sheet: left alone
+    assert json.loads(plan.metadata.read_text())["match_id"] == "other"
+
+
 def test_a_window_over_half_time_holds_the_second_half_kickoff(tmp_path):
     over = clip("over", "dev", 7, minutes=2, start_minute=44)
     plan = footage.prepare_clip(over, tmp_path)

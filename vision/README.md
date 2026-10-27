@@ -66,7 +66,7 @@ for the held-out grade (35 min to render, about 40 to grade on an M-series Mac).
 ## What it reads: the video and the team sheet, nothing else
 
 At runtime the stage reads **only** the rendered video and its team sheet (`match_info.json`: clubs, kit
-colors, rosters with shirt numbers and positions, periods, kickoff direction), used the way a
+colors, rosters with shirt numbers and positions, periods, kickoff direction, the score at the clip's start), used the way a
 broadcaster uses a team sheet. Plus the detector weights. It never opens the simulator's `events.json`
 or `tracking.jsonl`, and imports no simulator, grader, harness, baseline or footage code.
 
@@ -80,6 +80,15 @@ anything under a `truth/` folder, any events or tracking file, or anything from 
 simulator, grader, harness, baseline or footage code. `test_guard_catches_a_read_of_simulator_data`
 checks that the guard does catch a run that reads those files. OpenCV reads the video in native code,
 which the hook does not see.
+
+**The score at the clip's start** (`match_info.score_at_start`, #83) is part of the team sheet too. A clip
+cut from mid-match (test2 starts at 40', 3-0) cannot see the goals before its first frame, but a broadcast
+always knows them: the scoreboard graphic shows the score next to the teams, from the same match feed as the
+team sheet, and nobody derives it from the pictures. So it is broadcast metadata, not simulator truth about
+what the video shows. `vision.footage` writes it from the goals before the window, and `EventRules` only counts
+on from it: a goal it detects carries the running score (4-0, not 1-0). It never changes what is detected
+(`tests/test_vision_rules.py` checks the events are the same with and without it, the score aside), and
+every event the vision AI reports still comes from the video alone.
 
 Simulator truth is read only offline, by the grading code (`grader.py`, `grade_footage.py`,
 `baseline.py`, `harness.py`), and by `scripts/merge_events.py`, which lives outside `vision/`.

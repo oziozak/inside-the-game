@@ -8,6 +8,8 @@ export interface MatchInfo {
   kickoff_direction?: { home: 'left_to_right' | 'right_to_left' };
   home: Team; away: Team;
   periods?: { period: number; start: number; end: number }[];
+  /** Score when the clip starts (a clip cut from mid-match), as on the broadcast scoreboard. */
+  score_at_start?: { home: number; away: number };
 }
 export interface TrackedPlayer { id: number; team: 'home' | 'away' | 'referee'; pos: number[]; confidence?: number }
 export interface Frame { match_id: string; frame: number; t: number; period?: 1 | 2; ball: number[]; players: TrackedPlayer[] }

@@ -2,11 +2,12 @@ import type { MatchEvent } from '../types';
 
 export interface Score { home: number; away: number }
 
-/** Score as of t, including available pre-clip history. Undefined means the opening score is unknown. */
-export function scoreAt(events: MatchEvent[], t: number, clipStart = 0): Score | undefined {
-  const past = events.filter(e => e.t <= t).sort((a, b) => a.t - b.t);
-  let score: Score | undefined = clipStart === 0 || past.some(e => e.type === 'kickoff' && e.t === 0)
-    ? { home: 0, away: 0 } : undefined;
+/** Score as of t, including available pre-clip history. Undefined means the opening score is unknown.
+ * `opening` is the score at clipStart (match_info.score_at_start, #83); events before clipStart are then ignored. */
+export function scoreAt(events: MatchEvent[], t: number, clipStart = 0, opening?: Score): Score | undefined {
+  const past = events.filter(e => e.t <= t && (!opening || e.t >= clipStart)).sort((a, b) => a.t - b.t);
+  let score: Score | undefined = opening ? { ...opening }
+    : clipStart === 0 || past.some(e => e.type === 'kickoff' && e.t === 0) ? { home: 0, away: 0 } : undefined;
   for (const e of past) {
     // A score field is an explicit after-event snapshot, not a guess from a pass/shot's success.
     const snapshot = e.score;

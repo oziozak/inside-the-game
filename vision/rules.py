@@ -210,7 +210,8 @@ class EventRules:
         self.center_spot = (self.length / 2, self.width / 2)
         direction = team_sheet.get("kickoff_direction", {}).get("home", "left_to_right")
         self.home_right_first = direction == "left_to_right"
-        self.score = {"home": 0, "away": 0}
+        # A clip cut from mid-match starts from the scoreboard's score (broadcast metadata, like the sheet).
+        self.score = dict(team_sheet.get("score_at_start") or {"home": 0, "away": 0})
         self.lineup = Lineup(team_sheet)        # kept across periods: tracks outlive the cut
         self._reset_period(None)
 

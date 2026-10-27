@@ -326,7 +326,7 @@ Where lineup assignment swaps two players (#56), their mean positions mix, which
 ## Analyst report (#69)
 
 After the clip, the analyst writes `report.json` (`schemas/report.schema.json`): a headline and 3-5 tactical
-insights in every language, shown by the web player's Match analysis panel.
+insights in every language, shown by the web player's Clip analysis panel.
 
 ```bash
 C=dev1
@@ -349,7 +349,14 @@ python scripts/validate.py data/demo/$C
    Below, it is `hedged` and used only to reach 3 insights: the text must say so (the verifier checks for a
    hedge in each language) and the evidence panel shows "Based on 40% of the clip, below 60%: hedged". Below
    `HEDGE_MIN` (0.3) it is skipped. Every left-out candidate is in `skipped` with its reason. On dev3 the line,
-   width and compactness insights (coverage 0.40) are skipped, as enough confident ones remain.
+   width and compactness insights (coverage 0.40) are skipped, as enough confident ones remain. So is every
+   topic the facts cannot speak to at all (#83), with why: no value ("too little of the clip seen"), or a
+   sample under its threshold ("too few passes: Bosphorus FC 1, Thames United 6; each team needs 8", too few
+   regains or passes into the final third, under a minute either side of a goal). Thresholds stay as they are
+   on short clips: a 2-minute highlight often gets 0-1 insights, and the web panel then says the clip is too
+   short for a tactical read. Mock runs on 2-minute windows of test2: 47:40-49:40 (a 3000-frame window with no
+   goal) gives 0 insights and 9 skips with their reasons; 40:00-42:00 gives one (flanks), headlined "Bosphorus FC
+   3-0 Thames United: ...".
 3. **Text** (LLM). One call for the headline and every insight, all languages; JSON mode. The verifier is the
    overlays' (no digit, placeholders only, units, number words, no player name) with longer limits, plus an
    **uncited claim** check: each fact kind has the words that make a claim about it in en/tr/es
@@ -366,7 +373,9 @@ python scripts/validate.py data/demo/$C
    tr headline had fallen back to the template (Thames United only) while en and es kept the model's (both teams).
    One retry with the problems (a retried language is kept only if it agrees with the others), then the template
    in every language of that part.
-4. **Numbers.** `values` are the cited facts rounded for the screen; the score comes from `stats.MatchState`.
+4. **Numbers.** `values` are the cited facts rounded for the screen; the score comes from `stats.MatchState`:
+   the score at the clip's end, counted on from `match_info.score_at_start` (#83), so a clip that starts at 1-1
+   with no goal in it says 1-1, not 0-0.
    `recheck` reads every fact back from `tactics.json` and every value against its fact; the report is not
    written if anything differs.
 

@@ -120,6 +120,65 @@ class ReportTest(unittest.TestCase):
                 self.assertTrue(all(f.get("n_frames") for f in ins["facts"]))
 
 
+class ScoreTest(unittest.TestCase):
+    """#83: a clip cut from mid-match headlines the score at its end, goals before the clip included."""
+
+    def headline(self, events: list[dict]) -> str:
+        info = {**INFO, "score_at_start": {"home": 1, "away": 1}}
+        report, _ = asyncio.run(analyst.analyse(TACTICS, Match(info=info, events=events), analyst.MockAnalyst(), LANGS))
+        return report["headline"]["en"]
+
+    def test_a_clip_starting_at_one_all_with_no_goal_inside_says_one_all(self):
+        self.assertTrue(self.headline([]).startswith("Bosphorus FC 1-1 Thames United:"), self.headline([]))
+
+    def test_a_goal_inside_the_clip_counts_on_top_of_the_score_at_its_start(self):
+        goal = {"id": "e0040", "t": 59.0, "type": "goal", "team": "home", "from": None, "source": "cv",
+                "score": {"home": 2, "away": 1}}
+        self.assertTrue(self.headline([goal]).startswith("Bosphorus FC 2-1 Thames United:"))
+
+
+class ShortClipTest(unittest.TestCase):
+    """#83: a 2-minute highlight falls under the sample thresholds. Nothing is padded, and `skipped` says
+    why each topic the facts cannot speak to is missing (test2's 47:40-49:40 listed none of them)."""
+
+    @staticmethod
+    def short() -> tuple[dict, list[dict]]:
+        t = copy.deepcopy(TACTICS)
+        whole = t["segments"][0]
+        teams = whole["teams"]
+        teams["home"]["long_balls"]["of"] = 3                                   # under MIN_PASSES
+        for side in ("home", "away"):
+            teams[side]["regains"]["value"] = {"high": 0, "mid": 1, "low": 0}   # 2 under MIN_REGAINS
+            teams[side]["final_third_flanks"]["passes"]["count"] = {"left": 0, "centre": 1, "right": 1}
+        teams["away"]["attacking_width_m"]["value"] = None                      # never seen in possession
+        t["segments"] += [{**copy.deepcopy(whole), "id": "before_e0040", "split_by": "e0040", "end": 40.0},
+                          {**copy.deepcopy(whole), "id": "after_e0040", "split_by": "e0040", "start": 40.0}]
+        goal = {"id": "e0040", "t": 40.0, "type": "goal", "team": "home", "from": None, "source": "cv"}
+        return t, [goal]
+
+    def test_the_topics_a_short_clip_cannot_speak_to_are_skipped_with_why(self):
+        t, events = self.short()
+        report, log = run(t, events=events)
+        self.assertEqual(list(REPORT_SCHEMA.iter_errors(report)), [])
+        self.assertEqual(log["recheck"], [])
+        why = {(s["topic"], s["team"]): s["reason"] for s in report["skipped"]}
+        self.assertIn("too few passes: Bosphorus FC 3", why[("directness", "both")])
+        self.assertIn("too few passes", why[("progression", "both")])
+        self.assertIn("too few regains: 2", why[("pressing", "both")])
+        self.assertIn("too few passes into the final third: 2", why[("flanks", "home")])
+        self.assertIn("too few passes into the final third: 2", why[("flanks", "away")])
+        self.assertIn("no value", why[("width", "both")])
+        self.assertIn("40 s before", why[("change", "home")])
+        topics = {i["topic"] for i in report["insights"]}
+        self.assertFalse(topics & {"directness", "progression", "pressing", "flanks", "width", "change"})
+
+    def test_nothing_below_the_hedge_floor_is_padded_in(self):
+        t, events = self.short()
+        report, _ = run(with_coverage(t, lambda c: 0.2), events=events)
+        self.assertEqual((report["insights"], report["headline"]), ([], {}))
+        self.assertTrue(all(s["reason"] for s in report["skipped"]))
+
+
 class CoverageTest(unittest.TestCase):
     """#69: insights rest on facts with uneven coverage; low coverage is hedged or skipped, and said."""
 
@@ -136,13 +195,14 @@ class CoverageTest(unittest.TestCase):
             self.assertEqual(ins["coverage"], 0.45)
             for lang in LANGS:
                 self.assertEqual(verifier.missing_hedge(ins["text"][lang], lang), [], ins["text"][lang])
-        self.assertTrue(all("below the threshold" in s["reason"] for s in report["skipped"]))
+        # The rest are under a sample threshold (dev1: Thames United's 4 passes into the final third).
+        self.assertTrue(all("below the threshold" in s["reason"] or "too few" in s["reason"] for s in report["skipped"]))
 
     def test_below_the_hedge_floor_nothing_is_said(self):
         report, _ = run(with_coverage(TACTICS, lambda c: 0.2))
         self.assertEqual((report["insights"], report["headline"]), ([], {}))
         self.assertTrue(report["skipped"])
-        self.assertTrue(all("hedge floor" in s["reason"] for s in report["skipped"]))
+        self.assertTrue(all("hedge floor" in s["reason"] or "too few" in s["reason"] for s in report["skipped"]))
         self.assertEqual(list(REPORT_SCHEMA.iter_errors(report)), [])
 
     def test_hedged_insights_only_fill_up_to_the_minimum(self):

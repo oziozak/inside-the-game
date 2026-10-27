@@ -126,6 +126,19 @@ def test_calibration_fixture_gives_one_pass_one_shot_and_a_goal(validate, tmp_pa
     assert events[2]["score"] == {"home": 1, "away": 0}
 
 
+def test_a_goal_counts_on_from_the_team_sheets_score_at_start():
+    """#83: a clip cut from mid-match at 3-0; the calibration goal is the home side's fourth. Only the
+    score changes: the events are the same as from a team sheet without it."""
+    tracking, team_sheet, _ = calibration()
+    frames = observations_from_tracking(tracking, team_sheet)
+    plain = detect_events(frames, team_sheet)
+    later = detect_events(frames, {**team_sheet, "score_at_start": {"home": 3, "away": 0}})
+    assert plain[-1]["score"] == {"home": 1, "away": 0}
+    assert later[-1]["score"] == {"home": 4, "away": 0}
+    assert [{k: v for k, v in e.items() if k != "score"} for e in later] == \
+        [{k: v for k, v in e.items() if k != "score"} for e in plain]
+
+
 def test_clean_simulator_clips_score_near_perfectly(validate, tmp_path, sim_clips, sim_detections):
     """Precision and recall per type, and shot and possession-change subtypes,
     pooled over seeds and pairings."""
