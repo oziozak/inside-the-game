@@ -26,7 +26,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("data", help="folder with match_info.json and events.json")
     ap.add_argument("--backend", default="mock", choices=["mock", "noisy", "foundry"])
-    ap.add_argument("--langs", default="en,tr", help="comma-separated, e.g. en,tr,es")
+    ap.add_argument("--langs", default="en,tr,es", help="comma-separated, e.g. en,tr")
     ap.add_argument("--out", help="output folder (default: data/generated/<data folder name>)")
     args = ap.parse_args()
 
@@ -52,11 +52,15 @@ def main() -> None:
         "moments_selected": len(candidates),
         "overlays_out": len(overlays),
         "overlays_per_mode": dict(Counter(o["mode"] for o in overlays)),
+        "low_confidence_overlays": vreport["low_confidence_overlays"],  # team-named: player uncertain
         "verifier": {"rejected_attempts": len(vreport["rejected"]),
                      "fixed_on_retry": vreport["fixed_on_retry"],
                      "template_fallbacks": vreport["template_fallbacks"],
+                     # share of the overlays whose text is the code template, not the backend's own
+                     "template_fallback_pct": round(100 * vreport["template_fallbacks"] / max(len(overlays), 1), 1),
                      "dropped": len(vreport["dropped"]),
                      "rejections": vreport["rejected"][:20]},
+        "llm_usage": getattr(backend, "usage", None),  # foundry only: paid calls, cache hits, tokens
         "seconds": round(time.perf_counter() - t0, 2),
         "director_decisions": decisions,
     }
@@ -64,9 +68,14 @@ def main() -> None:
 
     v = report["verifier"]
     print(f"{report['events_in']} events -> {report['moments_selected']} moments -> "
-          f"{report['overlays_out']} overlays {report['overlays_per_mode']}")
+          f"{report['overlays_out']} overlays {report['overlays_per_mode']}, "
+          f"{report['low_confidence_overlays']} naming the team (player uncertain)")
     print(f"verifier: {v['rejected_attempts']} rejected, {v['fixed_on_retry']} fixed on retry, "
-          f"{v['template_fallbacks']} template fallbacks, {v['dropped']} dropped")
+          f"{v['template_fallbacks']} template fallbacks ({v['template_fallback_pct']}%), {v['dropped']} dropped")
+    if report["llm_usage"]:
+        u = report["llm_usage"]
+        print(f"llm: {u['calls']} paid calls, {u['cached']} cached, "
+              f"{u['input_tokens']} input + {u['output_tokens']} output tokens")
     print(f"wrote {out_dir / 'overlays.json'} in {report['seconds']} s")
 
 

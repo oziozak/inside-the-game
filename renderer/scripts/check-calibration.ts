@@ -1,14 +1,15 @@
-import { captureCanvas } from './lib/capture';
 import assert from 'node:assert/strict';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
-import { renderingServer } from './lib/server';
 import { parseMatch, world } from '../src/data/match';
 import type { CameraPreset } from '../src/scene/config';
+import { captureCanvas } from './lib/capture';
+import { artifactDirectory } from './lib/paths';
+import { renderingServer } from './lib/server';
 const metadata = JSON.parse(await readFile('fixtures/calibration/match_info.json', 'utf8'));
 const tracking = await readFile('fixtures/calibration/tracking.jsonl', 'utf8');
 const match = parseMatch(metadata, tracking);
-const artifactDir = process.env.RENDERER_TEST_ARTIFACT_DIR ?? '../data/renders';
+const artifactDir = await artifactDirectory();
 const { server, closeServer } = await renderingServer();
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
@@ -43,7 +44,6 @@ try {
     if (camera === 'cv_full_pitch') assert.ok(sequential.every(s => JSON.stringify(s.camera) === JSON.stringify(sequential[0].camera)));
     assert.deepEqual(errors, []); assert.ok(!requests.some(r => /ground_truth|events|overlays/.test(r)));
     assert.equal(await page.locator('#clock').isVisible(), false);
-    await mkdir(artifactDir, { recursive: true });
     await page.evaluate(() => window.broadcast.setTime(3));
     await captureCanvas(page, { path: `${artifactDir}/calibration-${camera}-preview.png` });
     reports.push({ camera, frames: sequential.length, coordinateChecks: 'all frames match tracking', directSeekChecks: repeatPixels, repeatedPixelChecks: repeatPixels, minProjectedBallDiameterPx: Math.min(...sequential.map(s => s.ball.projectedDiameterPx)), maxProjectedBallDiameterPx: Math.max(...sequential.map(s => s.ball.projectedDiameterPx)), playerOccludedCenterFrames: sequential.filter(s => s.ball.centerOccludedByPlayer).length });

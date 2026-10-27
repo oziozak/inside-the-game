@@ -1,0 +1,223 @@
+{
+ "match_id": "dev1",
+ "start": 0.0,
+ "end": 119.96,
+ "langs": [
+  "en",
+  "tr",
+  "es"
+ ],
+ "coverage_min": 0.6,
+ "headline": {
+  "en": "Bosphorus FC 0-0 Thames United: Bosphorus FC defended higher",
+  "tr": "Bosphorus FC 0-0 Thames United: Bosphorus FC daha önde savundu",
+  "es": "Bosphorus FC 0-0 Thames United: Bosphorus FC defendió más arriba"
+ },
+ "insights": [
+  {
+   "id": "i1",
+   "topic": "defensive_line",
+   "team": "both",
+   "segment": "whole",
+   "coverage": 0.916,
+   "hedged": false,
+   "title": {
+    "en": "Line height",
+    "tr": "Savunma hattı",
+    "es": "Altura de la línea"
+   },
+   "text": {
+    "en": "Bosphorus FC defended higher up the pitch without the ball: a back line 22 m from their own goal, against 14 m for Thames United",
+    "tr": "Bosphorus FC topsuzken savunma hattını daha önde tuttu: kendi kalesinden 22 m, Thames United ise 14 m",
+    "es": "Bosphorus FC defendió con la línea más adelantada sin balón: a 22 m de su portería, por 14 m de Thames United"
+   },
+   "values": {
+    "home_line_m": 22,
+    "away_line_m": 14
+   },
+   "facts": [
+    {
+     "ref": "whole/home/defensive_line_m.out_of_possession",
+     "field": "value",
+     "label": "Bosphorus FC: defensive line, out of possession (m from own goal)",
+     "value": 21.9,
+     "coverage": 0.916,
+     "key": "home_line_m",
+     "n_frames": 1851
+    },
+    {
+     "ref": "whole/away/defensive_line_m.out_of_possession",
+     "field": "value",
+     "label": "Thames United: defensive line, out of possession (m from own goal)",
+     "value": 14.4,
+     "coverage": 0.916,
+     "key": "away_line_m",
+     "n_frames": 896
+    }
+   ],
+   "event_ids": []
+  },
+  {
+   "id": "i2",
+   "topic": "directness",
+   "team": "both",
+   "segment": "whole",
+   "coverage": 0.922,
+   "hedged": false,
+   "title": {
+    "en": "Directness",
+    "tr": "Direkt oyun",
+    "es": "Juego directo"
+   },
+   "text": {
+    "en": "Thames United played more directly: 29% of their passes were long balls, against 0% for Bosphorus FC",
+    "tr": "Thames United daha direkt oynadı: uzun top oranı %29, Bosphorus FC için %0",
+    "es": "Thames United jugó más directo: el 29 % de sus pases fueron balones largos, por el 0 % de Bosphorus FC"
+   },
+   "values": {
+    "home_long_pct": 0,
+    "away_long_pct": 29
+   },
+   "facts": [
+    {
+     "ref": "whole/home/long_balls",
+     "field": "value_pct",
+     "label": "Bosphorus FC: long balls (passes over 30 m), % of passes",
+     "value": 0.0,
+     "coverage": 0.922,
+     "key": "home_long_pct",
+     "n_events": 12
+    },
+    {
+     "ref": "whole/away/long_balls",
+     "field": "value_pct",
+     "label": "Thames United: long balls (passes over 30 m), % of passes",
+     "value": 28.6,
+     "coverage": 0.922,
+     "key": "away_long_pct",
+     "n_events": 21
+    }
+   ],
+   "event_ids": [
+    "e0001",
+    "e0002",
+    "e0003",
+    "e0004",
+    "e0015",
+    "e0016",
+    "e0017",
+    "e0018",
+    "e0031",
+    "e0034",
+    "e0035",
+    "e0036",
+    "e0005",
+    "e0006",
+    "e0007",
+    "e0008",
+    "e0009",
+    "e0010",
+    "e0011",
+    "e0012",
+    "e0013",
+    "e0019",
+    "e0020",
+    "e0021",
+    "e0022",
+    "e0023",
+    "e0024",
+    "e0025",
+    "e0026",
+    "e0027",
+    "e0028",
+    "e0029",
+    "e0033"
+   ]
+  },
+  {
+   "id": "i3",
+   "topic": "shape",
+   "team": "both",
+   "segment": "whole",
+   "coverage": 1.0,
+   "hedged": false,
+   "title": {
+    "en": "Shape",
+    "tr": "Diziliş",
+    "es": "Dibujo táctico"
+   },
+   "text": {
+    "en": "Bosphorus FC lined up in a 4-3-3 against Thames United's 4-4-2, both as on the team sheet",
+    "tr": "Bosphorus FC 4-3-3, Thames United 4-4-2 dizilişiyle oynadı, kağıt üzerindeki gibi",
+    "es": "Bosphorus FC formó con un 4-3-3 ante el 4-4-2 de Thames United, como en la alineación"
+   },
+   "values": {
+    "home_shape": "4-3-3",
+    "away_shape": "4-4-2"
+   },
+   "facts": [
+    {
+     "ref": "whole/home/shape.all",
+     "field": "value",
+     "label": "Bosphorus FC: shape on the pitch",
+     "value": "4-3-3",
+     "coverage": 1.0,
+     "key": "home_shape",
+     "n_frames": 2999
+    },
+    {
+     "ref": "whole/away/shape.all",
+     "field": "value",
+     "label": "Thames United: shape on the pitch",
+     "value": "4-4-2",
+     "coverage": 1.0,
+     "key": "away_shape",
+     "n_frames": 2999
+    }
+   ],
+   "event_ids": []
+  }
+ ],
+ "skipped": [
+  {
+   "topic": "flanks",
+   "team": "home",
+   "segment": "whole",
+   "coverage": 0.922,
+   "salience": 0.67,
+   "reason": "less telling than the insights shown"
+  },
+  {
+   "topic": "progression",
+   "team": "both",
+   "segment": "whole",
+   "coverage": 0.922,
+   "salience": 0.6,
+   "reason": "less telling than the insights shown"
+  },
+  {
+   "topic": "width",
+   "team": "both",
+   "segment": "whole",
+   "coverage": 0.916,
+   "salience": 0.52,
+   "reason": "less telling than the insights shown"
+  },
+  {
+   "topic": "compactness",
+   "team": "both",
+   "segment": "whole",
+   "coverage": 0.916,
+   "salience": 0.06,
+   "reason": "less telling than the insights shown"
+  },
+  {
+   "topic": "pressing",
+   "team": "both",
+   "segment": "whole",
+   "coverage": 0.922,
+   "salience": 0.0,
+   "reason": "less telling than the insights shown"
+  }
+ ]
+}

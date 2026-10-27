@@ -1,12 +1,11 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
-import { loadInterval } from './lib/interval';
 import { parseMatch } from '../src/data/match';
+import { loadInterval } from './lib/interval';
+import { simulatorOptions } from './lib/paths';
 const { values } = parseArgs({ options: {
   mode: { type: 'string', default: 'interval' },
-  metadata: { type: 'string', default: '../data/generated/renderer-m007/match_info.json' },
-  tracking: { type: 'string', default: '../data/generated/renderer-m007/tracking.jsonl' },
-  start: { type: 'string', default: '2503' }, end: { type: 'string', default: '2513' },
+  ...simulatorOptions,
   out: { type: 'string' },
 } });
 const metadata = JSON.parse(await readFile(values.metadata!, 'utf8'));

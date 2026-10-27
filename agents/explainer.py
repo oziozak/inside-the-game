@@ -3,17 +3,20 @@
 For each accepted (candidate, mode):
   1. build a request with facts and values (all computed by code),
   2. ask the explainer backend for title + text in every language,
-  3. verify each language; on failure, retry ONCE with the verifier's feedback,
+  3. verify each language (verifier.py: the raw placeholder text, then the filled text) and fill the
+     placeholders with code-formatted numbers (fill.py); on failure, retry ONCE with the verifier's feedback,
   4. if it still fails, fall back to the code template (and log it).
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 
 from . import templates, verifier
+from .fill import fill, known
 from .data_io import Match
-from .director import BUDGET_WINDOW_S, Candidate
+from .director import BUDGET_WINDOW_S, Candidate, named_player
 
 FACT_KEYS = ("minute", "score_home", "score_away", "zone", "into_box",
              "into_final_third", "team_shots", "team_pass_accuracy")
@@ -27,7 +30,8 @@ def mode_values(c: Candidate, mode: str) -> dict:
     if "difficulty" in v:
         v["difficulty_max"] = 10  # so "7/10" is a backed number
     if mode == "casual":
-        keep = {"pass_card": ("distance_m",), "shot_card": ("speed_kmh",)}.get(c.graphic)
+        keep = {"pass_card": ("distance_m",), "shot_card": ("speed_kmh",),
+                "stat_compare": ("score_home", "score_away")}.get(c.graphic)
         if keep:
             v = {k: v[k] for k in keep if k in v}
     if mode == "player_focus" and c.graphic == "pass_card":
@@ -38,9 +42,13 @@ def mode_values(c: Candidate, mode: str) -> dict:
 
 
 def build_request(c: Candidate, mode: str, match: Match, langs: list[str]) -> dict:
+    """What the explainer sees. `placeholders` are the only way it may write a number: the `values`
+    keys plus `{minute}` and `{score}`. A team-only candidate has `name_players` false and no `actor`,
+    `target` or `setup_by`: `subject` (the team) is who the text is about, so no player can be named.
+    A setup pass or recapped moment the vision AI is not sure about names no player either."""
     e = c.event
     side = e.get("team")
-    return {
+    req = {
         "graphic": c.graphic,
         "mode": mode,
         "langs": langs,
@@ -48,51 +56,87 @@ def build_request(c: Candidate, mode: str, match: Match, langs: list[str]) -> di
         "subtype": e.get("subtype"),
         "success": e.get("success"),
         "why_selected": c.reason,
-        "actor": match.player_name(e.get("from")),
+        "name_players": not c.team_only,
+        "actor": match.player_name(c.player),
         "actor_team": match.team_name(side) if side in ("home", "away") else None,
         "target": match.player_name(e.get("to")),
         "home": match.team_name("home"),
         "away": match.team_name("away"),
-        "setup_by": match.player_name(c.setup["from"]) if c.setup else None,
+        "setup_by": match.player_name(named_player(c.setup)) if c.setup else None,
+        "key_moments": [{"type": k["type"], "player": match.player_name(named_player(k)),
+                         "own_goal": k.get("subtype") == "own_goal"} for k in c.key_events],
+        "context": c.context,
         "facts": {k: c.facts[k] for k in FACT_KEYS if k in c.facts},
         "values": mode_values(c, mode),
     }
+    req["placeholders"] = [f"{{{k}}}" for k in sorted(known(req["values"], req["facts"]))]
+    if c.team_only:
+        for k in ("actor", "target", "setup_by"):
+            del req[k]
+        req["subject"] = req["actor_team"]
+    return req
+
+
+def involved_names(req: dict) -> set[str]:
+    """The players a request's text may name: the ones it was given."""
+    named = [req.get("actor"), req.get("target"), req.get("setup_by")] + [k["player"] for k in req["key_moments"]]
+    return {n for n in named if n}
 
 
 async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: list[str],
                       report: dict) -> list[dict]:
     req = build_request(c, mode, match, langs)
     roster = {p["name"] for p in match.players.values()}
-    involved = {n for n in (req["actor"], req["target"], req["setup_by"]) if n}
+    involved = involved_names(req)
 
-    def problems(out: dict, lang: str) -> list[str]:
-        t = out.get(lang, {"title": "", "text": ""})
-        return verifier.check(t["text"], t["title"], req["values"], c.facts, involved, roster)
+    def finish(answer: dict, lang: str) -> tuple[dict, list[str]]:
+        """One language of a backend answer with its placeholders filled, and its problems
+        (the raw text if it has any)."""
+        t = answer.get(lang, {"title": "", "text": ""})
+        problems = verifier.check(t["text"], t["title"], req["values"], req["facts"], involved, roster, lang,
+                                   req["name_players"])
+        if problems:
+            return t, problems
+        return {k: fill(t[k], req["values"], lang, req["facts"]) for k in ("title", "text")}, []
 
-    out = await backend.explain(req)
-    bad = {lang: p for lang in langs if (p := problems(out, lang))}
+    answer = await backend.explain(req)
+    out, bad = {}, {}
+    for lang in langs:
+        out[lang], p = finish(answer, lang)
+        if p:
+            bad[lang] = p
     if bad:
         report["rejected"].append({"event_id": c.event.get("id"), "mode": mode, "attempt": 1,
-                                   "problems": bad, "text": {l: out.get(l) for l in bad}})
-        feedback = "; ".join(f"[{l}] " + ", ".join(p) for l, p in bad.items())
+                                   "problems": dict(bad), "text": {l: answer.get(l) for l in bad}})
+        # The model does not remember its answer: show it each rejected text with its problems.
+        feedback = "; ".join(f"[{l}] {json.dumps(answer.get(l), ensure_ascii=False)}: " + ", ".join(p)
+                             for l, p in bad.items())
         retry = await backend.explain(req, feedback)
+        still = {}
         for lang in list(bad):
-            if not problems(retry, lang):
-                out[lang] = retry[lang]
+            t, p = finish(retry, lang)
+            if not p:
+                out[lang] = t
                 report["fixed_on_retry"] += 1
                 del bad[lang]
+            else:
+                still[lang] = p
+        if still:
+            report["rejected"].append({"event_id": c.event.get("id"), "mode": mode, "attempt": 2,
+                                       "problems": still, "text": {l: retry.get(l) for l in still}})
+    dropped = set()
     for lang in bad:
-        fallback = templates.render(req, lang)
-        if problems({lang: fallback}, lang):
+        t, p = finish({lang: templates.render(req, lang)}, lang)
+        if p:
             report["dropped"].append({"event_id": c.event.get("id"), "mode": mode, "lang": lang})
+            dropped.add(lang)
             continue
-        out[lang] = fallback
+        out[lang] = t
         report["template_fallbacks"] += 1
 
     overlays = []
     for lang in langs:
-        if lang not in out or any(d["event_id"] == c.event.get("id") and d["mode"] == mode and d["lang"] == lang
-                                  for d in report["dropped"]):
+        if lang in dropped:
             continue
         overlays.append({
             "id": "o0000",
@@ -109,12 +153,15 @@ async def explain_one(c: Candidate, mode: str, match: Match, backend, langs: lis
             "mode": mode,
             "lang": lang,
         })
+    if c.player_uncertain:
+        report["low_confidence_overlays"] += len(overlays)
     return overlays
 
 
 async def explain_all(candidates: list[Candidate], match: Match, backend, langs: list[str],
-                      concurrency: int = 8) -> tuple[list[dict], dict]:
-    report = {"rejected": [], "fixed_on_retry": 0, "template_fallbacks": 0, "dropped": []}
+                      concurrency: int = 4) -> tuple[list[dict], dict]:
+    report = {"rejected": [], "fixed_on_retry": 0, "template_fallbacks": 0, "dropped": [],
+              "low_confidence_overlays": 0}
     sem = asyncio.Semaphore(concurrency)
 
     async def run(c: Candidate, mode: str) -> list[dict]:

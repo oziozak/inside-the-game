@@ -56,3 +56,28 @@ def full_matches():
         m.play()
         out.append(m)
     return out
+
+
+# Seam-2 simulator clips: the first minutes of each half of a full match, cut
+# together as the broadcast cuts the break, so kickoff direction and the
+# second-half switch are covered. Not the tuning seeds (201-204), though their
+# grades were looked at while tuning (vision/README.md). Between them the clips
+# hold 7 goals, each followed by a kickoff.
+CLIP_SEEDS = [(401, "bosphorus", "thames"), (402, "caldera", "saltmarsh"),
+              (403, "saltmarsh", "bosphorus"), (404, "thames", "caldera")]
+CLIP_MINUTES = 15                       # from the start of each half
+
+
+@pytest.fixture(scope="session")
+def sim_clips():
+    """[(tracking, team sheet, true events in the clip)] for a few seeds and
+    pairings, each clip the first CLIP_MINUTES of both halves."""
+    out = []
+    for seed, home, away in CLIP_SEEDS:
+        m = Match(seed, 2700, "full", f"seam2_{seed}", home=load_team(home), away=load_team(away))
+        m.play()
+        windows = [(p["start"], min(p["end"], p["start"] + CLIP_MINUTES * 60)) for p in m.periods]
+        tracking = [fr for start, end in windows for fr in build_tracking(m, start, end)]
+        out.append((tracking, m.match_info(),
+                    [e for e in m.events if any(start <= e["t"] < end for start, end in windows)]))
+    return out

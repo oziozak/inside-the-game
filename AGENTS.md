@@ -33,7 +33,7 @@ simulator ──> renderer ──> video ──> vision AI ──> events ──
 5. **Fictional only.** No real clubs, players, logos, kits, footage or Premier League marks. Our clubs: Bosphorus FC (home, red) and Thames United (away, blue).
 6. **Runtime AI runs on Microsoft's stack** (Microsoft Foundry, Agent Framework, Azure services). This is part of the judging. Coding tools are unrestricted.
 7. **No secrets in git.** Use `.env` (ignored). The repo becomes public at submission.
-8. **No large binaries in git.** Videos, frames, model weights and full-match tracking go in ignored folders (`data/generated/`, `data/renders/`, `runs/`). Regenerate them with scripts.
+8. **No large binaries in git.** Videos, frames, model weights and full-match tracking go in ignored folders (`data/generated/`, `data/renders/`, `runs/`). Regenerate them with scripts. **One deliberate exception:** the 12-second vision calibration clip `vision/fixtures/calibration/calibration.mp4` is committed through **Git LFS** (pattern in `.gitattributes`), so the vision end-to-end test always runs. Run `git lfs install` once per machine and `git lfs pull` if the file is a text pointer. No other video goes in git.
 9. **Keep it demo-able.** We have one week. Prefer the simplest thing that works end to end over a clever partial solution.
 
 ## Data conventions (see `schemas/README.md`)
@@ -57,7 +57,7 @@ Events the vision AI cannot see in v1 (`foul`, `yellow_card`, `red_card`, `offsi
 schemas/           shared formats (JSON Schema) + examples
 data/fake/         small committed sample data for development
 data/generated/    big generated files (ignored by git)
-scripts/           validate.py, generate_fake_data.py
+scripts/           validate.py, generate_fake_data.py, merge_events.py, name_threshold.py
 simulator/ renderer/ vision/ agents/ web/   one folder per stage, each with its own README
 ```
 
@@ -71,6 +71,15 @@ python scripts/generate_fake_data.py --full-tracking    # + full 25 fps tracking
 python scripts/generate_fake_data.py --report           # event counts vs. real-football norms
 python -m simulator --home bosphorus --away thames --seed 7 --out data/generated/m007   # one match (see simulator/README.md)
 python -m simulator.realism --matches 40                # realism report; exits 1 if a check fails
+python -m vision.footage render dev1                    # one footage clip from the seed record (see vision/README.md)
+python -m vision.rules OBS.jsonl --match-info MI --out EVENTS   # frame observations -> detected events (cv)
+python -m vision VIDEO --out EVENTS                     # the tracer: video + match_info.json next to it -> detected events (cv)
+python -m vision.grade_footage --role dev               # tracer on rendered footage clips, graded -> runs/footage/<clip>/vision_report.json
+python -m vision.annotate CLIP_DIR RUN_DIR --out ai_view.mp4   # the clip with what the AI saw drawn on it (tracer run with --frame-boxes)
+python scripts/merge_events.py DETECTED TRUTH --out OUT  # detected (cv) + sim's foul/card/offside/sub -> events.json
+python scripts/name_threshold.py                        # choose the agents' NAME_MIN_CONFIDENCE on dev1-dev3 (never test1)
+python -m agents.tactics OBS.jsonl --events EVENTS --match-info MI --out tactics.json   # tactical facts (code only)
+python -m agents.analyst DATA_DIR --tactics tactics.json --backend foundry --out DATA_DIR   # report.json: post-match analysis
 pytest                                                  # tests
 ```
 

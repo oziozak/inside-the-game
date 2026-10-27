@@ -43,7 +43,8 @@ def build_overlays(events, info):
             item = ("pass_card", 1.5, 5, 0.6, "bottom-left", v, {
                 ("analyst", "en"): f"{e['distance_m']:.0f} m {e.get('subtype', 'pass')} pass, {e['speed_kmh']} km/h",
                 ("casual", "en"): f"Great long ball from {nm}!",
-                ("casual", "tr"): f"{nm}'dan harika uzun pas!"})
+                # No suffix on the name: its vowel harmony depends on the name.
+                ("casual", "tr"): f"{nm} harika bir uzun top gönderdi!"})
         if not item:
             continue
         graphic, lag, dur, prio, where, values, texts = item

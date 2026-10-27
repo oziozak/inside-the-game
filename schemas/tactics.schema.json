@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tactics.schema.json",
+  "title": "Tactical facts",
+  "description": "Team-level tactical facts of one clip, computed by code from the vision AI's frame observations and detected events (agents/tactics.py). Read by the analyst (agents/analyst.py). Every fact carries its coverage and its evidence: frame runs or event ids.",
+  "type": "object",
+  "required": ["match_id", "n_frames", "segments"],
+  "properties": {
+    "match_id": { "type": ["string", "null"] },
+    "n_frames": { "type": "integer", "minimum": 0, "description": "Observation frames in the clip." },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The whole clip first (id 'whole'), then before and after each goal or red card.",
+      "items": { "$ref": "#/$defs/segment" }
+    }
+  },
+  "$defs": {
+    "coverage": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Share of the segment the fact could see. Whole-clip frame fact: its frames over the segment's. In or out of possession: its frames over the team's frames in that phase, times the share of frames whose possession is known. Event fact: share of frames with the ball seen. Null with no frames."
+    },
+    "frame_runs": {
+      "type": "array",
+      "items": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+      "description": "[first, last] runs of observation frame indices."
+    },
+    "event_ids": { "type": "array", "items": { "type": "string" } },
+    "frame_fact": {
+      "type": "object",
+      "required": ["value", "coverage", "frames", "n_frames"],
+      "properties": {
+        "value": { "type": ["number", "null"], "description": "Mean over the frames, meters." },
+        "coverage": { "$ref": "#/$defs/coverage" },
+        "frames": { "$ref": "#/$defs/frame_runs" },
+        "n_frames": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "shape_fact": {
+      "type": "object",
+      "required": ["value", "team_sheet", "coverage", "actual_lines", "lines", "players", "frames", "n_frames"],
+      "properties": {
+        "value": { "type": ["string", "null"], "description": "Formation read from mean depths, e.g. '4-3-3'." },
+        "team_sheet": { "type": ["string", "null"] },
+        "coverage": { "$ref": "#/$defs/coverage" },
+        "actual_lines": { "type": "array", "items": { "type": "array", "items": { "type": "integer" } } },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["players", "depth_m", "width_m"],
+            "properties": {
+              "players": { "type": "array", "items": { "type": "integer" } },
+              "depth_m": { "type": "number" },
+              "width_m": { "type": "number" }
+            }
+          }
+        },
+        "players": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["depth_m", "y_m", "n_frames"],
+            "properties": { "depth_m": { "type": "number" }, "y_m": { "type": "number" }, "n_frames": { "type": "integer" } }
+          }
+        },
+        "frames": { "$ref": "#/$defs/frame_runs" },
+        "n_frames": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "per_phase": {
+      "type": "object",
+      "required": ["all", "in_possession", "out_of_possession"],
+      "properties": {
+        "all": { "$ref": "#/$defs/frame_fact" },
+        "in_possession": { "$ref": "#/$defs/frame_fact" },
+        "out_of_possession": { "$ref": "#/$defs/frame_fact" }
+      }
+    },
+    "flank_numbers": {
+      "type": "object",
+      "required": ["left", "centre", "right"],
+      "properties": { "left": { "type": ["number", "null"] }, "centre": { "type": ["number", "null"] }, "right": { "type": ["number", "null"] } }
+    },
+    "team": {
+      "type": "object",
+      "required": ["long_balls", "progressive_passes", "regains", "attacking_width_m", "final_third_flanks", "shape", "defensive_line_m", "compactness_m"],
+      "properties": {
+        "long_balls": {
+          "type": "object",
+          "required": ["value_pct", "count", "of", "coverage", "event_ids", "long_event_ids"],
+          "properties": {
+            "value_pct": { "type": ["number", "null"] },
+            "count": { "type": "integer" },
+            "of": { "type": "integer" },
+            "coverage": { "$ref": "#/$defs/coverage" },
+            "event_ids": { "$ref": "#/$defs/event_ids" },
+            "long_event_ids": { "$ref": "#/$defs/event_ids" }
+          }
+        },
+        "progressive_passes": {
+          "type": "object",
+          "required": ["value", "of", "share_pct", "coverage", "event_ids", "progressive_event_ids"],
+          "properties": {
+            "value": { "type": "integer" },
+            "of": { "type": "integer" },
+            "share_pct": { "type": ["number", "null"] },
+            "coverage": { "$ref": "#/$defs/coverage" },
+            "event_ids": { "$ref": "#/$defs/event_ids" },
+            "progressive_event_ids": { "$ref": "#/$defs/event_ids" }
+          }
+        },
+        "regains": {
+          "type": "object",
+          "required": ["value", "coverage", "event_ids"],
+          "properties": {
+            "value": {
+              "type": "object",
+              "required": ["high", "mid", "low"],
+              "properties": { "high": { "type": "integer" }, "mid": { "type": "integer" }, "low": { "type": "integer" } }
+            },
+            "coverage": { "$ref": "#/$defs/coverage" },
+            "event_ids": {
+              "type": "object",
+              "required": ["high", "mid", "low"],
+              "additionalProperties": { "$ref": "#/$defs/event_ids" }
+            }
+          }
+        },
+        "attacking_width_m": { "$ref": "#/$defs/frame_fact" },
+        "final_third_flanks": {
+          "type": "object",
+          "required": ["passes", "possession"],
+          "properties": {
+            "passes": {
+              "type": "object",
+              "required": ["value_pct", "count", "coverage", "event_ids"],
+              "properties": {
+                "value_pct": { "$ref": "#/$defs/flank_numbers" },
+                "count": { "$ref": "#/$defs/flank_numbers" },
+                "coverage": { "$ref": "#/$defs/coverage" },
+                "event_ids": { "type": "object", "additionalProperties": { "$ref": "#/$defs/event_ids" } }
+              }
+            },
+            "possession": {
+              "type": "object",
+              "required": ["value_pct", "n_frames", "coverage", "frames"],
+              "properties": {
+                "value_pct": { "$ref": "#/$defs/flank_numbers" },
+                "n_frames": { "$ref": "#/$defs/flank_numbers" },
+                "coverage": { "$ref": "#/$defs/coverage" },
+                "frames": { "type": "object", "additionalProperties": { "$ref": "#/$defs/frame_runs" } }
+              }
+            }
+          }
+        },
+        "shape": {
+          "type": "object",
+          "required": ["all", "in_possession", "out_of_possession"],
+          "properties": {
+            "all": { "$ref": "#/$defs/shape_fact" },
+            "in_possession": { "$ref": "#/$defs/shape_fact" },
+            "out_of_possession": { "$ref": "#/$defs/shape_fact" }
+          }
+        },
+        "defensive_line_m": { "$ref": "#/$defs/per_phase" },
+        "compactness_m": { "$ref": "#/$defs/per_phase" }
+      }
+    },
+    "segment": {
+      "type": "object",
+      "required": ["id", "start", "end", "split_by", "frames", "teams"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^(whole|before_e[0-9]{4,}|after_e[0-9]{4,})$" },
+        "start": { "type": "number", "description": "Seconds since kick-off." },
+        "end": { "type": "number" },
+        "split_by": { "type": ["string", "null"], "description": "The goal or red card event that splits the clip here." },
+        "frames": {
+          "type": "object",
+          "required": ["n_frames", "possession_known", "ball_seen"],
+          "properties": {
+            "n_frames": { "type": "integer", "minimum": 0 },
+            "possession_known": { "$ref": "#/$defs/coverage" },
+            "ball_seen": { "$ref": "#/$defs/coverage" }
+          }
+        },
+        "teams": {
+          "type": "object",
+          "required": ["home", "away"],
+          "properties": { "home": { "$ref": "#/$defs/team" }, "away": { "$ref": "#/$defs/team" } }
+        }
+      }
+    }
+  }
+}

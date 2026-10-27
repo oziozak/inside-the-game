@@ -2,13 +2,14 @@
 
 Two things live here:
 - `event_facts(event, state)`: the numbers and flags about one event (distance, progress,
-  difficulty, into the box...).
+  difficulty as a within-match percentile, into the box...).
 - `MatchState`: running totals updated event by event (score, shots, pass accuracy,
   momentum, per-player counts), so every fact is "as of that moment" and never uses the future.
 """
 
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right, insort
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
@@ -16,6 +17,7 @@ PITCH_X, PITCH_Y = 105.0, 68.0
 GOAL_Y = PITCH_Y / 2
 MOMENTUM_WINDOW_S = 300.0  # last 5 minutes of play
 PASS_TYPES = {"pass", "throw_in", "goal_kick", "corner", "free_kick", "kickoff"}
+PERCENTILE_MIN_PASSES = 10  # completed passes before difficulty is a within-match percentile
 
 
 def other(side: str) -> str:
@@ -42,6 +44,12 @@ def display_minute(t: float, info: dict) -> int:
     return int(t // 60) + 1
 
 
+def pass_progress(e: dict, info: dict) -> float:
+    """Meters a pass moved the ball toward the opponent goal (negative = backward)."""
+    side, period = e["team"], e.get("period", 1)
+    return forward_x(e["end"][0], side, period, info) - forward_x(e["start"][0], side, period, info)
+
+
 def zone(fx: float) -> str:
     """Third of the pitch, from the acting team's point of view."""
     return "defensive_third" if fx < 35 else ("middle_third" if fx < 70 else "final_third")
@@ -51,11 +59,20 @@ def in_box(fx: float, y: float) -> bool:
     return fx >= PITCH_X - 16.5 and abs(y - GOAL_Y) <= 20.16
 
 
-def pass_difficulty(distance: float, speed: float, progress: float, subtype: str | None) -> int:
-    """1-10 rating. Long, fast, forward, through/cross passes are harder. Deterministic."""
+def pass_difficulty_raw(distance: float, speed: float, progress: float, subtype: str | None) -> float:
+    """Ranking key, not capped. Long, fast, forward, through/cross passes are harder. Deterministic."""
     score = 1.0 + distance / 8.0 + max(progress, 0) / 12.0 + max(speed - 40, 0) / 20.0
-    score += {"through": 2.0, "cross": 1.5, "long": 0.5}.get(subtype or "", 0.0)
-    return int(max(1, min(10, round(score))))
+    return score + {"through": 2.0, "cross": 1.5, "long": 0.5}.get(subtype or "", 0.0)
+
+
+def pass_difficulty(raw: float, past: list[float]) -> int:
+    """1-10 rating: the pass's percentile among `past`, this match's earlier completed passes (sorted
+    raw scores). 10 = harder than 90% of them. With fewer than PERCENTILE_MIN_PASSES, the raw score
+    clamped to 1-10, so the first passes do not all read 1 or 10."""
+    if len(past) < PERCENTILE_MIN_PASSES:
+        return int(max(1, min(10, round(raw))))
+    below = bisect_left(past, raw) + (bisect_right(past, raw) - bisect_left(past, raw)) / 2  # ties count half
+    return min(10, 1 + int(10 * below / len(past)))
 
 
 @dataclass
@@ -80,20 +97,23 @@ class MatchState:
     score: dict = field(default_factory=lambda: {"home": 0, "away": 0})
     teams: dict = field(default_factory=lambda: {"home": TeamTotals(), "away": TeamTotals()})
     players: dict = field(default_factory=lambda: defaultdict(lambda: defaultdict(int)))
-    _recent: deque = field(default_factory=deque)  # (t, side, weight) for momentum
+    _recent: deque = field(default_factory=deque)  # (t, side, weight, event) for momentum
+    _completed_raw: list = field(default_factory=list)  # sorted raw difficulty of completed passes so far
+    pass_ratings: dict = field(default_factory=dict)  # event id -> difficulty 1-10, as of that pass
+
+    def _trim(self, t: float) -> None:
+        while self._recent and self._recent[0][0] < t - MOMENTUM_WINDOW_S:
+            self._recent.popleft()
 
     def momentum(self, t: float) -> dict:
         """Share of attacking threat in the last 5 minutes, in percent, home + away = 100."""
-        while self._recent and self._recent[0][0] < t - MOMENTUM_WINDOW_S:
-            self._recent.popleft()
-        w = {"home": 0.0, "away": 0.0}
-        for _, side, weight in self._recent:
-            w[side] += weight
-        total = w["home"] + w["away"]
-        if total == 0:
-            return {"home": 50, "away": 50}
-        home = round(100 * w["home"] / total)
-        return {"home": home, "away": 100 - home}
+        self._trim(t)
+        return threat_share([(side, weight) for _, side, weight, _ in self._recent])
+
+    def momentum_events(self, t: float) -> list[dict]:
+        """The events behind momentum(t), oldest first: the evidence a momentum graphic cites."""
+        self._trim(t)
+        return [e for *_, e in self._recent]
 
     def update(self, e: dict) -> None:
         side, typ, t = e.get("team"), e["type"], e["t"]
@@ -103,35 +123,59 @@ class MatchState:
             return
         team, pid = self.teams[side], e.get("from")
         pstats = self.players[pid] if pid is not None else defaultdict(int)
-        period = e.get("period", 1)
-        fx = forward_x(e["start"][0], side, period, self.info)
 
         if typ in PASS_TYPES and "end" in e:
             team.passes += 1
             pstats["passes"] += 1
+            raw = pass_difficulty_raw(e.get("distance_m", 0), e.get("speed_kmh", 0),
+                                      pass_progress(e, self.info), e.get("subtype"))
+            self.pass_ratings[e["id"]] = pass_difficulty(raw, self._completed_raw)
             if e.get("success"):
                 team.passes_completed += 1
                 pstats["passes_completed"] += 1
-                end_fx = forward_x(e["end"][0], side, period, self.info)
-                if end_fx >= 70:
-                    self._recent.append((t, side, 1.0))
+                insort(self._completed_raw, raw)
         elif typ == "shot":
             team.shots += 1
             pstats["shots"] += 1
             if e.get("subtype") == "on_target":
                 team.shots_on_target += 1
-            self._recent.append((t, side, 3.0))
         elif typ == "goal":
             team.goals += 1
             pstats["goals"] += 1
-            self._recent.append((t, side, 5.0))
         elif typ == "possession_change":
             team.tackles_won += 1
             pstats["ball_wins"] += 1
-            if fx >= 70:
-                self._recent.append((t, side, 2.0))
+        weight = threat_weight(e, self.info)
+        if weight:
+            self._recent.append((t, side, weight, e))
         if e.get("score"):
             self.score = dict(e["score"])
+
+
+def threat_weight(e: dict, info: dict) -> float:
+    """How much an event adds to its team's momentum: a completed pass into the final third 1,
+    a ball win in the final third 2, a shot 3, a goal 5, anything else 0."""
+    side, typ = e.get("team"), e["type"]
+    if side not in ("home", "away"):
+        return 0.0
+    period = e.get("period", 1)
+    if typ in PASS_TYPES and "end" in e:
+        return 1.0 if e.get("success") and forward_x(e["end"][0], side, period, info) >= 70 else 0.0
+    if typ == "possession_change":
+        return 2.0 if forward_x(e["start"][0], side, period, info) >= 70 else 0.0
+    return {"shot": 3.0, "goal": 5.0}.get(typ, 0.0)
+
+
+def threat_share(weighted: list[tuple[str, float]]) -> dict:
+    """(side, weight) pairs -> percent of the threat per side, home + away = 100 (50/50 if none)."""
+    w = {"home": 0.0, "away": 0.0}
+    for side, weight in weighted:
+        w[side] += weight
+    total = w["home"] + w["away"]
+    if total == 0:
+        return {"home": 50, "away": 50}
+    home = round(100 * w["home"] / total)
+    return {"home": home, "away": 100 - home}
 
 
 def event_facts(e: dict, state: MatchState) -> dict:
@@ -148,6 +192,11 @@ def event_facts(e: dict, state: MatchState) -> dict:
         "score_away": state.score["away"],
     }
     if side not in ("home", "away"):
+        if typ in ("half_time", "full_time"):
+            for s in ("home", "away"):
+                team = state.teams[s]
+                f[f"shots_{s}"] = team.shots
+                f[f"on_target_{s}"] = team.shots_on_target
         return f
 
     sx, sy = e["start"]
@@ -162,9 +211,8 @@ def event_facts(e: dict, state: MatchState) -> dict:
     if typ in PASS_TYPES and "end" in e:
         ex, ey = e["end"]
         end_fx = forward_x(ex, side, period, info)
-        progress = end_fx - fx
-        f["progress_m"] = round(progress)
-        f["difficulty"] = pass_difficulty(e.get("distance_m", 0), e.get("speed_kmh", 0), progress, e.get("subtype"))
+        f["progress_m"] = round(pass_progress(e, info))
+        f["difficulty"] = state.pass_ratings[e["id"]]
         f["into_final_third"] = bool(e.get("success")) and fx < 70 <= end_fx
         f["into_box"] = bool(e.get("success")) and in_box(end_fx, ey)
     elif typ == "shot":

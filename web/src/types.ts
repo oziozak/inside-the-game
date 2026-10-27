@@ -1,5 +1,6 @@
 export interface Team {
   name: string; short: string; kit: { shirt: string; shorts: string; goalkeeper?: string };
+  formation?: string; style?: 'possession' | 'counter' | 'pressing' | 'direct' | 'balanced';
   players: { id: number; number: number; name: string; pos: string; starter: boolean }[];
 }
 export interface MatchInfo {
@@ -18,10 +19,11 @@ export type EventType =
   | 'goal' | 'half_time' | 'full_time';
 
 export interface MatchEvent {
-  id: string; match_id: string; t: number; period?: 1 | 2; type: EventType; team?: 'home' | 'away';
+  id: string; match_id: string; t: number; period?: 1 | 2; type: EventType; team?: 'home' | 'away' | 'none';
   from?: number | null; to?: number | null; start?: number[]; end?: number[]; subtype?: string;
   distance_m?: number; speed_kmh?: number; duration_s?: number; success?: boolean;
-  source: 'cv' | 'sim'; confidence: number;
+  score?: { home?: number; away?: number };
+  source: 'cv' | 'sim'; confidence?: number;
 }
 
 export type OverlayGraphic =
@@ -43,4 +45,26 @@ export interface ExportManifest {
   match_id: string; fps: number; width: number; height: number; start: number; end: number;
   rich: boolean; render: { camera: 'cv_full_pitch' | 'broadcast' } & Record<string, unknown>;
   frames: { output_frame: number; t: number; input_frame: number }[];
+}
+
+/** One fact an insight cites: where it is in tactics.json, its value there and how much of the clip it saw. */
+export interface ReportFact {
+  ref: string; field: string; label: string; value: number | string | null; coverage: number | null;
+  key?: string; n_frames?: number; n_events?: number;
+}
+
+export type ReportTopic =
+  | 'shape' | 'defensive_line' | 'compactness' | 'width' | 'flanks' | 'pressing' | 'directness' | 'progression' | 'change';
+
+export interface Insight {
+  id: string; topic: ReportTopic; team: 'home' | 'away' | 'both'; segment: string;
+  coverage: number; hedged: boolean; title: Record<string, string>; text: Record<string, string>;
+  values: Record<string, number | string>; facts: ReportFact[]; event_ids: string[];
+}
+
+/** report.json: the analyst agent's post-match report (schemas/report.schema.json). Optional in a bundle. */
+export interface Report {
+  match_id: string; start: number; end: number; langs: string[]; coverage_min: number;
+  headline: Record<string, string>; insights: Insight[];
+  skipped: { topic: ReportTopic; team: string; segment: string; coverage: number; salience?: number; reason: string }[];
 }

@@ -19,11 +19,14 @@ dist/
 
 # Large generated files (share via cloud storage, not git)
 *.mp4
+# ...except the vision calibration clip, kept in Git LFS (.gitattributes)
+!vision/fixtures/calibration/*.mp4
 *.avi
 *.mov
 data/frames/
 data/renders/
 data/generated/
+data/demo/
 runs/
 *.pt
 *.onnx

@@ -1,0 +1,27 @@
+{
+ "rule": "Dev, test and training seeds are disjoint: no seed appears in more than one clip, so no seed has two roles. Checked by python -m vision.footage check (and pytest). Each clip is `minutes` of a full 90-minute match from `start_minute` (default 0, the kickoff). Dev seeds were picked for having a shot in their first 2 minutes. test1's seed was fixed without looking at its events. test2's rule was fixed before any rendering or grading (#35): the first seed after test1's (2101), unused in any role, whose minutes 40-50 hold at least 1 goal, same pairing as test1; found by running the simulator only, no vision code or grader (python -m vision.footage find-seed --after 2101 --home bosphorus --away thames --start-minute 40 --minutes 10 --goals 1). Training uses 6 clips (18,000 frames, about 22 players each) covering six further pairings; add clips if detector recall needs more.",
+ "clips": [
+  {"name": "dev1", "role": "dev", "seed": 2007, "home": "bosphorus", "away": "thames", "minutes": 2,
+   "note": "red v blue"},
+  {"name": "dev2", "role": "dev", "seed": 2006, "home": "caldera", "away": "bosphorus", "minutes": 2,
+   "note": "orange v white (Bosphorus away kit)"},
+  {"name": "dev3", "role": "dev", "seed": 2005, "home": "saltmarsh", "away": "caldera", "minutes": 2,
+   "note": "green v orange"},
+  {"name": "test1", "role": "test", "seed": 2101, "home": "bosphorus", "away": "thames", "minutes": 10,
+   "note": "held out: never used for dev or training"},
+  {"name": "test2", "role": "test", "seed": 2102, "home": "bosphorus", "away": "thames", "start_minute": 40,
+   "minutes": 10, "note": "held out: goals, half-time and the second-half kickoff; seed by the test2 rule (#35)"},
+  {"name": "train1", "role": "training", "seed": 2201, "home": "thames", "away": "caldera", "minutes": 2,
+   "note": "blue v white"},
+  {"name": "train2", "role": "training", "seed": 2202, "home": "saltmarsh", "away": "bosphorus", "minutes": 2,
+   "note": "green v red"},
+  {"name": "train3", "role": "training", "seed": 2203, "home": "thames", "away": "bosphorus", "minutes": 2,
+   "note": "blue v red"},
+  {"name": "train4", "role": "training", "seed": 2204, "home": "caldera", "away": "saltmarsh", "minutes": 2,
+   "note": "orange v green"},
+  {"name": "train5", "role": "training", "seed": 2205, "home": "bosphorus", "away": "caldera", "minutes": 2,
+   "note": "red v white"},
+  {"name": "train6", "role": "training", "seed": 2206, "home": "saltmarsh", "away": "thames", "minutes": 2,
+   "note": "green v white"}
+ ]
+}
