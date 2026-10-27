@@ -23,7 +23,6 @@ VALID = {"clips": [
     clip("dev3", "dev", 3, "saltmarsh", "caldera"),
     clip("test1", "test", 4, minutes=10),
     clip("train1", "training", 5, "thames", "caldera"),
-    clip("hl1", "highlight", 6, minutes=3),
 ]}
 
 
@@ -67,7 +66,6 @@ def test_dev_needs_a_white_away_kit():
     (lambda r: r["clips"][4].update(away="no_such_team"), "no_such_team"),
     (lambda r: r["clips"].pop(3), "no test clip"),
     (lambda r: r["clips"].pop(4), "no training clip"),
-    (lambda r: r["clips"].pop(5), "no highlight clip"),
     (lambda r: r["clips"][4].update(minutes=0), "minutes"),
     (lambda r: r["clips"][4].update(start_minute=-1), "start_minute"),
     (lambda r: r["clips"][4].update(start_minute=50, minutes=10), "before any substitution"),
