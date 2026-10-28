@@ -4,7 +4,7 @@ Our entry for the Microsoft x Premier League **Inside the Game** hackathon.
  
 **Live demo:** https://kind-meadow-0717f920f.1.azurestaticapps.net/
 
-**Demo video (1:57):** https://youtu.be/HI9e6FTUDsY
+**Demo video (1:57):** https://www.youtube.com/watch?v=Atn3nzU6aOQ
  
 An AI watches a broadcast-style video of a football match and finds the passes, shots, goals and kickoffs **from the pixels alone**. It also works out who is who. A team of agents on **Microsoft Foundry** then decides which graphic goes on screen, when, for how long and for which viewer. They write the words in English, Turkish and Spanish, and a verifier checks every number before it airs.
  
